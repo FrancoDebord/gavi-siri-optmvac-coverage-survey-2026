@@ -1,0 +1,296 @@
+# Intégration et déploiement continus de la plateforme GAVI SIRI R2.
+#
+#   Pull request vers main : tests uniquement.
+#   Push sur main          : tests -> construction de la release -> déploiement SSH -> contrôle /up.
+#   Lancement manuel       : onglet Actions > CI/CD > Run workflow (option « déployer »).
+#
+# Secrets et variables à créer : voir docs/deploiement.md.
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Déployer en production après les tests"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PHP_VERSION: "8.2"
+  NODE_VERSION: "20"
+  PHP_EXTENSIONS: mbstring, intl, pdo_sqlite, pdo_mysql, gd, zip, bcmath, exif, fileinfo
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Tests (SQLite en mémoire, comme en local) : bloquants pour le déploiement.
+  # ---------------------------------------------------------------------------
+  tests:
+    name: Tests PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        php: ["8.2", "8.3"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Dépendances Composer
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # Les vues appellent @vite : le manifeste doit exister pour les tests de pages.
+      - name: Assets (Vite)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Préparer l'environnement
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Tests
+        run: php artisan test
+
+  # ---------------------------------------------------------------------------
+  # 2. Contrôle sur MySQL 8 (base de production) : informatif, non bloquant.
+  # ---------------------------------------------------------------------------
+  tests-mysql:
+    name: Tests MySQL 8 (informatif)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: gavi_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+      - uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund && npm run build
+      - run: cp .env.example .env && php artisan key:generate --ansi
+      - name: Tests sur MySQL
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: gavi_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        # phpunit.xml force SQLite : on le surcharge ici.
+        run: |
+          sed -e 's#<env name="DB_CONNECTION" value="sqlite"/>#<env name="DB_CONNECTION" value="mysql" force="true"/>#' \
+              -e 's#<env name="DB_DATABASE" value=":memory:"/>#<env name="DB_DATABASE" value="gavi_test" force="true"/>#' \
+              phpunit.xml > phpunit.mysql.xml
+          php artisan test --configuration=phpunit.mysql.xml
+
+  # ---------------------------------------------------------------------------
+  # 3. Construction de la release : dépendances de production + assets compilés.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Construire la release
+    needs: tests
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+
+      - name: Dépendances de production
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader --no-scripts
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Assets de production
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Archive
+        run: |
+          echo "${GITHUB_SHA}" > REVISION
+          tar --exclude=./.git --exclude=./.github --exclude=./node_modules --exclude=./tests \
+              --exclude=./storage --exclude=./.env --exclude=./phpunit.xml \
+              -czf "$RUNNER_TEMP/release.tar.gz" .
+          mv "$RUNNER_TEMP/release.tar.gz" release.tar.gz
+          ls -lh release.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: release.tar.gz
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 4. Déploiement sur le serveur (SSH), sans interruption de service.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Déployer en production
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: deploy
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+
+      - name: Clé SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY DEPLOY_PATH; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name manquant dans l'environnement « production » (voir docs/deploiement.md)."
+              exit 1
+            fi
+          done
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            echo "::warning::SSH_KNOWN_HOSTS absent : empreinte du serveur récupérée par ssh-keyscan (moins sûr)."
+            ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" > ~/.ssh/known_hosts
+          fi
+          cat > ~/.ssh/config <<EOF
+          Host prod
+            HostName $SSH_HOST
+            Port $SSH_PORT
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            ServerAliveInterval 30
+          EOF
+
+      - name: Envoyer la release
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          RELEASE="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          echo "RELEASE=$RELEASE" >> "$GITHUB_ENV"
+          ssh prod "mkdir -p '$DEPLOY_PATH/uploads'"
+          scp release.tar.gz "prod:$DEPLOY_PATH/uploads/$RELEASE.tar.gz"
+          scp deploy/deploy.sh "prod:$DEPLOY_PATH/deploy.sh"
+          scp deploy/rollback.sh "prod:$DEPLOY_PATH/rollback.sh"
+
+      - name: Activer la release
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          PHP_BIN: ${{ vars.PHP_BIN || 'php' }}
+          PHP_FPM_SERVICE: ${{ vars.PHP_FPM_SERVICE }}
+          KEEP_RELEASES: ${{ vars.KEEP_RELEASES || '5' }}
+        run: |
+          ssh prod "PHP_BIN='$PHP_BIN' PHP_FPM_SERVICE='$PHP_FPM_SERVICE' KEEP_RELEASES='$KEEP_RELEASES' \
+            bash '$DEPLOY_PATH/deploy.sh' '$DEPLOY_PATH' '$RELEASE'"
+
+      - name: Contrôle de santé (/up)
+        if: vars.APP_URL != ''
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          PHP_BIN: ${{ vars.PHP_BIN || 'php' }}
+          PHP_FPM_SERVICE: ${{ vars.PHP_FPM_SERVICE }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${APP_URL%/}/up" || true)
+            echo "Tentative $i : HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "::error::/up ne répond pas 200 : retour à la release précédente."
+          ssh prod "PHP_BIN='$PHP_BIN' PHP_FPM_SERVICE='$PHP_FPM_SERVICE' bash '$DEPLOY_PATH/rollback.sh' '$DEPLOY_PATH'"
+          exit 1
+
+      - name: Résumé
+        if: always()
+        run: |
+          {
+            echo "### Déploiement"
+            echo "- Release : \`${RELEASE:-—}\`"
+            echo "- Commit : \`${GITHUB_SHA::7}\`"
+            echo "- URL : ${{ vars.APP_URL || 'non renseignée' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nettoyer la clé
+        if: always()
+        run: rm -f ~/.ssh/id_deploy

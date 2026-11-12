@@ -80,6 +80,14 @@ Entrée cron à ajouter :
 
 En développement, `composer dev` lance le serveur, le worker, les logs et Vite.
 
+## Déploiement continu
+
+Chaque push sur `main` passe par GitHub Actions ([.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml)) :
+tests (PHP 8.2 et 8.3), construction de la release, déploiement SSH sans interruption, contrôle de
+`/up`, et retour automatique à la release précédente en cas d'échec. Les pull requests ne lancent que
+les tests. Préparation du serveur, secrets GitHub et retour arrière : voir
+[docs/deploiement.md](docs/deploiement.md).
+
 ## Commandes artisan
 
 | Commande | Rôle |
@@ -180,5 +188,3 @@ Unit : parser XLSForm (sur le vrai `cov26c4v3.xls`), évaluateur d'expressions, 
 vaccination. Feature : connecteurs ODK et Kobo (`Http::fake()`), import CSV ODK idempotent, moteur
 (ouverture, déduplication, fermeture et réouverture automatiques), cycle de vie des queries,
 périmètres par rôle, pages, endpoints JSON et exports.
-#   g a v i - s i r i - o p t m v a c - c o v e r a g e - s u r v e y - 2 0 2 6  
- 

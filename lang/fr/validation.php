@@ -1,0 +1,51 @@
+<?php
+
+return [
+    'accepted' => 'Le champ :attribute doit être accepté.',
+    'array' => 'Le champ :attribute doit être un tableau.',
+    'boolean' => 'Le champ :attribute doit être vrai ou faux.',
+    'confirmed' => 'La confirmation du champ :attribute ne correspond pas.',
+    'date' => 'Le champ :attribute n\'est pas une date valide.',
+    'email' => 'Le champ :attribute doit être une adresse e-mail valide.',
+    'exists' => 'La valeur sélectionnée pour :attribute est invalide.',
+    'file' => 'Le champ :attribute doit être un fichier.',
+    'in' => 'La valeur sélectionnée pour :attribute est invalide.',
+    'integer' => 'Le champ :attribute doit être un entier.',
+    'max' => [
+        'array' => 'Le champ :attribute ne doit pas contenir plus de :max éléments.',
+        'file' => 'Le fichier :attribute ne doit pas dépasser :max Ko.',
+        'numeric' => 'Le champ :attribute ne doit pas dépasser :max.',
+        'string' => 'Le champ :attribute ne doit pas dépasser :max caractères.',
+    ],
+    'mimes' => 'Le fichier :attribute doit être de type : :values.',
+    'min' => [
+        'array' => 'Le champ :attribute doit contenir au moins :min éléments.',
+        'file' => 'Le fichier :attribute doit faire au moins :min Ko.',
+        'numeric' => 'Le champ :attribute doit être au moins :min.',
+        'string' => 'Le champ :attribute doit contenir au moins :min caractères.',
+    ],
+    'numeric' => 'Le champ :attribute doit être un nombre.',
+    'password' => [
+        'letters' => 'Le champ :attribute doit contenir au moins une lettre.',
+        'mixed' => 'Le champ :attribute doit contenir au moins une majuscule et une minuscule.',
+        'numbers' => 'Le champ :attribute doit contenir au moins un chiffre.',
+        'symbols' => 'Le champ :attribute doit contenir au moins un symbole.',
+        'uncompromised' => 'Ce :attribute est apparu dans une fuite de données. Choisissez-en un autre.',
+    ],
+    'current_password' => 'Le mot de passe est incorrect.',
+    'regex' => 'Le format du champ :attribute est invalide.',
+    'required' => 'Le champ :attribute est obligatoire.',
+    'required_if' => 'Le champ :attribute est obligatoire.',
+    'required_without' => 'Le champ :attribute est obligatoire quand :values n\'est pas renseigné.',
+    'string' => 'Le champ :attribute doit être une chaîne de caractères.',
+    'unique' => 'La valeur du champ :attribute est déjà utilisée.',
+    'uploaded' => 'Le fichier :attribute n\'a pas pu être téléversé.',
+    'url' => 'Le champ :attribute doit être une URL valide.',
+
+    'attributes' => [
+        'email' => 'adresse e-mail',
+        'password' => 'mot de passe',
+        'current_password' => 'mot de passe actuel',
+        'name' => 'nom',
+    ],
+];
