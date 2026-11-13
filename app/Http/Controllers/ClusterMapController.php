@@ -35,7 +35,7 @@ class ClusterMapController extends Controller
         if ($village) {
             $clusters = Cluster::where('village_id', $village->id)
                 ->where(fn ($q) => $q->whereHas('households')->orWhereNotNull('boundary')->orWhereHas('subClusters', fn ($s) => $s->whereNotNull('boundary')))
-                ->with('subClusters')
+                ->with(['village:id,name', 'subClusters'])
                 ->withCount(['households as visible_households' => fn ($q) => $q->visibleTo($user)])
                 ->orderBy('code')->get();
             $points = Household::visibleTo($user)
@@ -66,13 +66,7 @@ class ClusterMapController extends Controller
             },
             'mapData' => [
                 'points' => $points,
-                'boundaries' => $clusters->filter(fn ($c) => $c->boundary || $c->subClusters->whereNotNull('boundary')->isNotEmpty())->map(fn ($c) => [
-                    'code' => $c->code,
-                    'name' => $c->name,
-                    'url' => route('clusters.show', $c),
-                    'boundary' => $c->boundary,
-                    'sub_clusters' => $c->subClusters->whereNotNull('boundary')->map(fn ($s) => ['number' => $s->number, 'boundary' => $s->boundary])->values()->all(),
-                ])->values()->all(),
+                'boundaries' => $clusters->filter->hasMapBoundary()->map->mapBoundary()->values()->all(),
             ],
         ]);
     }

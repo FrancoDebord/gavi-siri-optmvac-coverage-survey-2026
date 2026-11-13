@@ -1,10 +1,11 @@
 # Intégration et déploiement continus de la plateforme GAVI SIRI R2.
 #
 #   Pull request vers main : tests uniquement.
-#   Push sur main          : tests -> construction de la release -> déploiement SSH -> contrôle /up.
+#   Push sur main          : tests -> construction -> publication en GitHub Release ;
+#                            le serveur l'installe lui-même (cron deploy/pull-deploy.sh, contrôle /up).
 #   Lancement manuel       : onglet Actions > CI/CD > Run workflow (option « déployer »).
 #
-# Secrets et variables à créer : voir docs/deploiement.md.
+# Aucun secret : le serveur télécharge la release (dépôt public). Voir docs/deploiement.md.
 
 name: CI/CD
 
@@ -186,111 +187,40 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 4. Déploiement sur le serveur (SSH), sans interruption de service.
+  # 4. Publication : la release devient une GitHub Release « deploy-… ».
+  #    Le serveur (cron deploy/pull-deploy.sh) la détecte et l'installe : aucun SSH entrant n'est nécessaire.
   # ---------------------------------------------------------------------------
-  deploy:
-    name: Déployer en production
+  publish:
+    name: Publier la release
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment:
-      name: production
-      url: ${{ vars.APP_URL }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
     concurrency:
-      group: deploy-production
+      group: publish-production
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: deploy
-
       - uses: actions/download-artifact@v4
         with:
           name: release
 
-      - name: Clé SSH
+      - name: Créer la release GitHub
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY DEPLOY_PATH; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Secret $name manquant dans l'environnement « production » (voir docs/deploiement.md)."
-              exit 1
-            fi
-          done
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          if [ -n "$SSH_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          else
-            echo "::warning::SSH_KNOWN_HOSTS absent : empreinte du serveur récupérée par ssh-keyscan (moins sûr)."
-            ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" > ~/.ssh/known_hosts
-          fi
-          cat > ~/.ssh/config <<EOF
-          Host prod
-            HostName $SSH_HOST
-            Port $SSH_PORT
-            User ${{ secrets.SSH_USER }}
-            IdentityFile ~/.ssh/id_deploy
-            IdentitiesOnly yes
-            ServerAliveInterval 30
-          EOF
-
-      - name: Envoyer la release
-        env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          RELEASE="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
-          echo "RELEASE=$RELEASE" >> "$GITHUB_ENV"
-          ssh prod "mkdir -p '$DEPLOY_PATH/uploads'"
-          scp release.tar.gz "prod:$DEPLOY_PATH/uploads/$RELEASE.tar.gz"
-          scp deploy/deploy.sh "prod:$DEPLOY_PATH/deploy.sh"
-          scp deploy/rollback.sh "prod:$DEPLOY_PATH/rollback.sh"
-
-      - name: Activer la release
-        env:
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          PHP_BIN: ${{ vars.PHP_BIN || 'php' }}
-          PHP_FPM_SERVICE: ${{ vars.PHP_FPM_SERVICE }}
-          KEEP_RELEASES: ${{ vars.KEEP_RELEASES || '5' }}
-        run: |
-          ssh prod "PHP_BIN='$PHP_BIN' PHP_FPM_SERVICE='$PHP_FPM_SERVICE' KEEP_RELEASES='$KEEP_RELEASES' \
-            bash '$DEPLOY_PATH/deploy.sh' '$DEPLOY_PATH' '$RELEASE'"
-
-      - name: Contrôle de santé (/up)
-        if: vars.APP_URL != ''
-        env:
-          APP_URL: ${{ vars.APP_URL }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          PHP_BIN: ${{ vars.PHP_BIN || 'php' }}
-          PHP_FPM_SERVICE: ${{ vars.PHP_FPM_SERVICE }}
-        run: |
-          for i in 1 2 3 4 5 6; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${APP_URL%/}/up" || true)
-            echo "Tentative $i : HTTP $code"
-            [ "$code" = "200" ] && exit 0
-            sleep 10
-          done
-          echo "::error::/up ne répond pas 200 : retour à la release précédente."
-          ssh prod "PHP_BIN='$PHP_BIN' PHP_FPM_SERVICE='$PHP_FPM_SERVICE' bash '$DEPLOY_PATH/rollback.sh' '$DEPLOY_PATH'"
-          exit 1
-
-      - name: Résumé
-        if: always()
-        run: |
+          TAG="deploy-$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          gh release create "$TAG" release.tar.gz \
+            --target "$GITHUB_SHA" --latest=false \
+            --title "Déploiement $TAG" \
+            --notes "Commit ${GITHUB_SHA}. Installée automatiquement par le serveur (cron pull-deploy.sh) dans les minutes qui suivent."
+          # On ne garde que les 10 dernières releases de déploiement.
+          gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^deploy-' | sort -r | tail -n +11 \
+            | while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
           {
-            echo "### Déploiement"
-            echo "- Release : \`${RELEASE:-—}\`"
-            echo "- Commit : \`${GITHUB_SHA::7}\`"
-            echo "- URL : ${{ vars.APP_URL || 'non renseignée' }}"
+            echo "### Release publiée"
+            echo "- Tag : \`$TAG\`"
+            echo "- Le serveur l'installera au prochain passage du cron (2 minutes au plus)."
+            echo "- Suivi : \`shared/storage/logs/deploy.log\` sur le serveur, puis \`${{ vars.APP_URL || 'APP_URL' }}/up\`."
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Nettoyer la clé
-        if: always()
-        run: rm -f ~/.ssh/id_deploy

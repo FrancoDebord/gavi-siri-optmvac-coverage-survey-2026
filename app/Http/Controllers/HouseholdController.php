@@ -17,7 +17,7 @@ class HouseholdController extends Controller
     public function show(Request $request, Household $household): View
     {
         $this->authorize('view', $household);
-        $household->load(['caregivers.children', 'healthZone', 'commune', 'village', 'cluster.subClusters', 'collector.team', 'dataSource', 'queries' => fn ($q) => $q->latest('id')]);
+        $household->load(['caregivers.children', 'healthZone', 'commune', 'village', 'cluster.village', 'cluster.subClusters', 'collector.team', 'dataSource', 'queries' => fn ($q) => $q->latest('id')]);
 
         return view('households.show', [
             'household' => $household,
@@ -58,13 +58,7 @@ class HouseholdController extends Controller
                     'code' => $household->household_code, 'accuracy' => $household->gps_accuracy,
                 ] : null,
                 'neighbours' => $neighbours,
-                'boundaries' => $cluster && ($cluster->boundary || $cluster->subClusters->whereNotNull('boundary')->isNotEmpty()) ? [[
-                    'code' => $cluster->code,
-                    'name' => $cluster->name,
-                    'url' => route('clusters.show', $cluster),
-                    'boundary' => $cluster->boundary,
-                    'sub_clusters' => $cluster->subClusters->whereNotNull('boundary')->map(fn ($s) => ['number' => $s->number, 'boundary' => $s->boundary])->values()->all(),
-                ]] : [],
+                'boundaries' => $cluster?->hasMapBoundary() ? [$cluster->mapBoundary()] : [],
             ],
         ];
     }

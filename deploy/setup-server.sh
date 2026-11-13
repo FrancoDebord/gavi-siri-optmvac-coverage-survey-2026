@@ -73,15 +73,28 @@ else
   echo "→ $SHARED/.env existe déjà : inchangé."
 fi
 
+# Configuration du déploiement « pull » (deploy/pull-deploy.sh, lancé par cron).
+if [ ! -f "$SHARED/deploy.conf" ]; then
+  cat > "$SHARED/deploy.conf" <<EOF
+GITHUB_REPO=FrancoDebord/gavi-siri-optmvac-coverage-survey-2026
+PHP_BIN=$(command -v php || echo php)
+KEEP_RELEASES=5
+# Facultatif : jeton GitHub en lecture seule (dépôt privé, ou limite d'appels de l'API atteinte).
+GITHUB_TOKEN=
+EOF
+  chmod 600 "$SHARED/deploy.conf"
+  echo "→ $SHARED/deploy.conf créé."
+fi
+
 cat <<EOF
 
 Étapes restantes (voir docs/deploiement.md) :
   1. Créer la base MySQL et l'utilisateur indiqués dans $SHARED/.env.
   2. Copier le XLSForm et les CSV dans $SHARED/storage/app/public/settings
      (cov26c4v3.xls, l1.csv, village.csv, l1_fieldworkers.csv, points_gps/…).
-  3. Nginx : racine $DEPLOY_PATH/current/public (modèle deploy/nginx/gavi-r2.conf).
-  4. Supervisor : worker de queue (modèle deploy/supervisor/gavi-r2-worker.conf).
-  5. Cron : * * * * * cd $DEPLOY_PATH/current && php artisan schedule:run >> /dev/null 2>&1
-  6. Premier déploiement depuis GitHub Actions, puis une fois :
+  3. Racine web du (sous-)domaine : $DEPLOY_PATH/current/public.
+  4. Cron toutes les 2 minutes : bash $DEPLOY_PATH/pull-deploy.sh $DEPLOY_PATH
+     (puis, après le premier déploiement, schedule:run et queue:work chaque minute).
+  5. Premier déploiement : push sur main. Si la base est neuve, une fois ensuite :
        cd $DEPLOY_PATH/current && php artisan db:seed --force && php artisan gavi:load-dictionary
 EOF

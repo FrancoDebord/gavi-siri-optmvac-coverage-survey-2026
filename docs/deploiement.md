@@ -1,13 +1,20 @@
 # Intégration et déploiement continus (CI/CD)
 
-Chaque push sur `main` est testé puis, si tous les tests passent, déployé automatiquement sur le
-serveur de production. Une pull request vers `main` lance uniquement les tests. Rien n'est déployé si un
-test échoue.
+Chaque push sur `main` est testé puis, si tous les tests passent, publié et installé automatiquement sur le
+serveur de production (hébergement cPanel LWS, `https://gavi-coverage2.airid-africa.com`). Une pull request
+vers `main` lance uniquement les tests. Rien n'est publié si un test échoue.
+
+L'hébergement mutualisé n'accepte pas de connexion SSH depuis l'extérieur : GitHub ne pousse donc rien vers le
+serveur. Il **publie** la release, et c'est le serveur qui vient la **chercher** (déploiement « pull »).
 
 ```
-push main ──► Tests PHP 8.2 + 8.3 (SQLite) ──► Construction de la release ──► Déploiement SSH ──► Contrôle /up
-                Tests MySQL 8 (informatif, non bloquant)                                  └─ échec : retour automatique
-                                                                                             à la release précédente
+GitHub Actions                                              Serveur cPanel (cron toutes les 2 min)
+push main ─► Tests PHP 8.2 + 8.3 ─► Construction ─► GitHub Release « deploy-… »
+             Tests MySQL 8 (informatif)                              │
+                                                  pull-deploy.sh ◄───┘ nouvelle release ?
+                                                     ├─ téléchargement de release.tar.gz
+                                                     ├─ deploy.sh : migrations, bascule de current
+                                                     └─ contrôle APP_URL/up ─ échec : retour à la release précédente
 ```
 
 Le workflow est dans [.github/workflows/ci-cd.yml](../.github/workflows/ci-cd.yml) et les scripts serveur
@@ -17,15 +24,14 @@ dans [deploy/](../deploy/).
 
 | Étape | Détail |
 |---|---|
-| **Tests** | `composer install`, `npm ci && npm run build` (les vues utilisent `@vite`), puis `php artisan test` sur PHP 8.2 et 8.3, base SQLite en mémoire comme en local. Le test du XLSForm est ignoré car `cov26c4v3.xls` n'est pas versionné. |
-| **Tests MySQL 8** | Les mêmes tests sur MySQL 8, pour repérer une requête SQL propre à SQLite. L'étape est informative : un échec ici ne bloque pas le déploiement, mais doit être corrigé. |
-| **Construction** | `composer install --no-dev --optimize-autoloader` et `npm run build`, puis une archive `release.tar.gz` sans `.git`, `node_modules`, `tests`, `storage` ni `.env`. |
-| **Déploiement** | Envoi de l'archive par `scp`, puis `deploy/deploy.sh` sur le serveur : extraction dans `releases/<date>-<commit>`, liens vers `shared/.env` et `shared/storage`, `migrate --force`, `optimize`, bascule atomique du lien `current`, rechargement de PHP-FPM (facultatif) et `queue:restart`. Les 5 dernières releases sont conservées. |
-| **Contrôle /up** | Le workflow appelle `APP_URL/up` (route de santé de Laravel). Sans réponse 200 après une minute, il revient à la release précédente et le job échoue. |
+| **Tests** | `composer install`, `npm ci && npm run build` (les vues utilisent `@vite`), puis `php artisan test` sur PHP 8.2 et 8.3, base SQLite en mémoire. Le test du XLSForm est ignoré car `cov26c4v3.xls` n'est pas versionné. |
+| **Tests MySQL 8** | Les mêmes tests sur MySQL 8. Informatif : un échec ne bloque pas le déploiement, mais doit être corrigé. |
+| **Construction** | `composer install --no-dev --optimize-autoloader` et `npm run build`, puis une archive `release.tar.gz` sans `.git`, `node_modules`, `tests`, `storage` ni `.env`. Le serveur n'a besoin ni de Composer ni de Node. |
+| **Publication** | L'archive est publiée en GitHub Release `deploy-<date>-<commit>`. Les 10 dernières sont conservées. |
+| **Installation (serveur)** | [deploy/pull-deploy.sh](../deploy/pull-deploy.sh), lancé par cron, détecte la nouvelle release, la télécharge et lance [deploy/deploy.sh](../deploy/deploy.sh) : extraction dans `releases/<date>-<commit>`, liens vers `shared/.env` et `shared/storage`, `migrate --force`, `optimize`, bascule atomique du lien `current`, `queue:restart`. Puis `APP_URL/up` doit répondre 200, sinon retour à la release précédente. Journal : `shared/storage/logs/deploy.log`. |
 
-Le service n'est pas interrompu : la nouvelle release est préparée à côté de l'ancienne, et le site
-bascule d'un coup quand elle est prête. Si une étape échoue avant la bascule, la release incomplète est
-supprimée et le site reste sur l'ancienne version.
+Le service n'est pas interrompu : la nouvelle release est préparée à côté de l'ancienne, et le site bascule
+d'un coup quand elle est prête. Une release qui échoue n'est pas retentée : corrigez puis poussez un nouveau commit.
 
 > ⚠️ Les migrations sont lancées **avant** la bascule et ne sont pas annulées par un retour arrière.
 > Écrivez des migrations compatibles avec la version précédente (ajouter une colonne plutôt que la
@@ -34,131 +40,103 @@ supprimée et le site reste sur l'ancienne version.
 ## Arborescence sur le serveur
 
 ```
-/var/www/gavi-r2/
-├── current -> releases/20261110143000-a1b2c3d   racine web : current/public
-├── releases/                                    une release par déploiement
+/home/cp2164318p43/gavi-coverage2/
+├── current -> releases/20261113143000-a1b2c3d   racine web du sous-domaine : current/public
+├── releases/                                    une release par déploiement (5 conservées)
 ├── shared/
 │   ├── .env                                     configuration de production
-│   └── storage/                                 logs, sessions, imports, pièces jointes
-│       └── app/public/settings/                 XLSForm, CSV de référence, points_gps/
-├── uploads/                                     archives en transit
-├── deploy.sh, rollback.sh                       recopiés à chaque déploiement
-└── .deploy.lock
+│   ├── deploy.conf                              dépôt GitHub, binaire PHP (pull-deploy.sh)
+│   └── storage/                                 logs (dont deploy.log), sessions, imports
+│       └── app/public/settings/                 XLSForm, CSV de référence
+├── uploads/                                     archives en cours de téléchargement
+├── pull-deploy.sh, deploy.sh, rollback.sh       mis à jour à chaque déploiement
+└── .last_release                                dernière release traitée
 ```
 
 ## 1. Préparer le serveur (une seule fois)
 
-Prérequis : Ubuntu 22.04 ou plus récent, PHP 8.2 avec PHP-FPM et les extensions `mbstring intl
-pdo_mysql gd zip bcmath exif xml curl`, MySQL 8, Nginx, Supervisor. Composer et Node ne sont **pas**
-nécessaires sur le serveur, car la release arrive déjà construite.
+Prérequis cPanel : PHP 8.2 (CLI : `/usr/local/bin/php`) avec les extensions `intl gd zip bcmath pdo_mysql
+mbstring exif fileinfo`, une base MySQL. Tout se fait depuis le **Terminal** et le **Gestionnaire de fichiers**
+de cPanel.
 
-```bash
-# Utilisateur de déploiement (ou un utilisateur existant)
-sudo adduser --disabled-password deploy
-sudo usermod -aG www-data deploy
-sudo mkdir -p /var/www/gavi-r2 && sudo chown deploy:www-data /var/www/gavi-r2
+1. **Arborescence** : charger [deploy/setup-server.sh](../deploy/setup-server.sh) dans le dossier personnel
+   (pas dans `public_html`), puis `bash ~/setup-server.sh ~/gavi-coverage2`. Il crée `releases/`, `shared/`,
+   `uploads/`, un `shared/.env` avec une `APP_KEY` neuve et `shared/deploy.conf`.
+2. **Base de données** : cPanel › Assistant Base de données MySQL (base, utilisateur, tous les privilèges).
+3. **`shared/.env`** : `APP_URL`, `DB_HOST=localhost`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`,
+   `ADMIN_EMAIL`, `ADMIN_PASSWORD`. Si la base est importée depuis une autre installation, reprendre son
+   `APP_KEY` : elle chiffre les identifiants ODK/Kobo enregistrés en base.
+4. **Sous-domaine** : racine du document `gavi-coverage2/current/public`. cPanel crée alors de vrais dossiers
+   `current/public` : les supprimer (`rm -rf ~/gavi-coverage2/current`), sinon la bascule échoue.
+   Puis SSL/TLS Status › Run AutoSSL (le `.env` impose des cookies sécurisés : HTTPS obligatoire).
+5. **Fichiers du formulaire** : XLSForm et CSV dans `shared/storage/app/public/settings`.
+6. **`shared/deploy.conf`** (créé par l'étape 1, à vérifier) :
+   ```
+   GITHUB_REPO=FrancoDebord/gavi-siri-optmvac-coverage-survey-2026
+   PHP_BIN=/usr/local/bin/php
+   KEEP_RELEASES=5
+   GITHUB_TOKEN=
+   ```
+   `GITHUB_TOKEN` est facultatif tant que le dépôt est public. Il devient nécessaire si le dépôt passe en
+   privé, ou si `deploy.log` signale la limite d'appels de l'API atteinte (l'IP du serveur mutualisé est
+   partagée). Jeton à créer dans GitHub › Settings › Developer settings › Fine-grained tokens, limité à ce
+   dépôt, permission **Contents : Read-only**.
+7. **Script de déploiement** (une fois ; ensuite il se met à jour seul) :
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/FrancoDebord/gavi-siri-optmvac-coverage-survey-2026/main/deploy/pull-deploy.sh -o ~/gavi-coverage2/pull-deploy.sh
+   ```
+8. **Tâche cron** (cPanel › Tâches Cron, « Toutes les 2 minutes », `*/2 * * * *`) :
+   ```
+   bash /home/cp2164318p43/gavi-coverage2/pull-deploy.sh /home/cp2164318p43/gavi-coverage2 >/dev/null 2>&1
+   ```
 
-# En tant que deploy : arborescence et .env de production
-sudo -iu deploy
-curl -fsSLO https://raw.githubusercontent.com/FrancoDebord/gavi-siri-optmvac-coverage-survey-2026/main/deploy/setup-server.sh
-bash setup-server.sh /var/www/gavi-r2
-nano /var/www/gavi-r2/shared/.env           # APP_URL, DB_*, ADMIN_PASSWORD
+Après le premier déploiement réussi, ajouter deux tâches cron « Une fois par minute » :
+
+```
+cd /home/cp2164318p43/gavi-coverage2/current && /usr/local/bin/php artisan schedule:run >> /dev/null 2>&1
+cd /home/cp2164318p43/gavi-coverage2/current && /usr/local/bin/php artisan queue:work --stop-when-empty --max-time=55 >> /dev/null 2>&1
 ```
 
-Si le dépôt est privé, copiez `deploy/setup-server.sh` sur le serveur avec `scp` au lieu de `curl`.
+Si la base est neuve (non importée), une seule fois :
+`php artisan db:seed --force && php artisan gavi:load-dictionary` dans `current`.
 
-Puis :
+## 2. GitHub
 
-1. **Base de données**
-   ```sql
-   CREATE DATABASE gavi_r2 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   CREATE USER 'gavi'@'localhost' IDENTIFIED BY 'mot-de-passe-fort';
-   GRANT ALL PRIVILEGES ON gavi_r2.* TO 'gavi'@'localhost';
-   ```
-2. **Fichiers du formulaire** : copiez `cov26c4v3.xls`, les CSV (`l1.csv`, `village.csv`,
-   `l1_fieldworkers.csv`…) et `points_gps/` dans `shared/storage/app/public/settings`.
-   Le `.env` généré pointe déjà `GAVI_SETTINGS_PATH` vers ce dossier.
-3. **Nginx** : modèle [deploy/nginx/gavi-r2.conf](../deploy/nginx/gavi-r2.conf). Il utilise
-   `$realpath_root`, qui suit la bascule du lien `current` sans redémarrage. Pour le HTTPS :
-   `sudo certbot --nginx -d votre-domaine`.
-4. **Worker de queue** : modèle [deploy/supervisor/gavi-r2-worker.conf](../deploy/supervisor/gavi-r2-worker.conf)
-   à copier dans `/etc/supervisor/conf.d/`, puis `sudo supervisorctl reread && sudo supervisorctl update`.
-5. **Scheduler** (`crontab -e` de l'utilisateur deploy) :
-   ```cron
-   * * * * * cd /var/www/gavi-r2/current && php artisan schedule:run >> /dev/null 2>&1
-   ```
-6. **Rechargement de PHP-FPM** (facultatif, vide le cache opcache) : autorisez la commande sans mot de passe.
-   ```bash
-   echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl reload php8.2-fpm' | sudo tee /etc/sudoers.d/deploy-fpm
-   ```
-   Puis définissez la variable GitHub `PHP_FPM_SERVICE=php8.2-fpm`.
-7. **Clé SSH de déploiement** (sur votre poste) :
-   ```bash
-   ssh-keygen -t ed25519 -C "github-actions-gavi" -f gavi_deploy -N ""
-   ssh-copy-id -i gavi_deploy.pub deploy@SERVEUR     # ou ajoutez la clé publique à ~deploy/.ssh/authorized_keys
-   ssh-keyscan -p 22 SERVEUR                         # sortie à mettre dans le secret SSH_KNOWN_HOSTS
-   ```
+Aucun secret à créer. Seul réglage : **Settings › Actions › General › Workflow permissions** doit laisser le
+workflow écrire (« Read and write permissions »), ou au minimum ne pas bloquer la permission `contents: write`
+demandée par le job de publication.
 
-Après le premier déploiement réussi, une seule fois :
+Variable facultative (**Settings › Secrets and variables › Actions › Variables**) : `APP_URL`, affichée dans le
+résumé du workflow.
 
-```bash
-cd /var/www/gavi-r2/current
-php artisan db:seed --force          # rôles, règles qualité, compte administrateur
-php artisan gavi:load-dictionary     # XLSForm, mapping et référentiel
-```
-
-## 2. Configurer GitHub
-
-Dans **Settings › Environments**, créez l'environnement `production`. Ajoutez-y les éléments
-ci-dessous (ou dans **Settings › Secrets and variables › Actions**).
-
-**Secrets**
-
-| Nom | Exemple | Rôle |
-|---|---|---|
-| `SSH_HOST` | `203.0.113.10` | Adresse du serveur |
-| `SSH_PORT` | `22` | Port SSH (facultatif, 22 par défaut) |
-| `SSH_USER` | `deploy` | Utilisateur de déploiement |
-| `SSH_PRIVATE_KEY` | contenu de `gavi_deploy` | Clé privée, sans phrase de passe |
-| `SSH_KNOWN_HOSTS` | sortie de `ssh-keyscan` | Empreinte du serveur, contre l'usurpation (fortement conseillé) |
-| `DEPLOY_PATH` | `/var/www/gavi-r2` | Dossier de déploiement |
-
-**Variables**
-
-| Nom | Exemple | Rôle |
-|---|---|---|
-| `APP_URL` | `https://gavi.example.org` | URL publique, pour le contrôle `/up` après déploiement |
-| `PHP_BIN` | `php8.2` | Binaire PHP sur le serveur (facultatif, `php` par défaut) |
-| `PHP_FPM_SERVICE` | `php8.2-fpm` | Service à recharger après la bascule (facultatif) |
-| `KEEP_RELEASES` | `5` | Nombre de releases conservées (facultatif) |
-
-Conseillé :
-
-- **Settings › Branches** : protégez `main` et exigez que le contrôle « Tests PHP 8.2 » passe avant la
-  fusion d'une pull request.
-- **Environnement `production` › Required reviewers** : ajoutez-vous si vous voulez valider chaque
-  mise en production d'un clic. Sans cette option, le déploiement est immédiat après les tests.
+Conseillé : **Settings › Branches**, protéger `main` et exiger que « Tests PHP 8.2 » passe avant la fusion.
 
 ## 3. Utilisation au quotidien
 
-- Déployer : `git push origin main`. Suivez le déroulement dans l'onglet **Actions** du dépôt.
-- Relancer un déploiement sans nouveau commit : **Actions › CI/CD › Run workflow**.
+- Déployer : `git push origin main`. Les tests et la publication se suivent dans l'onglet **Actions** ; le
+  serveur installe la release dans les 2 minutes qui suivent.
+- Suivre l'installation (Terminal cPanel) : `tail -n 30 ~/gavi-coverage2/shared/storage/logs/deploy.log`.
+- Voir la version en ligne : `cat ~/gavi-coverage2/current/REVISION` (hash du commit).
+- Republier sans nouveau commit : **Actions › CI/CD › Run workflow**.
+- Forcer la réinstallation de la dernière release : `rm ~/gavi-coverage2/.last_release`.
 - Revenir à la release précédente :
   ```bash
-  ssh deploy@SERVEUR 'bash /var/www/gavi-r2/rollback.sh /var/www/gavi-r2'
+  PHP_BIN=/usr/local/bin/php bash ~/gavi-coverage2/rollback.sh ~/gavi-coverage2
   # ou vers une release précise :
-  ssh deploy@SERVEUR 'bash /var/www/gavi-r2/rollback.sh /var/www/gavi-r2 20261110143000-a1b2c3d'
+  PHP_BIN=/usr/local/bin/php bash ~/gavi-coverage2/rollback.sh ~/gavi-coverage2 20261113143000-a1b2c3d
   ```
-- Voir la version en ligne : `cat /var/www/gavi-r2/current/REVISION` (hash du commit).
-- Journaux : `shared/storage/logs/laravel-*.log` et `shared/storage/logs/worker.log`.
+  La release suivante publiée sur GitHub sera installée normalement.
+- Journaux de l'application : `shared/storage/logs/laravel-*.log`.
 
 ## Dépannage
 
 | Symptôme | Cause probable |
 |---|---|
-| `shared/.env absent` | `setup-server.sh` n'a pas été lancé, ou `DEPLOY_PATH` est différent du dossier préparé. |
-| `Permission denied (publickey)` | Clé publique absente de `authorized_keys`, ou `SSH_USER` incorrect. |
-| `Host key verification failed` | `SSH_KNOWN_HOSTS` ne correspond plus au serveur (réinstallation) : relancez `ssh-keyscan`. |
-| Erreur 500 après bascule, `/up` en échec | Retour automatique effectué. Consultez `laravel-*.log` ; souvent une variable `.env` manquante ou un droit d'écriture sur `shared/storage`. |
-| Les jobs tournent sur l'ancien code | Le worker n'est pas sous Supervisor, ou `queue:restart` ne peut pas écrire dans le cache. |
-| `Un autre déploiement est en cours` | Un déploiement précédent a été interrompu : vérifiez qu'aucun ne tourne, puis relancez. |
+| Rien dans `deploy.log` | Tâche cron absente ou chemin erroné ; lancer la commande du cron à la main dans le Terminal pour voir l'erreur. |
+| `API GitHub injoignable ou limite d'appels atteinte` | Renseigner `GITHUB_TOKEN` dans `shared/deploy.conf`. |
+| Job « Publier la release » en échec (`403`) | Settings › Actions › General › Workflow permissions : autoriser l'écriture. |
+| `shared/.env absent` | `setup-server.sh` non lancé, ou chemin de déploiement différent. |
+| `mv: cannot overwrite directory` | Le dossier `current` créé par cPanel existe encore : `rm -rf ~/gavi-coverage2/current`, puis `rm ~/gavi-coverage2/.last_release`. |
+| `/up répond 000` puis retour arrière | HTTPS pas encore actif (AutoSSL) ou sous-domaine qui ne pointe pas sur `current/public`. |
+| `/up répond 500` puis retour arrière | Consulter `laravel-*.log` : souvent une variable `.env`, une extension PHP manquante ou un droit d'écriture sur `shared/storage`. |
+| `Un autre déploiement est en cours` | Un déploiement précédent a été interrompu : vérifier qu'aucun ne tourne, puis `rm ~/gavi-coverage2/.last_release`. |

@@ -57,13 +57,7 @@ class ClusterController extends Controller
             'bySubCluster' => $bySubCluster,
             'statusLabel' => $statusLabel,
             'mapData' => [
-                'boundaries' => [[
-                    'code' => $cluster->code,
-                    'name' => $cluster->name,
-                    'boundary' => $cluster->boundary,
-                    'sub_clusters' => $cluster->subClusters->whereNotNull('boundary')
-                        ->map(fn ($s) => ['number' => $s->number, 'boundary' => $s->boundary])->values()->all(),
-                ]],
+                'boundaries' => [$cluster->mapBoundary(withUrl: false)],
                 'points' => $households->whereNotNull('latitude')->map(fn ($h) => [
                     'lat' => $h->latitude,
                     'lng' => $h->longitude,

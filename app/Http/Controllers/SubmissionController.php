@@ -53,7 +53,7 @@ class SubmissionController extends Controller
 
         $located = (clone $query)->whereNotNull('latitude')->whereNotNull('longitude');
         $clusterIds = (clone $query)->whereNotNull('cluster_id')->distinct()->limit(300)->pluck('cluster_id');
-        $clusters = Cluster::whereIn('id', $clusterIds)->with('subClusters')
+        $clusters = Cluster::whereIn('id', $clusterIds)->with(['village:id,name', 'subClusters'])
             ->where(fn ($q) => $q->whereNotNull('boundary')->orWhereHas('subClusters', fn ($s) => $s->whereNotNull('boundary')))->get();
         $statusLabel = $this->statusLabeler();
 
@@ -72,13 +72,7 @@ class SubmissionController extends Controller
                         'cluster' => $h->cluster?->code, 'sub_cluster' => $h->sub_cluster, 'status' => $statusLabel($h->survey_status),
                         'date' => $h->interview_date?->format('d/m/Y'), 'url' => route('households.show', $h),
                     ])->values()->all(),
-                'boundaries' => $clusters->map(fn ($c) => [
-                    'code' => $c->code,
-                    'name' => $c->name,
-                    'url' => route('clusters.show', $c),
-                    'boundary' => $c->boundary,
-                    'sub_clusters' => $c->subClusters->whereNotNull('boundary')->map(fn ($s) => ['number' => $s->number, 'boundary' => $s->boundary])->values()->all(),
-                ])->values()->all(),
+                'boundaries' => $clusters->map->mapBoundary()->values()->all(),
             ],
         ]);
     }

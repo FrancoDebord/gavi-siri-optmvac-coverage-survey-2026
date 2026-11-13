@@ -72,6 +72,13 @@ export function baseMap(container) {
     L.control.scale({ imperial: false }).addTo(map);
     addFullscreenControl(map, container);
     map.on('baselayerchange', (event) => stored(event.name));
+    // Étiquettes des zones sous les contours et les ménages (overlayPane = 400) : les points GPS restent visibles par-dessus.
+    const labelPane = map.createPane(LABEL_PANE);
+    labelPane.style.zIndex = 390;
+    labelPane.style.pointerEvents = 'none';
+    const toggleLabels = () => container.classList.toggle('map-labels-hidden', map.getZoom() < LABEL_MIN_ZOOM);
+    map.on('zoomend', toggleLabels);
+    toggleLabels();
     map.on('click focus', () => map.scrollWheelZoom.enable());
     map.on('mouseout', () => {
         if (!container.classList.contains('map-fullscreen')) map.scrollWheelZoom.disable();
@@ -150,13 +157,31 @@ export function addBoundaryLegend(map, boundaries) {
     return legend;
 }
 
+/** En dessous de ce zoom, les étiquettes des zones sont masquées (trop nombreuses à l'échelle d'une commune). */
+export const LABEL_MIN_ZOOM = 12;
+const LABEL_PANE = 'zoneLabels';
+
+/** Étiquette affichée dans une zone : village, grappe, sous-grappe et hameau s'il y en a. */
+function zoneLabel(cluster, subNumber, hamlet, color) {
+    const number = cluster.number ? String(cluster.number).padStart(2, '0') : cluster.code;
+    const parts = [
+        `Grappe ${number}`,
+        subNumber ? `Sous-grappe ${subNumber}` : null,
+        hamlet ? `Hameau ${hamlet}` : null,
+    ].filter(Boolean).map(escapeHtml);
+
+    return `<div class="map-zone-village" style="color:${color}">${escapeHtml(cluster.village || cluster.name || '')}</div>`
+        + parts.map((p) => `<div>${p}</div>`).join('');
+}
+
 /**
  * Contours GeoJSON des grappes (bleu nuit, trait plein) et de leurs sous-grappes (pointillés, couleur par numéro).
- * boundaries : [{ code, name, url?, boundary, sub_clusters: [{ number, boundary }] }]
+ * Chaque zone porte son nom (village, grappe, sous-grappe, hameau), visible à partir du zoom LABEL_MIN_ZOOM.
+ * boundaries : [{ code, number?, name, village?, url?, boundary, sub_clusters: [{ number, boundary }] }]
  */
 export function drawBoundaries(layer, boundaries, { link = true } = {}) {
     // Chaque contour (un par hameau) a sa fenêtre : hameau et superficie ; un point isolé (< 3 points) est un petit rond.
-    const geoJson = (data, style, header) => L.geoJSON(data, {
+    const geoJson = (data, style, header, label) => L.geoJSON(data, {
         style,
         pointToLayer: (feature, latlng) => L.circleMarker(latlng, { ...style, radius: 4, fillOpacity: 0.8 }),
         onEachFeature: (feature, featureLayer) => {
@@ -166,20 +191,30 @@ export function drawBoundaries(layer, boundaries, { link = true } = {}) {
                 props.superficie_ha !== undefined ? `${String(props.superficie_ha).replace('.', ',')} ha` : null,
             ].filter(Boolean).join(' · ');
             featureLayer.bindPopup(header + (details ? `<br>${details}` : ''));
+            const isPoint = feature.geometry?.type === 'Point';
+            featureLayer.bindTooltip(label(props.hameau), {
+                permanent: true,
+                direction: isPoint ? 'top' : 'center',
+                offset: isPoint ? [0, -6] : [0, 0],
+                className: 'map-zone-label',
+                pane: LABEL_PANE,
+            });
         },
     });
 
     boundaries.forEach((cluster) => {
-        const title = `<strong>Grappe ${escapeHtml(cluster.code)}</strong><br>${escapeHtml(cluster.name)}`;
+        const title = `<strong>Grappe ${escapeHtml(cluster.code)}</strong><br>${escapeHtml(cluster.village || cluster.name)}`;
         const more = link && cluster.url ? `<br><a href="${cluster.url}">Voir la grappe et ses ménages</a>` : '';
         if (cluster.boundary) {
             const c = BOUNDARY_COLORS.cluster;
-            geoJson(cluster.boundary, { color: c, weight: 3.5, opacity: 0.95, fillColor: c, fillOpacity: 0.05 }, title + more).addTo(layer);
+            geoJson(cluster.boundary, { color: c, weight: 3.5, opacity: 0.95, fillColor: c, fillOpacity: 0.05 }, title + more,
+                (hamlet) => zoneLabel(cluster, null, hamlet, c)).addTo(layer);
         }
         // Sous-grappes dessinées après la grappe, donc par-dessus.
         (cluster.sub_clusters || []).forEach((sub) => {
             const c = subClusterColor(sub.number);
-            geoJson(sub.boundary, { color: c, weight: 2.5, dashArray: '8 6', opacity: 0.95, fillColor: c, fillOpacity: 0.08 }, `${title}<br>Sous-grappe ${escapeHtml(sub.number)}${more}`).addTo(layer);
+            geoJson(sub.boundary, { color: c, weight: 2.5, dashArray: '8 6', opacity: 0.95, fillColor: c, fillOpacity: 0.08 }, `${title}<br>Sous-grappe ${escapeHtml(sub.number)}${more}`,
+                (hamlet) => zoneLabel(cluster, sub.number, hamlet, c)).addTo(layer);
         });
     });
     if (layer._map) addBoundaryLegend(layer._map, boundaries);

@@ -112,14 +112,7 @@ class TeamSpaceController extends Controller
         return view('team.clusters', $this->shared($request, $team, $teams, 'grappes') + [
             'clusters' => $clusters,
             'mapData' => [
-                'boundaries' => $clusters->filter(fn ($c) => $c->boundary || $c->subClusters->whereNotNull('boundary')->isNotEmpty())->map(fn ($c) => [
-                    'id' => $c->id,
-                    'code' => $c->code,
-                    'name' => $c->name,
-                    'url' => route('clusters.show', $c),
-                    'boundary' => $c->boundary,
-                    'sub_clusters' => $c->subClusters->whereNotNull('boundary')->map(fn ($s) => ['number' => $s->number, 'boundary' => $s->boundary])->values()->all(),
-                ])->values()->all(),
+                'boundaries' => $clusters->filter->hasMapBoundary()->map->mapBoundary()->values()->all(),
                 'points' => (clone $households)->whereNotNull('latitude')->whereNotNull('longitude')->with('cluster:id,code')
                     ->get(['id', 'latitude', 'longitude', 'household_code', 'consented', 'survey_status', 'sub_cluster', 'cluster_id', 'interview_date'])
                     ->map(fn ($h) => [

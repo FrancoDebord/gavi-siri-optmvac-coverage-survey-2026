@@ -51,4 +51,26 @@ class Cluster extends Model
     {
         return $this->hasMany(Household::class);
     }
+
+    /** Contours pour les cartes (resources/js/lib/map.js › drawBoundaries) ; charger village et subClusters au préalable. */
+    public function mapBoundary(bool $withUrl = true): array
+    {
+        return [
+            'id' => $this->id,
+            'code' => $this->code,
+            'number' => $this->number,
+            'name' => $this->name,
+            'village' => $this->village?->name,
+            'url' => $withUrl ? route('clusters.show', $this) : null,
+            'boundary' => $this->boundary,
+            'sub_clusters' => $this->subClusters->whereNotNull('boundary')
+                ->map(fn ($s) => ['number' => $s->number, 'boundary' => $s->boundary])->values()->all(),
+        ];
+    }
+
+    /** La grappe ou l'une de ses sous-grappes a un contour relevé. */
+    public function hasMapBoundary(): bool
+    {
+        return $this->boundary || $this->subClusters->whereNotNull('boundary')->isNotEmpty();
+    }
 }

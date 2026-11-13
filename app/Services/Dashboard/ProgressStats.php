@@ -321,14 +321,17 @@ class ProgressStats
         $clusters = $this->clusterQuery()
             ->where(fn ($q) => $q->whereNotNull('clusters.boundary')
                 ->orWhereExists(fn ($s) => $s->from('sub_clusters')->whereColumn('sub_clusters.cluster_id', 'clusters.id')->whereNotNull('sub_clusters.boundary')))
-            ->get(['clusters.id', 'clusters.code', 'clusters.name', 'clusters.boundary']);
+            ->leftJoin('villages', 'villages.id', '=', 'clusters.village_id')
+            ->get(['clusters.id', 'clusters.code', 'clusters.number', 'clusters.name', 'villages.name as village', 'clusters.boundary']);
         $subClusters = DB::table('sub_clusters')->whereIn('cluster_id', $clusters->pluck('id'))->whereNotNull('boundary')
             ->orderBy('number')->get(['cluster_id', 'number', 'boundary'])->groupBy('cluster_id');
 
         return $clusters->map(fn ($c) => [
             'id' => $c->id,
             'code' => $c->code,
+            'number' => $c->number,
             'name' => $c->name,
+            'village' => $c->village,
             'url' => route('clusters.show', $c->id),
             'boundary' => $c->boundary ? json_decode($c->boundary, true) : null,
             'sub_clusters' => ($subClusters[$c->id] ?? collect())->map(fn ($s) => ['number' => $s->number, 'boundary' => json_decode($s->boundary, true)])->values()->all(),
