@@ -24,7 +24,7 @@ dans [deploy/](../deploy/).
 
 | Étape | Détail |
 |---|---|
-| **Tests** | `composer install`, `npm ci && npm run build` (les vues utilisent `@vite`), puis `php artisan test` sur PHP 8.2 et 8.3, base SQLite en mémoire. Le test du XLSForm est ignoré car `cov26c4v3.xls` n'est pas versionné. |
+| **Tests** | `composer install`, `npm ci && npm run build` (les vues utilisent `@vite`), déchiffrement des fichiers du formulaire, puis `php artisan test` sur PHP 8.2 et 8.3, base SQLite en mémoire. |
 | **Tests MySQL 8** | Les mêmes tests sur MySQL 8. Informatif : un échec ne bloque pas le déploiement, mais doit être corrigé. |
 | **Construction** | `composer install --no-dev --optimize-autoloader` et `npm run build`, puis une archive `release.tar.gz` sans `.git`, `node_modules`, `tests`, `storage` ni `.env`. Le serveur n'a besoin ni de Composer ni de Node. |
 | **Publication** | L'archive est publiée en GitHub Release `deploy-<date>-<commit>`. Les 10 dernières sont conservées. |
@@ -102,9 +102,21 @@ Si la base est neuve (non importée), une seule fois :
 
 ## 2. GitHub
 
-Aucun secret à créer. Seul réglage : **Settings › Actions › General › Workflow permissions** doit laisser le
-workflow écrire (« Read and write permissions »), ou au minimum ne pas bloquer la permission `contents: write`
-demandée par le job de publication.
+**Un secret** (**Settings › Secrets and variables › Actions › New repository secret**) :
+
+| Nom | Rôle |
+|---|---|
+| `SETTINGS_PASSPHRASE` | Mot de passe de [tests/fixtures/settings.tar.gz.enc](../tests/fixtures/settings.tar.gz.enc) |
+
+Les tests ont besoin du XLSForm et des CSV de référence (`gavi:load-dictionary`). Le dépôt étant public et
+`l1_fieldworkers.csv` contenant les noms des agents, ces fichiers sont versionnés **chiffrés** (AES-256) et
+déchiffrés par [tests/fixtures/decrypt-settings.sh](../tests/fixtures/decrypt-settings.sh) au début des tests.
+Après une modification du XLSForm ou des CSV, rechiffrer l'archive avec la commande indiquée en tête de ce
+script, puis committer `settings.tar.gz.enc`.
+
+Réglage : **Settings › Actions › General › Workflow permissions** doit laisser le workflow écrire
+(« Read and write permissions »), ou au minimum ne pas bloquer la permission `contents: write` demandée par le
+job de publication.
 
 Variable facultative (**Settings › Secrets and variables › Actions › Variables**) : `APP_URL`, affichée dans le
 résumé du workflow.
@@ -132,6 +144,7 @@ Conseillé : **Settings › Branches**, protéger `main` et exiger que « Tests 
 
 | Symptôme | Cause probable |
 |---|---|
+| Tous les tests échouent sur `gavi:load-dictionary` | Secret `SETTINGS_PASSPHRASE` absent ou erroné, ou archive chiffrée pas à jour. |
 | Rien dans `deploy.log` | Tâche cron absente ou chemin erroné ; lancer la commande du cron à la main dans le Terminal pour voir l'erreur. |
 | `API GitHub injoignable ou limite d'appels atteinte` | Renseigner `GITHUB_TOKEN` dans `shared/deploy.conf`. |
 | Job « Publier la release » en échec (`403`) | Settings › Actions › General › Workflow permissions : autoriser l'écriture. |

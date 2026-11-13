@@ -5,7 +5,8 @@
 #                            le serveur l'installe lui-même (cron deploy/pull-deploy.sh, contrôle /up).
 #   Lancement manuel       : onglet Actions > CI/CD > Run workflow (option « déployer »).
 #
-# Aucun secret : le serveur télécharge la release (dépôt public). Voir docs/deploiement.md.
+# Secret : SETTINGS_PASSPHRASE (fichiers du formulaire chiffrés pour les tests). Le serveur télécharge
+# lui-même la release (dépôt public). Voir docs/deploiement.md.
 
 name: CI/CD
 
@@ -81,6 +82,12 @@ jobs:
           cp .env.example .env
           php artisan key:generate --ansi
 
+      # XLSForm et CSV de référence (noms des agents) : chiffrés dans le dépôt public, déchiffrés pour les tests.
+      - name: Fichiers du formulaire
+        env:
+          SETTINGS_PASSPHRASE: ${{ secrets.SETTINGS_PASSPHRASE }}
+        run: bash tests/fixtures/decrypt-settings.sh
+
       - name: Tests
         run: php artisan test
 
@@ -120,6 +127,10 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund && npm run build
       - run: cp .env.example .env && php artisan key:generate --ansi
+      - name: Fichiers du formulaire
+        env:
+          SETTINGS_PASSPHRASE: ${{ secrets.SETTINGS_PASSPHRASE }}
+        run: bash tests/fixtures/decrypt-settings.sh
       - name: Tests sur MySQL
         env:
           DB_CONNECTION: mysql
@@ -133,7 +144,7 @@ jobs:
           sed -e 's#<env name="DB_CONNECTION" value="sqlite"/>#<env name="DB_CONNECTION" value="mysql" force="true"/>#' \
               -e 's#<env name="DB_DATABASE" value=":memory:"/>#<env name="DB_DATABASE" value="gavi_test" force="true"/>#' \
               phpunit.xml > phpunit.mysql.xml
-          php artisan test --configuration=phpunit.mysql.xml
+          vendor/bin/phpunit --configuration=phpunit.mysql.xml
 
   # ---------------------------------------------------------------------------
   # 3. Construction de la release : dépendances de production + assets compilés.
