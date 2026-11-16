@@ -62,7 +62,11 @@ cd "$TARGET"
 
 log "Découverte des packages et caches"
 "$PHP_BIN" artisan package:discover --ansi
-"$PHP_BIN" artisan optimize:clear --ansi >/dev/null
+# Pas d'optimize:clear : il vide aussi le cache applicatif, stocké en base (CACHE_STORE=database), et
+# échoue sur une base neuve dont la table cache n'est pas encore créée. Seuls les caches fichiers sont vidés.
+for cache in config route view event; do
+  "$PHP_BIN" artisan "$cache:clear" --ansi
+done
 
 log "Migrations"
 "$PHP_BIN" artisan migrate --force --no-interaction --ansi
