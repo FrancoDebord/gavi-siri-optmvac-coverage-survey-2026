@@ -58,6 +58,18 @@ ln -sfn "$SHARED/storage" "$TARGET/storage"
 ln -sfn "$SHARED/.env" "$TARGET/.env"
 mkdir -p "$TARGET/bootstrap/cache"
 
+# Réglages propres à l'hébergeur (cPanel : version PHP, MultiPHP INI) conservés dans shared/public/ :
+# le .htaccess est placé avant celui de Laravel, les autres fichiers (.user.ini, php.ini) sont copiés tels quels.
+if [ -d "$SHARED/public" ]; then
+  if [ -f "$SHARED/public/.htaccess" ]; then
+    { cat "$SHARED/public/.htaccess"; echo; cat "$TARGET/public/.htaccess"; } > "$TARGET/public/.htaccess.new"
+    mv -f "$TARGET/public/.htaccess.new" "$TARGET/public/.htaccess"
+  fi
+  for f in .user.ini php.ini; do
+    [ -f "$SHARED/public/$f" ] && cp -f "$SHARED/public/$f" "$TARGET/public/$f"
+  done
+fi
+
 cd "$TARGET"
 
 log "Découverte des packages et caches"
