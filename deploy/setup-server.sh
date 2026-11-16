@@ -51,6 +51,8 @@ SESSION_SECURE_COOKIE=true
 BROADCAST_CONNECTION=log
 FILESYSTEM_DISK=local
 QUEUE_CONNECTION=database
+# Supérieur au timeout des jobs longs (RunQualityChecksJob : 3600 s), sinon un second worker les reprend.
+DB_QUEUE_RETRY_AFTER=3700
 CACHE_STORE=database
 
 MAIL_MAILER=log
