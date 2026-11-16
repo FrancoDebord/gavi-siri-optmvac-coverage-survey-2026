@@ -63,11 +63,33 @@ de cPanel.
    (pas dans `public_html`), puis `bash ~/setup-server.sh ~/gavi-coverage2`. Il crée `releases/`, `shared/`,
    `uploads/`, un `shared/.env` avec une `APP_KEY` neuve et `shared/deploy.conf`.
 2. **Base de données** : cPanel › Assistant Base de données MySQL (base, utilisateur, tous les privilèges).
-3. **`shared/.env`** : `APP_URL`, `DB_HOST=localhost`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`,
-   `ADMIN_EMAIL`, `ADMIN_PASSWORD`. Si la base est importée depuis une autre installation, reprendre son
-   `APP_KEY` : elle chiffre les identifiants ODK/Kobo enregistrés en base.
-4. **Sous-domaine** : racine du document `gavi-coverage2/current/public`. cPanel crée alors de vrais dossiers
-   `current/public` : les supprimer (`rm -rf ~/gavi-coverage2/current`), sinon la bascule échoue.
+   Base et utilisateur portent le préfixe du compte et n'ont pas forcément le même nom (en production : base
+   `cp2164318p43_gavi`, utilisateur `cp2164318p43_fhoueha`). Vérifier les identifiants avant le premier
+   déploiement : `mysql -u <utilisateur> -p -h localhost <base> -e "select 1"`.
+3. **`shared/.env`** : `APP_URL`, `DB_HOST=localhost`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (entre
+   guillemets s'il contient `#`, `$` ou un espace), `ADMIN_EMAIL`, `ADMIN_PASSWORD`, et
+   `DB_QUEUE_RETRY_AFTER=3700` (sinon les contrôles qualité, longs, échouent en « attempted too many times »).
+   Si la base est importée depuis une autre installation, reprendre son `APP_KEY` : elle chiffre les
+   identifiants ODK/Kobo enregistrés en base.
+4. **Sous-domaine** : cPanel (LWS) impose une racine du document **dans `public_html`** : en production,
+   `public_html/gavi-coverage2/current/public`. Cette racine doit être un **lien** vers la release en ligne,
+   sinon le site sert un dossier vide (`/` en 403, `/up` en 404 et retour arrière à chaque déploiement).
+   Vérifier la racine réelle :
+   ```bash
+   uapi DomainInfo single_domain_data domain=gavi-coverage2.airid-africa.com | grep documentroot
+   ```
+   cPanel crée dans cette racine un `.htaccess`, un `.user.ini` et un `php.ini` (version PHP, réglages
+   MultiPHP INI) : les conserver dans `shared/public/`, d'où `deploy.sh` les reprend à chaque release (le
+   `.htaccess` de cPanel est placé avant celui de Laravel). Puis remplacer les dossiers créés par cPanel par
+   le lien :
+   ```bash
+   OLD=~/public_html/gavi-coverage2/current/public
+   mkdir -p ~/gavi-coverage2/shared/public
+   cp $OLD/.htaccess $OLD/.user.ini $OLD/php.ini ~/gavi-coverage2/shared/public/ 2>/dev/null
+   mv ~/public_html/gavi-coverage2/current ~/gavi-coverage2-ancien-current
+   ln -s /home/cp2164318p43/gavi-coverage2/current ~/public_html/gavi-coverage2/current
+   ```
+   Si cPanel recrée un vrai dossier `~/gavi-coverage2/current`, le supprimer (`rm -rf`), sinon la bascule échoue.
    Puis SSL/TLS Status › Run AutoSSL (le `.env` impose des cookies sécurisés : HTTPS obligatoire).
 5. **Fichiers du formulaire** : XLSForm et CSV dans `shared/storage/app/public/settings`.
 6. **`shared/deploy.conf`** (créé par l'étape 1, à vérifier) :
@@ -144,8 +166,13 @@ Conseillé : **Settings › Branches**, protéger `main` et exiger que « Tests 
 
 | Symptôme | Cause probable |
 |---|---|
+| « Fichiers du formulaire » : `Secret SETTINGS_PASSPHRASE manquant` | Secret absent, ou créé comme secret de l'environnement `production` (invisible des jobs de tests) : le créer dans **Repository secrets**. |
+| « Fichiers du formulaire » : `bad decrypt` | Le secret ne correspond pas au mot de passe de l'archive. Comparer l'empreinte affichée par le script avec `printf '%s' "$SETTINGS_PASSPHRASE" \| sha256sum \| cut -c1-8` en local. Sous Windows, retirer le `\r` final d'un mot de passe généré par `openssl rand` avant de chiffrer. |
 | Tous les tests échouent sur `gavi:load-dictionary` | Secret `SETTINGS_PASSPHRASE` absent ou erroné, ou archive chiffrée pas à jour. |
-| Rien dans `deploy.log` | Tâche cron absente ou chemin erroné ; lancer la commande du cron à la main dans le Terminal pour voir l'erreur. |
+| `[1045] Access denied for user` | `DB_USERNAME` ou `DB_PASSWORD` erroné dans `shared/.env`, ou utilisateur non associé à la base (cPanel › Bases de données MySQL › Ajouter un utilisateur à une base). Puis `rm ~/gavi-coverage2/.last_release` et relancer `pull-deploy.sh`. |
+| `/up répond 404` (et `/` en 403) puis retour arrière | La racine du sous-domaine n'est pas la release : voir l'étape 4 (lien dans `public_html`). |
+| `RunQualityChecksJob has been attempted too many times` | `DB_QUEUE_RETRY_AFTER=3700` absent de `shared/.env` ; l'ajouter, puis `php artisan config:cache && php artisan queue:restart && php artisan queue:retry all` dans `current`. |
+| Rien dans `deploy.log` | `pull-deploy.sh` pas téléchargé (étape 7), tâche cron absente ou chemin erroné ; lancer la commande du cron à la main dans le Terminal pour voir l'erreur. |
 | `API GitHub injoignable ou limite d'appels atteinte` | Renseigner `GITHUB_TOKEN` dans `shared/deploy.conf`. |
 | Job « Publier la release » en échec (`403`) | Settings › Actions › General › Workflow permissions : autoriser l'écriture. |
 | `shared/.env absent` | `setup-server.sh` non lancé, ou chemin de déploiement différent. |
