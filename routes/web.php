@@ -23,6 +23,7 @@ use App\Http\Controllers\SupervisionController;
 use App\Http\Controllers\TeamMessageController;
 use App\Http\Controllers\TeamSpaceController;
 use App\Http\Controllers\UserController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'active'])->group(function () {
@@ -88,7 +89,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/investigateur/progression', [InvestigatorController::class, 'progress'])->name('investigator.progress');
         Route::get('/investigateur/synthese', [InvestigatorController::class, 'summary'])->name('investigator.summary');
         Route::get('/investigateur/synthese.pdf', [InvestigatorController::class, 'summary'])->name('investigator.summary.pdf')->middleware('throttle:20,1');
-        Route::get('/investigateur/rapport',[InvestigatorController::class, 'report'])->name('investigator.report')->middleware('throttle:20,1');
+        Route::get('/investigateur/rapport', [InvestigatorController::class, 'report'])->name('investigator.report')->middleware('throttle:20,1');
     });
     // Décisions de terrain (saisie)
     Route::middleware('permission:manage decisions')->group(function () {
@@ -100,6 +101,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/decisions/categories', [FieldDecisionController::class, 'storeCategory'])->name('decisions.categories.store');
         Route::post('/decisions/categories/{category}/activation', [FieldDecisionController::class, 'toggleCategory'])->name('decisions.categories.toggle');
     });
+    Route::delete('/decisions/{decision}', [FieldDecisionController::class, 'destroy'])->whereNumber('decision')
+        ->middleware('role:'.User::ROLE_ADMIN)->name('decisions.destroy');
     Route::get('/decisions/export.xlsx', [FieldDecisionController::class, 'export'])->middleware('permission:export data')->name('decisions.export');
 
     Route::post('/messages', [TeamMessageController::class, 'store'])->middleware(['permission:send messages', 'throttle:30,1'])->name('messages.store');

@@ -134,4 +134,30 @@ class FieldDecisionTest extends TestCase
         $pi = $this->user(User::ROLE_PI);
         $this->actingAs($pi)->get(route('decisions.export', ['health_zone_id' => 'global']))->assertOk()->assertDownload('decisions-terrain-'.now()->format('Ymd').'.xlsx');
     }
+
+    public function test_only_admin_can_delete_a_decision_and_replaced_ones_come_back_in_force(): void
+    {
+        $category = $this->category('Décisions de collecte');
+        $old = FieldDecision::create(['decision_category_id' => $category, 'decided_on' => now()->subDay(), 'title' => 'Ancienne', 'decision' => 'a', 'status' => FieldDecision::STATUS_ACTIVE]);
+        $new = FieldDecision::create(['decision_category_id' => $category, 'decided_on' => now(), 'title' => 'Nouvelle', 'decision' => 'b', 'status' => FieldDecision::STATUS_ACTIVE]);
+        $old->update(['status' => FieldDecision::STATUS_REPLACED, 'replaced_by_id' => $new->id]);
+
+        // PI et data manager gèrent les décisions mais ne peuvent pas les supprimer.
+        foreach ([User::ROLE_PI, User::ROLE_DATA_MANAGER] as $role) {
+            $user = $this->user($role);
+            $this->actingAs($user)->get(route('decisions.show', $new))->assertOk()->assertDontSee('bi-trash me-1"></i>Supprimer', false);
+            $this->actingAs($user)->delete(route('decisions.destroy', $new))->assertRedirect($user->homeRoute());
+        }
+        $this->assertModelExists($new);
+
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->actingAs($admin)->get(route('decisions.show', $new))->assertOk()->assertSee('bi-trash me-1"></i>Supprimer', false);
+        $this->actingAs($admin)->delete(route('decisions.destroy', $new))
+            ->assertRedirect(route('decisions.index'))->assertSessionHas('success');
+
+        $this->assertModelMissing($new);
+        $this->assertSame(FieldDecision::STATUS_ACTIVE, $old->fresh()->status);
+        $this->assertNull($old->fresh()->replaced_by_id);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'decision.deleted', 'subject_id' => $new->id, 'user_id' => $admin->id]);
+    }
 }

@@ -11,6 +11,14 @@
                 <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-{{ $decision->in_summary ? 'eye-slash' : 'eye' }} me-1"></i>{{ $decision->in_summary ? 'Masquer du rapport de synthèse' : 'Afficher dans le rapport de synthèse' }}</button>
             </form>
         @endcan
+        @role(\App\Models\User::ROLE_ADMIN)
+            <form method="POST" action="{{ route('decisions.destroy', $decision) }}" class="d-inline"
+                  onsubmit="return confirm(@js('Supprimer définitivement la décision '.$decision->code.' ?'.($decision->replaces->where('status', \App\Models\FieldDecision::STATUS_REPLACED)->isNotEmpty() ? ' Les décisions qu\'elle remplace redeviendront en vigueur.' : '').' Cette action est irréversible.'))">
+                @csrf
+                @method('DELETE')
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Supprimer</button>
+            </form>
+        @endrole
     </x-page-header>
 
     <div class="row g-3">

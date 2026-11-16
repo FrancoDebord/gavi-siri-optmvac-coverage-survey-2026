@@ -96,6 +96,29 @@ class FieldDecisionController extends Controller
         return redirect()->route('decisions.show', $decision)->with('success', "Décision {$decision->code} mise à jour.");
     }
 
+    /**
+     * Suppression définitive (administrateur uniquement). Les décisions que celle-ci remplaçait redeviennent en vigueur :
+     * sans cela, elles resteraient « remplacées » par une décision qui n'existe plus.
+     */
+    public function destroy(FieldDecision $decision): RedirectResponse
+    {
+        $code = $decision->code;
+        $restored = DB::transaction(function () use ($decision) {
+            $restored = $decision->replaces()->where('status', FieldDecision::STATUS_REPLACED)->pluck('id');
+            FieldDecision::whereKey($restored)->update(['status' => FieldDecision::STATUS_ACTIVE, 'replaced_by_id' => null]);
+            AuditLog::record('decision.deleted', $decision, [
+                'code' => $decision->code, 'titre' => $decision->title, 'decision' => $decision->decision,
+                'statut' => $decision->status, 'remises_en_vigueur' => $restored->all(),
+            ]);
+            $decision->delete();
+
+            return $restored;
+        });
+
+        return redirect()->route('decisions.index')->with('success', "Décision {$code} supprimée."
+            .($restored->isNotEmpty() ? ' '.$restored->count().' décision(s) qu\'elle remplaçait redevien'.($restored->count() > 1 ? 'nent' : 't').' en vigueur.' : ''));
+    }
+
     /** Registre au format Excel, avec les filtres de la liste. */
     public function export(Request $request): BinaryFileResponse
     {
