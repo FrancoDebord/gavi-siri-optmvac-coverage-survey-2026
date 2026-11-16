@@ -76,6 +76,7 @@
                                     <span class="fw-semibold ms-1">{{ $decision->title }}</span>
                                 </div>
                                 <span class="small text-nowrap">
+                                    @if ($decision->is_confidential)<span class="badge text-bg-dark me-1"><i class="bi bi-lock me-1"></i>Confidentielle</span>@endif
                                     <span class="badge text-bg-{{ $decision->statusColor() }}">{{ $decision->statusLabel() }}</span>
                                     <span class="text-muted ms-1">{{ $decision->code }} · {{ $decision->decided_on->format('d/m/Y') }}</span>
                                 </span>

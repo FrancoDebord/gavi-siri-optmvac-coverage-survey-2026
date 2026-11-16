@@ -27,6 +27,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span class="badge text-bg-{{ $decision->category?->color ?? 'secondary' }}">{{ $decision->category?->name }}</span>
                     <span>
+                        @if ($decision->is_confidential)<span class="badge text-bg-dark me-1"><i class="bi bi-lock me-1"></i>Confidentielle</span>@endif
                         @unless ($decision->in_summary)<span class="badge text-bg-light border me-1"><i class="bi bi-eye-slash me-1"></i>Hors rapport de synthèse</span>@endunless
                         <span class="badge text-bg-{{ $decision->statusColor() }}">{{ $decision->statusLabel() }}</span>
                     </span>

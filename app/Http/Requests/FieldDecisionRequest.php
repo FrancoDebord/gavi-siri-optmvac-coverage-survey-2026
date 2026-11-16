@@ -34,6 +34,7 @@ class FieldDecisionRequest extends FormRequest
             'replaces_id' => ['nullable', 'integer', 'exists:field_decisions,id'],
             'notify' => ['nullable', 'boolean'],
             'in_summary' => ['nullable', 'boolean'],
+            'is_confidential' => ['nullable', 'boolean'],
         ];
     }
 

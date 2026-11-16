@@ -24,10 +24,10 @@ class FieldDecision extends Model
 
     protected $fillable = [
         'decision_category_id', 'decided_on', 'effective_from', 'title', 'context', 'decision', 'decided_by',
-        'health_zone_id', 'village_id', 'cluster_id', 'status', 'replaced_by_id', 'user_id', 'in_summary',
+        'health_zone_id', 'village_id', 'cluster_id', 'status', 'replaced_by_id', 'user_id', 'in_summary', 'is_confidential',
     ];
 
-    protected $attributes = ['in_summary' => true];
+    protected $attributes = ['in_summary' => true, 'is_confidential' => false];
 
     protected function casts(): array
     {
@@ -35,6 +35,7 @@ class FieldDecision extends Model
             'decided_on' => 'date',
             'effective_from' => 'date',
             'in_summary' => 'boolean',
+            'is_confidential' => 'boolean',
         ];
     }
 
@@ -74,13 +75,19 @@ class FieldDecision extends Model
         return $this->hasMany(self::class, 'replaced_by_id');
     }
 
-    /** Superviseur : décisions générales et celles de sa zone ; autres profils : toutes. */
+    /**
+     * Administrateur : toutes les décisions. Autres profils : décisions non confidentielles ; un superviseur ne voit
+     * en outre que les décisions générales et celles de sa zone.
+     */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
-        $zoneId = $user->supervisedZoneId();
+        if ($user->hasRole(User::ROLE_ADMIN)) {
+            return $query;
+        }
+        $query->where($query->qualifyColumn('is_confidential'), false);
 
         return $user->hasRole(User::ROLE_SUPERVISOR)
-            ? $query->where(fn ($q) => $q->whereNull('health_zone_id')->orWhere('health_zone_id', $zoneId ?? 0))
+            ? $query->where(fn ($q) => $q->whereNull($q->qualifyColumn('health_zone_id'))->orWhere($q->qualifyColumn('health_zone_id'), $user->supervisedZoneId() ?? 0))
             : $query;
     }
 

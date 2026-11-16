@@ -110,6 +110,16 @@
                     </div>
                 </div>
 
+                @role(\App\Models\User::ROLE_ADMIN)
+                    <div class="col-12">
+                        <input type="hidden" name="is_confidential" value="0">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="is_confidential" name="is_confidential" value="1" @checked((bool) $value('is_confidential'))>
+                            <label class="form-check-label" for="is_confidential"><i class="bi bi-lock me-1"></i>Confidentielle <span class="small text-muted">(visible des seuls administrateurs ; jamais dans le rapport de synthèse ni envoyée aux superviseurs)</span></label>
+                        </div>
+                    </div>
+                @endrole
+
                 @if ($editing)
                     <div class="col-md-4">
                         <label for="status" class="form-label">Statut</label>

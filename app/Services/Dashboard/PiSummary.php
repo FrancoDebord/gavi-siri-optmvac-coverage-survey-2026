@@ -142,7 +142,9 @@ class PiSummary
      */
     public function decisions(?bool $inSummary = true): Collection
     {
+        // Les décisions confidentielles (administrateurs seulement) ne figurent jamais dans le rapport.
         return FieldDecision::with(['category', 'healthZone:id,name', 'village:id,name', 'cluster:id,code'])
+            ->where('is_confidential', false)
             ->when($inSummary !== null, fn ($q) => $q->where('in_summary', $inSummary))
             ->when($this->zoneId, fn ($q, $id) => $q->where(fn ($w) => $w->whereNull('health_zone_id')->orWhere('health_zone_id', $id)))
             ->when($this->from, fn ($q, $d) => $q->whereDate('decided_on', '>=', $d))

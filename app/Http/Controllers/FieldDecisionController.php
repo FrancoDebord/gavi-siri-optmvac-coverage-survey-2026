@@ -10,6 +10,7 @@ use App\Models\DecisionCategory;
 use App\Models\FieldDecision;
 use App\Models\HealthZone;
 use App\Models\TeamMessage;
+use App\Models\User;
 use App\Models\Village;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -27,12 +28,14 @@ class FieldDecisionController extends Controller
 {
     public function index(Request $request): View
     {
-        $decisions = $this->filtered($request)->with(['category', 'healthZone:id,name', 'village:id,name', 'cluster:id,code', 'replacedBy:id,title'])
+        $user = $request->user();
+        $decisions = $this->filtered($request)->with(['category', 'healthZone:id,name', 'village:id,name', 'cluster:id,code',
+            'replacedBy' => fn ($q) => $q->visibleTo($user)->select('id', 'title')])
             ->orderByDesc('decided_on')->orderByDesc('id')->paginate(25)->withQueryString();
 
         return view('decisions.index', [
             'decisions' => $decisions,
-            'categories' => DecisionCategory::withCount('decisions')->orderBy('sort')->orderBy('name')->get(),
+            'categories' => DecisionCategory::withCount(['decisions' => fn ($q) => $q->visibleTo($user)])->orderBy('sort')->orderBy('name')->get(),
             'zones' => $request->user()->geographicScope() ? collect() : HealthZone::whereHas('communes')->orderBy('name')->get(['id', 'name']),
             'counts' => FieldDecision::visibleTo($request->user())->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status'),
         ]);
@@ -40,15 +43,17 @@ class FieldDecisionController extends Controller
 
     public function show(Request $request, FieldDecision $decision): View
     {
-        abort_unless(FieldDecision::visibleTo($request->user())->whereKey($decision->id)->exists(), 403);
-        $decision->load(['category', 'healthZone', 'village', 'cluster', 'author', 'replacedBy', 'replaces']);
+        $this->ensureVisible($request, $decision);
+        $user = $request->user();
+        $decision->load(['category', 'healthZone', 'village', 'cluster', 'author',
+            'replacedBy' => fn ($q) => $q->visibleTo($user), 'replaces' => fn ($q) => $q->visibleTo($user)]);
 
         return view('decisions.show', ['decision' => $decision]);
     }
 
     public function create(Request $request): View
     {
-        $replaces = $request->integer('remplace') ? FieldDecision::find($request->integer('remplace')) : null;
+        $replaces = $request->integer('remplace') ? FieldDecision::visibleTo($request->user())->find($request->integer('remplace')) : null;
 
         return view('decisions.form', $this->formData(new FieldDecision([
             'decided_on' => now(),
@@ -63,8 +68,10 @@ class FieldDecisionController extends Controller
     public function store(FieldDecisionRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $this->ensureLinksVisible($request, $data);
         $decision = DB::transaction(function () use ($data, $request) {
-            $decision = FieldDecision::create($this->attributes($data) + ['status' => FieldDecision::STATUS_ACTIVE, 'user_id' => $request->user()->id]);
+            $decision = FieldDecision::create($this->attributes($data) + $this->confidentiality($request)
+                + ['status' => FieldDecision::STATUS_ACTIVE, 'user_id' => $request->user()->id]);
             // Nouvelle décision qui en remplace une autre : l'ancienne passe au statut « remplacée ».
             if (! empty($data['replaces_id'])) {
                 FieldDecision::whereKey($data['replaces_id'])->update(['status' => FieldDecision::STATUS_REPLACED, 'replaced_by_id' => $decision->id]);
@@ -73,21 +80,26 @@ class FieldDecisionController extends Controller
             return $decision;
         });
         AuditLog::record('decision.created', $decision, ['categorie' => $decision->category->name, 'titre' => $decision->title]);
-        $notified = $request->boolean('notify') && $request->user()->can('send messages') ? $this->notify($decision, $request) : false;
+        // Une décision confidentielle n'est jamais diffusée aux superviseurs.
+        $notified = $request->boolean('notify') && ! $decision->is_confidential && $request->user()->can('send messages') ? $this->notify($decision, $request) : false;
 
         return redirect()->route('decisions.show', $decision)
             ->with('success', "Décision {$decision->code} enregistrée.".($notified ? ' Les superviseurs '.($decision->health_zone_id ? 'de la zone' : 'de toutes les zones').' en ont été informés.' : ''));
     }
 
-    public function edit(FieldDecision $decision): View
+    public function edit(Request $request, FieldDecision $decision): View
     {
+        $this->ensureVisible($request, $decision);
+
         return view('decisions.form', $this->formData($decision) + ['replaces' => null]);
     }
 
     public function update(FieldDecisionRequest $request, FieldDecision $decision): RedirectResponse
     {
+        $this->ensureVisible($request, $decision);
         $data = $request->validated();
-        $decision->update($this->attributes($data) + [
+        $this->ensureLinksVisible($request, $data);
+        $decision->update($this->attributes($data) + $this->confidentiality($request) + [
             'status' => $data['status'],
             'replaced_by_id' => $data['status'] === FieldDecision::STATUS_REPLACED ? $data['replaced_by_id'] : null,
         ]);
@@ -122,18 +134,20 @@ class FieldDecisionController extends Controller
     /** Registre au format Excel, avec les filtres de la liste. */
     public function export(Request $request): BinaryFileResponse
     {
-        $rows = $this->filtered($request)->with(['category', 'healthZone', 'village', 'cluster', 'replacedBy', 'author'])
+        $rows = $this->filtered($request)->with(['category', 'healthZone', 'village', 'cluster', 'author',
+            'replacedBy' => fn ($q) => $q->visibleTo($request->user())])
             ->orderBy('decided_on')->orderBy('id')->get()
             ->map(fn (FieldDecision $d) => [
                 $d->code, $d->decided_on?->format('d/m/Y'), $d->category?->name, $d->title, $d->context, $d->decision,
                 $d->decided_by, $d->scopeLabel(), $d->effective_from?->format('d/m/Y'), $d->statusLabel(),
                 $d->replacedBy ? $d->replacedBy->code.' – '.$d->replacedBy->title : null, $d->author?->name, $d->created_at?->format('d/m/Y H:i'),
+                $d->is_confidential ? 'Oui' : 'Non',
             ])->all();
         AuditLog::record('export.decisions', null, ['lignes' => count($rows)]);
 
         return Excel::download(new ArrayExport($rows, [
             'Code', 'Date', 'Catégorie', 'Titre', 'Contexte / justification', 'Décision', 'Décidé par', 'Portée',
-            'Applicable à partir du', 'Statut', 'Remplacée par', 'Saisie par', 'Saisie le',
+            'Applicable à partir du', 'Statut', 'Remplacée par', 'Saisie par', 'Saisie le', 'Confidentielle',
         ], 'Décisions de terrain'), 'decisions-terrain-'.now()->format('Ymd').'.xlsx');
     }
 
@@ -209,6 +223,7 @@ class FieldDecisionController extends Controller
     /** Affiche ou masque la décision dans le rapport de synthèse du PI. */
     public function toggleSummary(Request $request, FieldDecision $decision): RedirectResponse
     {
+        $this->ensureVisible($request, $decision);
         $decision->update(['in_summary' => ! $decision->in_summary]);
         AuditLog::record('decision.rapport_synthese', $decision, ['affichee' => $decision->in_summary]);
 
@@ -228,8 +243,32 @@ class FieldDecisionController extends Controller
                 ->groupBy(fn ($v) => $zoneNames[$v->health_zone_id] ?? ''),
             'clusters' => Cluster::whereNotNull('number')->with('village:id,name')->orderBy('code')->get(['id', 'code', 'village_id'])
                 ->groupBy(fn ($c) => $c->village?->name ?? 'Village non renseigné'),
-            'others' => FieldDecision::whereKeyNot($decision->id ?? 0)->orderByDesc('decided_on')->limit(200)->get(['id', 'title', 'decided_on']),
+            'others' => FieldDecision::visibleTo(auth()->user())->whereKeyNot($decision->id ?? 0)->orderByDesc('decided_on')->limit(200)->get(['id', 'title', 'decided_on']),
         ];
+    }
+
+    /** Décision hors de la vue de l'utilisateur (confidentielle, autre zone) : accès refusé. */
+    private function ensureVisible(Request $request, FieldDecision $decision): void
+    {
+        abort_unless(FieldDecision::visibleTo($request->user())->whereKey($decision->id)->exists(), 403);
+    }
+
+    /** Les décisions citées comme remplacée / remplaçante doivent être visibles de l'utilisateur. */
+    private function ensureLinksVisible(Request $request, array $data): void
+    {
+        foreach (['replaces_id', 'replaced_by_id'] as $field) {
+            if (! empty($data[$field]) && ! FieldDecision::visibleTo($request->user())->whereKey($data[$field])->exists()) {
+                throw ValidationException::withMessages([$field => 'Décision introuvable.']);
+            }
+        }
+    }
+
+    /** Seul un administrateur décide de la confidentialité ; pour les autres profils, la valeur est ignorée. */
+    private function confidentiality(Request $request): array
+    {
+        return $request->user()->hasRole(User::ROLE_ADMIN) && $request->has('is_confidential')
+            ? ['is_confidential' => $request->boolean('is_confidential')]
+            : [];
     }
 
     /** Message d'information aux superviseurs concernés (zone de la décision, ou toutes les équipes). */

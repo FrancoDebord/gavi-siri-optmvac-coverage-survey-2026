@@ -160,4 +160,47 @@ class FieldDecisionTest extends TestCase
         $this->assertNull($old->fresh()->replaced_by_id);
         $this->assertDatabaseHas('audit_logs', ['action' => 'decision.deleted', 'subject_id' => $new->id, 'user_id' => $admin->id]);
     }
+
+    public function test_confidential_decisions_are_visible_to_admins_only(): void
+    {
+        $category = $this->category('Décisions de collecte');
+        $payload = ['decision_category_id' => $category, 'decided_on' => now()->toDateString(), 'title' => 'Décision secrète', 'decision' => 'Contenu réservé'];
+        $admin = $this->user(User::ROLE_ADMIN);
+        $pi = $this->user(User::ROLE_PI);
+        $manager = $this->user(User::ROLE_DATA_MANAGER);
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, ['health_zone_id' => HealthZone::where('code', '1')->value('id')]);
+
+        // Seul l'administrateur voit et utilise la case « Confidentielle » ; la valeur envoyée par un autre profil est ignorée.
+        $this->actingAs($admin)->get(route('decisions.create'))->assertOk()->assertSee('name="is_confidential"', false);
+        $this->actingAs($pi)->get(route('decisions.create'))->assertOk()->assertDontSee('name="is_confidential"', false);
+        $this->actingAs($pi)->post(route('decisions.store'), ['title' => 'Tentative PI', 'is_confidential' => 1] + $payload)->assertRedirect();
+        $this->assertFalse(FieldDecision::where('title', 'Tentative PI')->firstOrFail()->is_confidential);
+
+        // Décision confidentielle : jamais diffusée aux superviseurs, même si demandé.
+        $this->actingAs($admin)->post(route('decisions.store'), $payload + ['is_confidential' => 1, 'notify' => 1])->assertRedirect();
+        $secret = FieldDecision::where('title', 'Décision secrète')->firstOrFail();
+        $this->assertTrue($secret->is_confidential);
+        $this->assertFalse(TeamMessage::where('body', 'like', '%Décision secrète%')->exists());
+        $this->actingAs($admin)->get(route('decisions.index'))->assertSee('Décision secrète')->assertSee('Confidentielle');
+        $this->actingAs($admin)->get(route('decisions.show', $secret))->assertOk();
+
+        // Autres profils : ni dans le registre, ni en accès direct, ni modifiable, ni dans l'export ou le rapport de synthèse.
+        foreach ([$pi, $manager, $supervisor] as $user) {
+            $this->actingAs($user)->get(route('decisions.index'))->assertOk()->assertDontSee('Décision secrète');
+            $this->actingAs($user)->get(route('decisions.show', $secret))->assertForbidden();
+        }
+        $this->actingAs($pi)->get(route('decisions.edit', $secret))->assertForbidden();
+        $this->actingAs($pi)->put(route('decisions.update', $secret), $payload + ['status' => FieldDecision::STATUS_CANCELLED])->assertForbidden();
+        $this->actingAs($pi)->post(route('decisions.summary.toggle', $secret))->assertForbidden();
+        $this->assertSame(FieldDecision::STATUS_ACTIVE, $secret->fresh()->status);
+        $this->actingAs($pi)->post(route('decisions.store'), ['title' => 'Remplaçante', 'replaces_id' => $secret->id] + $payload)->assertSessionHasErrors('replaces_id');
+        $this->actingAs($pi)->get(route('investigator.summary'))->assertOk()->assertDontSee('Décision secrète');
+        $this->actingAs($admin)->get(route('investigator.summary'))->assertOk()->assertDontSee('Décision secrète');
+
+        // Une décision visible remplacée par une décision confidentielle ne révèle pas le titre de celle-ci.
+        $public = FieldDecision::create(['decision_category_id' => $category, 'decided_on' => now(), 'title' => 'Décision publique', 'decision' => 'x',
+            'status' => FieldDecision::STATUS_REPLACED, 'replaced_by_id' => $secret->id]);
+        $this->actingAs($pi)->get(route('decisions.show', $public))->assertOk()->assertDontSee('Décision secrète');
+        $this->actingAs($pi)->get(route('decisions.index'))->assertSee('Décision publique')->assertDontSee('Décision secrète');
+    }
 }
