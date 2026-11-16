@@ -18,6 +18,12 @@ if [ -z "${SETTINGS_PASSPHRASE:-}" ]; then
   exit 1
 fi
 
+# Espaces et sauts de ligne parasites (copier-coller dans l'interface GitHub) : retirés.
+SETTINGS_PASSPHRASE="$(printf '%s' "$SETTINGS_PASSPHRASE" | tr -d ' \t\r\n')"
+export SETTINGS_PASSPHRASE
+# Empreinte courte (ne révèle pas le mot de passe) : à comparer avec celle calculée en local en cas d'échec.
+echo "Empreinte du mot de passe : $(printf '%s' "$SETTINGS_PASSPHRASE" | sha256sum | cut -c1-8) (${#SETTINGS_PASSPHRASE} caractères)"
+
 DEST="$ROOT/storage/app/public/settings"
 mkdir -p "$DEST"
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:SETTINGS_PASSPHRASE \
