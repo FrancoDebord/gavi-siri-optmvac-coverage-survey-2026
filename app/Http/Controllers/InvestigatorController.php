@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ArrayExport;
 use App\Models\AuditLog;
 use App\Models\DataQuery;
 use App\Models\FieldIncident;
@@ -22,6 +23,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response;
 
 /** Tableau de bord de l'investigateur principal et rapport de l'état de la collecte. */
@@ -139,7 +141,7 @@ class InvestigatorController extends Controller
 
     /**
      * Grappes par village : pour chaque zone et chaque village, grappe et sous-grappes sélectionnées, ménages visités
-     * et enquêtés, enfants éligibles et binômes. Page web, ou PDF à imprimer (même contenu, même filtre).
+     * et enquêtés, enfants éligibles et binômes. Page web, PDF à imprimer ou classeur Excel (même contenu, même filtre).
      */
     public function clusters(Request $request): View|Response
     {
@@ -154,6 +156,29 @@ class InvestigatorController extends Controller
             'report' => (new ClusterSelection($zoneId))->build(),
         ];
 
+        if ($request->routeIs('investigator.clusters.xlsx')) {
+            AuditLog::record('export.grappes_villages_excel', null, array_filter(['zone' => $zoneId]));
+            // Une ligne par grappe ; une seule valeur reste un nombre, plusieurs (réponses discordantes) un texte.
+            $value = fn (array $list) => count($list) === 1 ? $list[0] : (implode(', ', $list) ?: null);
+            $rows = [];
+            foreach ($viewData['report']['zones'] as $zone) {
+                foreach ($zone['villages'] as $village) {
+                    foreach ($village['rows'] as $row) {
+                        $rows[] = [
+                            $zone['name'], $village['name'],
+                            $row['cluster_id'] ? $row['cluster_number'] : 'Non renseignée', $row['cluster_code'],
+                            $value($row['sub_clusters']), $value($row['selected']),
+                            $row['visited'], $row['surveyed'], $row['children'], implode(' ; ', $row['teams']),
+                        ];
+                    }
+                }
+            }
+
+            return Excel::download(new ArrayExport($rows, [
+                'Zone sanitaire', 'Village', 'N° grappe sélectionnée', 'Code grappe', 'Sous-grappes créées', 'N° sous-grappe sélectionnée',
+                'Ménages visités', 'Ménages enquêtés', 'Enfants éligibles (12-35 mois)', 'Binôme(s)',
+            ], 'Grappes par village'), 'grappes-par-village-'.now()->format('Ymd-Hi').'.xlsx');
+        }
         if ($request->routeIs('investigator.clusters.pdf')) {
             AuditLog::record('export.grappes_villages', null, array_filter(['zone' => $zoneId]));
 

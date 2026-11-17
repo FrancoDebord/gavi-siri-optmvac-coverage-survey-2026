@@ -18,6 +18,7 @@ use App\Services\Quality\QualityEngine;
 use Database\Seeders\QualityRuleSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class InvestigatorTest extends TestCase
@@ -230,6 +231,16 @@ class InvestigatorTest extends TestCase
         $pdf = $this->actingAs($pi)->get(route('investigator.clusters.pdf', ['health_zone_id' => $this->tchaourou->id]))->assertOk();
         $this->assertSame('application/pdf', $pdf->headers->get('Content-Type'));
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
+
+        $xlsx = $this->actingAs($pi)->get(route('investigator.clusters.xlsx', ['health_zone_id' => $this->tchaourou->id]))->assertOk();
+        $xlsx->assertDownload();
+        $path = tempnam(sys_get_temp_dir(), 'xlsx').'.xlsx';
+        file_put_contents($path, $xlsx->streamedContent());
+        $sheet = IOFactory::load($path)->getActiveSheet()->toArray(null, true, false);
+        @unlink($path);
+        $this->assertSame('Sous-grappes créées', $sheet[0][4]);
+        $line = collect($sheet)->firstWhere(3, $cluster->code);
+        $this->assertSame(['3, 4', '1, 2', 3, 2], [$line[4], $line[5], $line[6], $line[7]]);
 
         $this->actingAs($this->user(User::ROLE_TEAM))->get(route('investigator.clusters'))->assertRedirect();
     }

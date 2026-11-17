@@ -14,6 +14,7 @@
             </select>
             <button class="btn btn-sm btn-outline-primary"><i class="bi bi-funnel me-1"></i>Afficher</button>
             <a href="{{ route('investigator.clusters.pdf', array_filter(['health_zone_id' => $zoneId])) }}" class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1"></i>PDF à imprimer</a>
+            <a href="{{ route('investigator.clusters.xlsx', array_filter(['health_zone_id' => $zoneId])) }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
         </form>
     </x-page-header>
 
