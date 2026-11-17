@@ -208,9 +208,13 @@ class InvestigatorTest extends TestCase
     {
         $pi = $this->user(User::ROLE_PI);
         $cluster = Cluster::whereHas('households', fn ($q) => $q->where('household_code', 'like', 'TCH-%'))->firstOrFail();
-        // Réponses 6a/6b : sub_circuits = 3 et selected_sub_circuit = 2, sauf une soumission discordante (4 / 1).
+        // Réponse 6a : sub_circuits = 3, sauf une soumission discordante (4). Sous-grappe lue dans l'identifiant :
+        // S2 pour le premier ménage, aucune pour les deux autres (NA), même si le formulaire en déclare une.
         Household::where('cluster_id', $cluster->id)->orderBy('id')->get()->each(function (Household $h, int $i) {
-            $h->update(['data' => array_merge($h->data, $i === 2 ? ['sub_circuits' => '4', 'selected_sub_circuit' => '1'] : ['sub_circuits' => '3', 'selected_sub_circuit' => '2'])]);
+            $h->update([
+                'household_code' => $i === 0 ? 'TCH-SEB-01-S2-001' : $h->household_code,
+                'data' => array_merge($h->data, ['sub_circuits' => $i === 2 ? '4' : '3', 'selected_sub_circuit' => '1']),
+            ]);
         });
 
         $report = $this->actingAs($pi)->get(route('investigator.clusters', ['health_zone_id' => $this->tchaourou->id]))->assertOk()
@@ -218,7 +222,8 @@ class InvestigatorTest extends TestCase
         $this->assertCount(1, $report['zones']);
         $row = collect($report['zones'][0]['villages'])->flatMap(fn ($v) => $v['rows'])->firstWhere('cluster_id', $cluster->id);
         $this->assertSame([3, 4], $row['sub_clusters']);
-        $this->assertSame([1, 2], $row['selected']);
+        $this->assertSame([1], $row['cluster_numbers']);
+        $this->assertSame([2, 'NA'], $row['selected']);
         $this->assertSame(4, $report['zones'][0]['totals']['sub_clusters']);
         $this->assertSame(3, $row['visited']);
         $this->assertSame(2, $row['surveyed']);
@@ -240,7 +245,7 @@ class InvestigatorTest extends TestCase
         @unlink($path);
         $this->assertSame('Sous-grappes créées', $sheet[0][4]);
         $line = collect($sheet)->firstWhere(3, $cluster->code);
-        $this->assertSame(['3, 4', '1, 2', 3, 2], [$line[4], $line[5], $line[6], $line[7]]);
+        $this->assertSame([1, '3, 4', '2, NA', 3, 2], [$line[2], $line[4], $line[5], $line[6], $line[7]]);
 
         $this->actingAs($this->user(User::ROLE_TEAM))->get(route('investigator.clusters'))->assertRedirect();
     }

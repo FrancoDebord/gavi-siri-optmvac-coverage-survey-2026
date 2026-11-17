@@ -5,19 +5,28 @@ namespace App\Services\Dashboard;
 use App\Models\Cluster;
 use App\Models\Village;
 use App\Services\Dictionary\VariableMap as Map;
+use App\Support\HouseholdCode;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Grappes par village : pour chaque zone sanitaire et chaque village, la grappe sélectionnée, le nombre de
- * sous-grappes créées et la sous-grappe sélectionnée (réponses 6a « sub_circuits » et 6b « selected_sub_circuit »
- * du formulaire), les ménages visités et enquêtés, les enfants éligibles (12–35 mois) et le ou les binômes.
- * Plusieurs valeurs pour une même grappe signalent des réponses discordantes entre soumissions.
+ * Grappes par village : pour chaque zone sanitaire et chaque village, le numéro de grappe et la sous-grappe
+ * sélectionnée lus dans l'identifiant ménage (ZONE-VIL-NN[-Sx]-MMM ; « NA » quand l'identifiant ne donne pas de S),
+ * le nombre de sous-grappes créées (réponse 6a « sub_circuits » du formulaire), les ménages visités et enquêtés,
+ * les enfants éligibles (12–35 mois) et le ou les binômes.
+ * Plusieurs valeurs pour une même grappe signalent des identifiants ou des réponses discordants entre soumissions.
  * Mêmes définitions que la progression (TeamProgress) : enquêté = consentement donné.
  */
 class ClusterSelection
 {
     public function __construct(private readonly ?int $zoneId = null) {}
+
+    public const NA = 'NA';
+
+    private static function first(array $numbers): int
+    {
+        return collect($numbers)->filter(fn ($n) => is_int($n))->min() ?? PHP_INT_MAX;
+    }
 
     private function households()
     {
@@ -41,7 +50,7 @@ class ClusterSelection
             ->groupBy('households.cluster_id', 'households.village_id')->get()
             ->each(function ($r) use (&$stats) {
                 $key = self::key($r->cluster_id, $r->village_id);
-                $stats[$key] ??= ['cluster_id' => $r->cluster_id, 'village_id' => $r->village_id, 'visited' => 0, 'surveyed' => 0, 'children' => 0, 'created' => [], 'selected' => [], 'teams' => []];
+                $stats[$key] ??= ['cluster_id' => $r->cluster_id, 'village_id' => $r->village_id, 'visited' => 0, 'surveyed' => 0, 'children' => 0, 'numbers' => [], 'created' => [], 'selected' => [], 'teams' => []];
                 $stats[$key]['visited'] += (int) $r->visited;
                 $stats[$key]['surveyed'] += (int) $r->surveyed;
             });
@@ -56,17 +65,24 @@ class ClusterSelection
                 }
             });
 
-        // Réponses 6a (nombre de sous-grappes créées) et 6b (sous-grappe sélectionnée) du formulaire.
-        $answers = array_filter(['created' => Map::var('nb_sous_grappes'), 'selected' => Map::var('sous_grappe')],
-            fn ($var) => $var && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $var));
-        if ($answers) {
-            $this->households()->distinct()
-                ->get(array_merge(['households.cluster_id', 'households.village_id'], array_map(fn ($var, $alias) => "households.data->{$var} as {$alias}", $answers, array_keys($answers))))
-                ->each(function ($r) use (&$stats, $answers) {
-                    foreach (array_keys($answers) as $field) {
-                        if (is_numeric($r->{$field} ?? null)) {
-                            $stats[self::key($r->cluster_id, $r->village_id)][$field][] = (int) $r->{$field};
-                        }
+        // Numéro de grappe (NN) et sous-grappe (Sx) lus dans l'identifiant ménage ; sans S (ou identifiant illisible) : NA.
+        $this->households()->distinct()->get(['households.cluster_id', 'households.village_id', 'households.household_code'])
+            ->each(function ($r) use (&$stats) {
+                $parsed = HouseholdCode::parse($r->household_code);
+                $key = self::key($r->cluster_id, $r->village_id);
+                if ($parsed) {
+                    $stats[$key]['numbers'][] = $parsed['cluster'];
+                }
+                $stats[$key]['selected'][] = $parsed['sub_cluster'] ?? self::NA;
+            });
+
+        // Réponse 6a du formulaire : nombre de sous-grappes créées.
+        $created = Map::var('nb_sous_grappes');
+        if ($created && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $created)) {
+            $this->households()->distinct()->get(['households.cluster_id', 'households.village_id', "households.data->{$created} as created"])
+                ->each(function ($r) use (&$stats) {
+                    if (is_numeric($r->created)) {
+                        $stats[self::key($r->cluster_id, $r->village_id)]['created'][] = (int) $r->created;
                     }
                 });
         }
@@ -87,8 +103,9 @@ class ClusterSelection
         $villages = Village::with('healthZone:id,name')
             ->whereIn('id', collect($stats)->whereNull('cluster_id')->pluck('village_id')->filter()->all())->get()->keyBy('id');
 
-        $empty = ['visited' => 0, 'surveyed' => 0, 'children' => 0, 'created' => [], 'selected' => [], 'teams' => []];
-        $values = fn (array $list) => collect($list)->unique()->sort()->values()->all();
+        $empty = ['visited' => 0, 'surveyed' => 0, 'children' => 0, 'numbers' => [], 'created' => [], 'selected' => [], 'teams' => []];
+        // Valeurs distinctes, nombres d'abord puis NA.
+        $values = fn (array $list) => collect($list)->unique()->sortBy(fn ($v) => $v === self::NA ? PHP_INT_MAX : $v)->values()->all();
         $rows = collect();
         foreach ($clusters as $cluster) {
             $s = ($stats['c'.$cluster->id] ?? []) + $empty;
@@ -97,7 +114,8 @@ class ClusterSelection
                 'village' => $cluster->village?->name ?? 'Village non renseigné',
                 'cluster_id' => $cluster->id,
                 'cluster_code' => $cluster->code,
-                'cluster_number' => $cluster->number,
+                // Grappe pas encore visitée : pas d'identifiant ménage, on garde le numéro du référentiel.
+                'cluster_numbers' => $s['visited'] ? ($values($s['numbers']) ?: [self::NA]) : ($cluster->number !== null ? [$cluster->number] : []),
                 'sub_clusters' => $values($s['created']),
                 'selected' => $values($s['selected']),
                 'teams' => collect($s['teams'])->sortKeys(SORT_NATURAL)->values()->all(),
@@ -110,7 +128,7 @@ class ClusterSelection
                 'village' => $village?->name ?? 'Village non renseigné',
                 'cluster_id' => null,
                 'cluster_code' => null,
-                'cluster_number' => null,
+                'cluster_numbers' => $values($s['numbers']) ?: [self::NA],
                 'sub_clusters' => $values($s['created']),
                 'selected' => $values($s['selected']),
                 'teams' => collect($s['teams'])->sortKeys(SORT_NATURAL)->values()->all(),
@@ -130,7 +148,7 @@ class ClusterSelection
             'name' => $zone,
             'villages' => $zoneRows->groupBy('village')->sortKeys(SORT_NATURAL | SORT_FLAG_CASE)->map(fn (Collection $villageRows, $village) => [
                 'name' => $village,
-                'rows' => $villageRows->sortBy([fn ($a, $b) => ($a['cluster_number'] ?? PHP_INT_MAX) <=> ($b['cluster_number'] ?? PHP_INT_MAX), fn ($a, $b) => strnatcmp((string) $a['cluster_code'], (string) $b['cluster_code'])])->values()->all(),
+                'rows' => $villageRows->sortBy([fn ($a, $b) => self::first($a['cluster_numbers']) <=> self::first($b['cluster_numbers']), fn ($a, $b) => strnatcmp((string) $a['cluster_code'], (string) $b['cluster_code'])])->values()->all(),
                 'totals' => $sum($villageRows),
             ])->values()->all(),
             'totals' => $sum($zoneRows) + ['villages' => $zoneRows->pluck('village')->unique()->count()],

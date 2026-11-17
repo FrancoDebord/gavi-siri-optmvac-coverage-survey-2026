@@ -39,7 +39,7 @@
                         @if ($i === 0)
                             <td rowspan="{{ count($village['rows']) }}"><strong>{{ $village['name'] }}</strong></td>
                         @endif
-                        <td class="num">{{ $row['cluster_id'] ? ($row['cluster_number'] ?? '—').' ('.$row['cluster_code'].')' : 'Non renseignée' }}</td>
+                        <td class="num">{{ ($row['cluster_numbers'] ? implode(', ', $row['cluster_numbers']) : '—').($row['cluster_id'] ? ' ('.$row['cluster_code'].')' : ' (non rattachée)') }}</td>
                         <td class="num">{{ $row['sub_clusters'] ? implode(', ', $row['sub_clusters']) : '—' }}</td>
                         <td class="num">{{ $row['selected'] ? implode(', ', $row['selected']) : '—' }}</td>
                         <td class="num">{{ $fmt($row['visited']) }}</td>
@@ -66,7 +66,7 @@
     @endforelse
 
     <div class="muted" style="margin-top: 6px;">
-        Sous-grappes créées et sous-grappe sélectionnée : réponses 6a et 6b du formulaire (plusieurs valeurs = réponses discordantes entre soumissions).
+        N° grappe et N° sous-grappe sélectionnée : lus dans l'identifiant ménage (ZONE-VIL-NN-Sx-MMM) ; NA quand l'identifiant ne porte pas de sous-grappe. Sous-grappes créées : réponse 6a du formulaire. Plusieurs valeurs = identifiants ou réponses discordants entre soumissions.
         Ménage enquêté : consentement donné. Les grappes délimitées mais pas encore visitées apparaissent avec 0 ménage et sans réponse.
     </div>
 @endsection

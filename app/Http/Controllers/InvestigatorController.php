@@ -166,7 +166,7 @@ class InvestigatorController extends Controller
                     foreach ($village['rows'] as $row) {
                         $rows[] = [
                             $zone['name'], $village['name'],
-                            $row['cluster_id'] ? $row['cluster_number'] : 'Non renseignée', $row['cluster_code'],
+                            $value($row['cluster_numbers']), $row['cluster_code'] ?? 'Non rattachée',
                             $value($row['sub_clusters']), $value($row['selected']),
                             $row['visited'], $row['surveyed'], $row['children'], implode(' ; ', $row['teams']),
                         ];

@@ -57,10 +57,10 @@
                                 @endif
                                 <td class="text-center">
                                     @if ($row['cluster_id'])
-                                        <a href="{{ route('clusters.show', $row['cluster_id']) }}" title="Grappe {{ $row['cluster_code'] }}">{{ $row['cluster_number'] ?? $row['cluster_code'] }}</a>
+                                        <a href="{{ route('clusters.show', $row['cluster_id']) }}" title="Grappe {{ $row['cluster_code'] }}">{{ $row['cluster_numbers'] ? implode(', ', $row['cluster_numbers']) : $row['cluster_code'] }}</a>
                                         <div class="small text-muted">{{ $row['cluster_code'] }}</div>
                                     @else
-                                        <span class="text-muted">Non renseignée</span>
+                                        {{ implode(', ', $row['cluster_numbers']) }}<div class="small text-muted">grappe non rattachée</div>
                                     @endif
                                 </td>
                                 <td class="text-center">{{ $row['sub_clusters'] ? implode(', ', $row['sub_clusters']) : '—' }}</td>
@@ -93,7 +93,7 @@
     @endforelse
 
     <p class="small text-muted">
-        Sous-grappes créées et sous-grappe sélectionnée : réponses 6a et 6b du formulaire (plusieurs valeurs = réponses discordantes entre soumissions).
+        N° grappe et N° sous-grappe sélectionnée : lus dans l'identifiant ménage (ZONE-VIL-NN-Sx-MMM) ; NA quand l'identifiant ne porte pas de sous-grappe. Sous-grappes créées : réponse 6a du formulaire. Plusieurs valeurs = identifiants ou réponses discordants entre soumissions.
         Ménage enquêté : consentement donné. Les grappes délimitées mais pas encore visitées apparaissent avec 0 ménage et sans réponse.
     </p>
 </x-layouts.app>
