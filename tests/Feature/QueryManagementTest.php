@@ -98,9 +98,12 @@ class QueryManagementTest extends TestCase
         $this->assertDatabaseHas('query_events', ['data_query_id' => $query->id, 'type' => 'assignment', 'user_id' => $manager->id]);
 
         // Le binôme voit sa query et y répond ; il ne peut pas la valider.
-        $this->actingAs($account)->get(route('queries.show', $query))->assertOk()->assertSee('query-status-form', false);
-        $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'comment' => 'Point GPS repris lors de la revisite'])
-            ->assertSessionHas('success');
+        $this->actingAs($account)->get(route('queries.show', $query))->assertOk()->assertSee('query-status-form', false)->assertSee('corrections[0][new_value]', false);
+        // Correction sans valeur : refusée.
+        $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'comment' => 'x'])->assertSessionHasErrors('status');
+        $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
+            ['variable' => 'current_location', 'new_value' => '9.31 2.49 0 5', 'reason' => 'revisite', 'source_reference' => 'Revisite du 17/11'],
+        ]])->assertSessionHas('success');
         $query->refresh();
         $this->assertSame(DataQuery::STATUS_CORRECTED, $query->status);
         $this->assertSame($account->id, $query->responded_by);
@@ -111,6 +114,8 @@ class QueryManagementTest extends TestCase
         $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_OPEN])->assertSessionHasErrors('status');
         $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_OPEN, 'comment' => 'Préciser la source'])->assertSessionHas('success');
         $this->assertSame(DataQuery::STATUS_SENT, $query->fresh()->status);
+        // La correction proposée est rejetée, mais reste au registre.
+        $this->assertDatabaseHas('data_corrections', ['data_query_id' => $query->id, 'status' => 'rejetee', 'decided_by' => $manager->id]);
 
         // Nouvelle réponse puis validation (sévérité majeure : pas de signature).
         $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_JUSTIFIED, 'comment' => 'GPS en panne, vérifié par le superviseur']);
@@ -140,7 +145,7 @@ class QueryManagementTest extends TestCase
         $query = $this->teamQuery();
         $query->update(['severity' => 'critique']);
 
-        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'comment' => 'Corrigé d\'après la photo']);
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_JUSTIFIED, 'comment' => 'Vérifié d\'après la photo']);
         // L'auteur de la réponse ne peut pas la valider, même avec son mot de passe.
         $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED, 'password' => 'password'])
             ->assertSessionHasErrors('status');
@@ -166,7 +171,7 @@ class QueryManagementTest extends TestCase
         $queries->each->update(['severity' => 'critique']);
         $ids = $queries->pluck('id')->all();
 
-        $this->actingAs($supervisor)->postJson(route('queries.bulk'), ['ids' => $ids, 'status' => DataQuery::STATUS_CORRECTED, 'comment' => 'Corrigé'])
+        $this->actingAs($supervisor)->postJson(route('queries.bulk'), ['ids' => $ids, 'status' => DataQuery::STATUS_JUSTIFIED, 'comment' => 'Vérifié'])
             ->assertOk()->assertJsonPath('updated', count($ids));
         // Le superviseur ne valide pas.
         $this->actingAs($supervisor)->postJson(route('queries.bulk'), ['ids' => $ids, 'status' => DataQuery::STATUS_VALIDATED, 'password' => 'password'])

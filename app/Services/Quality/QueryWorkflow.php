@@ -3,9 +3,11 @@
 namespace App\Services\Quality;
 
 use App\Models\AppSetting;
+use App\Models\DataCorrection;
 use App\Models\DataQuery;
 use App\Models\QueryEvent;
 use App\Models\User;
+use App\Services\Cleaning\CleanDataService;
 use App\Support\DashboardCache;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -19,10 +21,45 @@ use InvalidArgumentException;
  * Le data manager peut rejeter une réponse (retour à l'assigné), déclarer la query irrésoluble ou la rouvrir.
  * Double validation (sévérités paramétrables, critiques par défaut) : le validateur n'est pas l'auteur de la réponse
  * et signe en ressaisissant son mot de passe. Chaque action est tracée (auteur, date, motif, signature).
+ *
+ * Correction proposée : la réponse porte les nouvelles valeurs (registre des corrections). À la validation, elles sont
+ * appliquées à la base nettoyée et le moteur relance les règles : la query est résolue si l'anomalie a disparu,
+ * sinon elle revient à l'assigné. Les données ODK ne sont jamais modifiées.
  */
 class QueryWorkflow
 {
-    public function transition(DataQuery $query, string $status, ?string $comment, ?User $user, ?string $password = null): DataQuery
+    /** @var list<DataQuery> queries dont les corrections viennent d'être validées, à vérifier par le moteur */
+    private array $toVerify = [];
+
+    private bool $deferring = false;
+
+    public function __construct(private readonly CleanDataService $cleaning) {}
+
+    /**
+     * Vérifications groupées (validation en bloc) : une seule reconstruction et un seul passage du moteur.
+     */
+    public function deferVerification(callable $callback, ?User $user): mixed
+    {
+        $this->deferring = true;
+        try {
+            return $callback();
+        } finally {
+            $this->deferring = false;
+            $this->verify($user);
+        }
+    }
+
+    private function verify(?User $user): void
+    {
+        $queries = $this->toVerify;
+        $this->toVerify = [];
+        $this->cleaning->applyAndVerify($queries, $user);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $corrections  nouvelles valeurs (réponse « correction proposée »)
+     */
+    public function transition(DataQuery $query, string $status, ?string $comment, ?User $user, ?string $password = null, array $corrections = []): DataQuery
     {
         $comment = trim((string) $comment) ?: null;
         if ($status === $query->status) {
@@ -64,8 +101,34 @@ class QueryWorkflow
             $signed = true;
         }
 
-        DB::transaction(function () use ($query, $status, $comment, $user, $isResponse, $signed) {
+        $withCorrections = $query->status === DataQuery::STATUS_CORRECTED
+            && DataCorrection::where('data_query_id', $query->id)->where('status', DataCorrection::STATUS_PROPOSED)->exists();
+        // Validation d'une correction : appliquée à la base nettoyée, la query est conclue par le moteur.
+        if ($status === DataQuery::STATUS_VALIDATED && $withCorrections) {
+            DB::transaction(function () use ($query, $comment, $user, $signed) {
+                $count = $this->cleaning->decide($query, true, $user, $signed, $comment);
+                $query->update(['validated_by' => $user?->id]);
+                QueryEvent::create([
+                    'data_query_id' => $query->id, 'user_id' => $user?->id, 'type' => 'correction', 'signed' => $signed,
+                    'comment' => trim("{$count} correction(s) validée(s) et appliquée(s) à la base nettoyée ; vérification par le moteur. ".($comment ?? '')),
+                ]);
+            });
+            $this->toVerify[] = $query;
+            if (! $this->deferring) {
+                $this->verify($user);
+            }
+
+            return $query->refresh();
+        }
+
+        DB::transaction(function () use ($query, $status, $comment, $user, $isResponse, $signed, $corrections, $withCorrections) {
             $from = $query->status;
+            if ($status === DataQuery::STATUS_CORRECTED) {
+                $this->cleaning->propose($query, $corrections, $user);
+            } elseif ($withCorrections) {
+                // Rejet, réouverture ou irrésoluble : les corrections proposées sont rejetées (conservées au registre).
+                $this->cleaning->decide($query, false, $user, $signed, $comment);
+            }
             // Rejet ou réouverture : la query revient à son assigné s'il y en a un.
             $status = $status === DataQuery::STATUS_OPEN && $query->assigned_to ? DataQuery::STATUS_SENT : $status;
             $closing = in_array($status, [DataQuery::STATUS_VALIDATED, DataQuery::STATUS_UNRESOLVABLE], true);
@@ -159,8 +222,8 @@ class QueryWorkflow
         return match ($status) {
             DataQuery::STATUS_OPEN => 'Rejeter la réponse ou rouvrir : la query revient à l\'assigné (motif obligatoire).',
             DataQuery::STATUS_JUSTIFIED => 'La valeur est exacte : indiquez la justification et la source vérifiée. Le data manager validera.',
-            DataQuery::STATUS_CORRECTED => 'La valeur doit être corrigée : décrivez la correction et sa source. Le data manager validera.',
-            DataQuery::STATUS_VALIDATED => 'Le data manager accepte la réponse : la query est fermée.',
+            DataQuery::STATUS_CORRECTED => 'Saisissez la ou les bonnes valeurs, le motif et la source. Le data manager validera ; ODK n\'est pas modifié.',
+            DataQuery::STATUS_VALIDATED => 'Le data manager accepte la réponse. Corrections : appliquées à la base nettoyée, la query est résolue si l\'anomalie disparaît.',
             DataQuery::STATUS_UNRESOLVABLE => 'La donnée ne peut être ni corrigée ni confirmée : motif obligatoire. La query est fermée.',
             default => '',
         };

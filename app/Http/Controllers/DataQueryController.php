@@ -9,12 +9,18 @@ use App\Http\Requests\QueryStatusRequest;
 use App\Jobs\RunQualityChecksJob;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
+use App\Models\DataCorrection;
 use App\Models\DataQuery;
 use App\Models\QualityRule;
 use App\Models\QualityRun;
 use App\Models\User;
 use App\Services\Attachments\SubmissionPhotos;
+use App\Services\Cleaning\CleanDataService;
+use App\Services\Cleaning\CorrectionApplier;
+use App\Services\Cleaning\SourceSnapshot;
+use App\Services\Cleaning\SubmissionPaths;
 use App\Services\Dashboard\QueryStats;
+use App\Services\Dictionary\Dictionary;
 use App\Services\Quality\QueryWorkflow;
 use App\Support\Filters;
 use Illuminate\Http\JsonResponse;
@@ -150,8 +156,14 @@ class DataQueryController extends Controller
         $this->authorize('view', $query);
         $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator']);
 
+        $user = request()->user();
+
         return view('queries.show', [
             'query' => $query,
+            'corrections' => DataCorrection::where('data_query_id', $query->id)->with(['proposer:id,name', 'decider:id,name'])->latest('id')->get(),
+            'correctionField' => $user->can('respond', $query) ? $this->correctionField($query) : null,
+            'reasons' => DataCorrection::REASONS,
+            'inputVariables' => $user->can('respond', $query) ? collect(Dictionary::current()->variables())->filter(fn ($v) => Dictionary::current()->isInput($v))->keys()->sort()->values() : collect(),
             'assignees' => request()->user()->can('assign', $query) ? self::assignableUsers() : collect(),
             'doubleValidation' => AppSetting::requiresDoubleValidation($query->severity),
             'photos' => $photos->forQuery($query),
@@ -159,11 +171,43 @@ class DataQueryController extends Controller
         ]);
     }
 
+    /**
+     * Champ de la query à corriger : valeur actuelle (base nettoyée), valeur reçue d'ODK, type et choix du dictionnaire.
+     */
+    private function correctionField(DataQuery $query): ?array
+    {
+        $dictionary = Dictionary::current();
+        $definition = $query->variable ? $dictionary->variable($query->variable) : null;
+        if (! $query->household || ! $definition || ! $dictionary->isInput($definition)) {
+            return null;
+        }
+        try {
+            $clean = app(CleanDataService::class)->cleanSubmission($query->household);
+            $source = SourceSnapshot::of($query->household);
+            $current = SubmissionPaths::get($clean, $query->variable, $query->instance_path);
+            $original = SubmissionPaths::get($source, $query->variable, $query->instance_path);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+
+        return [
+            'variable' => $query->variable,
+            'path' => $query->instance_path,
+            'label' => $query->variable_label,
+            'current' => CorrectionApplier::normalize($current),
+            'source' => CorrectionApplier::normalize($original),
+            'type' => $definition['base_type'],
+            'choices' => $definition['list_name'] ? ($dictionary->choices($definition['list_name']) ?? []) : [],
+        ];
+    }
+
     public function updateStatus(QueryStatusRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
     {
         $this->authorize('view', $query);
         try {
-            $workflow->transition($query, $request->validated('status'), $request->validated('comment'), $request->user(), $request->validated('password'));
+            // Lignes de correction vides (formulaire) ignorées.
+            $corrections = array_values(array_filter($request->validated('corrections') ?? [], fn ($row) => trim((string) ($row['variable'] ?? '')) !== ''));
+            $workflow->transition($query, $request->validated('status'), $request->validated('comment'), $request->user(), $request->validated('password'), $corrections);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['status' => $e->getMessage()])->withInput();
         }
@@ -239,21 +283,24 @@ class DataQueryController extends Controller
         $errors = [];
 
         $queries = DataQuery::visibleTo($request->user())->whereIn('id', $request->validated('ids'))->get();
-        DB::transaction(function () use ($queries, $status, $comment, $request, $workflow, &$done, &$errors) {
-            foreach ($queries as $query) {
-                try {
-                    if (! $status && $request->user()->cannot('comment', $query)) {
-                        throw new InvalidArgumentException('hors de votre périmètre');
+        // Validation en bloc : corrections appliquées puis une seule vérification par le moteur.
+        $workflow->deferVerification(function () use ($queries, $status, $comment, $request, $workflow, &$done, &$errors) {
+            DB::transaction(function () use ($queries, $status, $comment, $request, $workflow, &$done, &$errors) {
+                foreach ($queries as $query) {
+                    try {
+                        if (! $status && $request->user()->cannot('comment', $query)) {
+                            throw new InvalidArgumentException('hors de votre périmètre');
+                        }
+                        $status
+                            ? $workflow->transition($query, $status, $comment, $request->user(), $request->validated('password'))
+                            : $workflow->comment($query, (string) $comment, $request->user());
+                        $done++;
+                    } catch (InvalidArgumentException $e) {
+                        $errors[] = "{$query->code} : {$e->getMessage()}";
                     }
-                    $status
-                        ? $workflow->transition($query, $status, $comment, $request->user(), $request->validated('password'))
-                        : $workflow->comment($query, (string) $comment, $request->user());
-                    $done++;
-                } catch (InvalidArgumentException $e) {
-                    $errors[] = "{$query->code} : {$e->getMessage()}";
                 }
-            }
-        });
+            });
+        }, $request->user());
 
         return response()->json(self::bulkResult($done, $errors, 'mise(s) à jour'));
     }

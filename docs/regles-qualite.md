@@ -162,6 +162,27 @@ Changer la nature d'une règle reclasse toutes ses anomalies. Rien n'est supprim
 
 Chaque action est tracée dans l'historique de la query : auteur, date, ancien et nouveau statut, motif, signature.
 
+## Base nettoyée et registre des corrections
+
+Les données d'ODK ne sont jamais modifiées. La plateforme conserve :
+
+- la **source** : chaque soumission telle que reçue (`raw_data` pour la réponse ODK brute, `source_data` pour sa version normalisée) ;
+- le **registre des corrections** (menu **Registre des corrections**) : pour chaque correction, la variable et le membre concernés, la valeur reçue d'ODK, la valeur remplacée, la nouvelle valeur, le motif, la référence de la source, l'auteur, la décision du data manager et sa signature. Le registre ne s'efface pas : une correction validée est remplacée par la suivante sur le même champ, jamais réécrite ;
+- la **base nettoyée** : la source, à laquelle on applique les corrections validées dans leur ordre de validation. Tableaux de bord, rapports et règles qualité s'appuient sur elle. Elle est reconstruite à chaque import et après chaque validation, donc une resynchronisation ODK n'efface pas les corrections.
+
+**Correction d'une query.** On répond « Correction proposée » sur la fiche de la query :
+- la fiche montre la variable avec sa valeur actuelle et sa valeur reçue d'ODK ;
+- on saisit la nouvelle valeur, le motif et la source, et on peut corriger d'autres variables de la même soumission (membre au format `cg[1]/smc_cov_hh_cg_child_2023[2]`) ;
+- la valeur est contrôlée selon le dictionnaire (question saisissable, type, liste de choix, membre existant, valeur différente de l'actuelle).
+
+**Validation.** Quand le data manager valide, les corrections s'appliquent à la base nettoyée et le moteur relance les règles sur la soumission :
+- si l'anomalie a disparu, la query est **résolue** ;
+- sinon, elle **revient à l'assigné**, et les corrections restent appliquées et tracées.
+
+Un rejet ou un « irrésoluble » rejette les corrections proposées, qui restent au registre.
+
+**Conflit.** Si la valeur reçue d'ODK change après une correction, la correction est suspendue (« En conflit avec la source ») et la valeur d'ODK s'applique. Le data manager revoit ces corrections depuis le registre.
+
 ## Statuts de résolution
 
 | Statut de résolution | Statuts détaillés | Date de résolution |

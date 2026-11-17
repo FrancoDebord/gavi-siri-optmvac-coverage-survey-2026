@@ -4,6 +4,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ClusterController;
 use App\Http\Controllers\ClusterMapController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DataCorrectionController;
 use App\Http\Controllers\DataQueryController;
 use App\Http\Controllers\DataSourceController;
 use App\Http\Controllers\DictionaryController;
@@ -48,6 +49,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/queries', [DataQueryController::class, 'index'])->name('queries.index');
         Route::get('/queries/tableau', [DataQueryController::class, 'datatable'])->name('queries.datatable');
         Route::get('/observations', [SupervisionObservationController::class, 'index'])->name('observations.index');
+        Route::get('/corrections', [DataCorrectionController::class, 'index'])->middleware('permission:validate queries|view pi dashboard')->name('corrections.index');
 
         // Espace superviseur et incidents de terrain
         Route::get('/superviseur', [SupervisionController::class, 'index'])->name('supervision.index');

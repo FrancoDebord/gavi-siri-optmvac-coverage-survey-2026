@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DataCorrection;
 use App\Models\Household;
 use App\Services\Attachments\SubmissionPhotos;
 use App\Services\Connectors\ConnectorException;
@@ -22,6 +23,7 @@ class HouseholdController extends Controller
         return view('households.show', [
             'household' => $household,
             'dictionary' => Dictionary::current(),
+            'corrections' => DataCorrection::where('submission_uuid', $household->submission_uuid)->latest('id')->get(),
         ] + $this->mapContext($request, $household));
     }
 

@@ -175,6 +175,45 @@
                                 </select>
                                 <div id="status-help" class="form-text mb-2"></div>
                                 @error('status')<div class="alert alert-danger py-2 small">{{ $message }}</div>@enderror
+                                <div id="corrections-block" class="d-none mb-2" data-next-index="{{ $correctionField ? 1 : 0 }}">
+                                    <div class="small text-muted mb-1"><i class="bi bi-shield-lock me-1"></i>La correction s'applique à la base nettoyée ; la donnée ODK reste intacte et la valeur remplacée est conservée au registre.</div>
+                                    <div data-correction-rows>
+                                        @if ($correctionField)
+                                            <div class="border rounded p-2 mb-2 bg-light-subtle" data-correction-row>
+                                                <input type="hidden" name="corrections[0][variable]" value="{{ $correctionField['variable'] }}">
+                                                <input type="hidden" name="corrections[0][instance_path]" value="{{ $correctionField['path'] }}">
+                                                <div class="small mb-1"><code>{{ $correctionField['variable'] }}</code>{{ $correctionField['path'] ? ' · '.\App\Exports\QueriesExport::memberLabel($correctionField['path']) : '' }}</div>
+                                                <div class="small text-muted mb-2">Valeur actuelle : <strong>{{ \App\Models\DataCorrection::display($correctionField['current']) }}</strong>@if ($correctionField['source'] !== $correctionField['current']) · reçue d'ODK : {{ \App\Models\DataCorrection::display($correctionField['source']) }}@endif</div>
+                                                <label class="form-label small mb-0" for="c0-value">Nouvelle valeur</label>
+                                                @if ($correctionField['choices'] && $correctionField['type'] === 'select_one')
+                                                    <select id="c0-value" name="corrections[0][new_value]" class="form-select form-select-sm mb-2">
+                                                        <option value="">(vide)</option>
+                                                        @foreach ($correctionField['choices'] as $code => $label)
+                                                            <option value="{{ $code }}" @selected((string) $code === $correctionField['current'])>{{ $code }} – {{ strip_tags((string) $label) }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                @else
+                                                    <input id="c0-value" name="corrections[0][new_value]" class="form-control form-control-sm mb-2" value="{{ $correctionField['current'] }}" @if ($correctionField['type'] === 'date') type="date" @endif>
+                                                @endif
+                                                @include('queries._correction-reason', ['i' => 0])
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-add-correction><i class="bi bi-plus-lg me-1"></i>Corriger une autre variable de la soumission</button>
+                                    <template id="correction-template">
+                                        <div class="border rounded p-2 mb-2" data-correction-row>
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-7"><label class="form-label small mb-0">Variable</label><input name="corrections[__i__][variable]" class="form-control form-control-sm" list="input-variables" placeholder="ex. Penta2date"></div>
+                                                <div class="col-5"><label class="form-label small mb-0">Membre</label><input name="corrections[__i__][instance_path]" class="form-control form-control-sm" value="{{ $query->instance_path }}" placeholder="ménage : vide"></div>
+                                            </div>
+                                            <label class="form-label small mb-0">Nouvelle valeur</label>
+                                            <input name="corrections[__i__][new_value]" class="form-control form-control-sm mb-2" placeholder="code du choix, AAAA-MM-JJ pour une date">
+                                            @include('queries._correction-reason', ['i' => '__i__'])
+                                            <button type="button" class="btn btn-sm btn-link text-danger p-0" data-remove-correction>Retirer</button>
+                                        </div>
+                                    </template>
+                                    <datalist id="input-variables">@foreach ($inputVariables as $name)<option value="{{ $name }}">@endforeach</datalist>
+                                </div>
                                 <label class="form-label" for="comment">Justification / motif</label>
                                 <textarea id="comment" name="comment" rows="3" class="form-control mb-2" maxlength="2000">{{ old('comment') }}</textarea>
                                 @if ($needsSignature)
@@ -201,6 +240,26 @@
                 </div>
             @endif
 
+            @if ($corrections->isNotEmpty())
+                <div class="card mb-3">
+                    <div class="card-header"><i class="bi bi-pencil-square me-1"></i>Corrections (registre)</div>
+                    <ul class="list-group list-group-flush small">
+                        @foreach ($corrections as $correction)
+                            <li class="list-group-item">
+                                <div class="d-flex justify-content-between gap-2">
+                                    <span><code>{{ $correction->variable }}</code>{{ $correction->instance_path ? ' · '.\App\Exports\QueriesExport::memberLabel($correction->instance_path) : '' }}</span>
+                                    <span class="badge text-bg-{{ \App\Models\DataCorrection::STATUS_COLORS[$correction->status] ?? 'secondary' }} {{ $correction->status === 'remplacee' ? 'border' : '' }}">{{ $correction->statusLabel() }}</span>
+                                </div>
+                                <div>{{ \App\Models\DataCorrection::display($correction->old_value) }} <i class="bi bi-arrow-right"></i> <strong>{{ \App\Models\DataCorrection::display($correction->new_value) }}</strong> <span class="text-muted">(ODK : {{ \App\Models\DataCorrection::display($correction->source_value) }})</span></div>
+                                <div class="text-muted">{{ $correction->reasonLabel() }}{{ $correction->source_reference ? ' · '.$correction->source_reference : '' }}{{ $correction->comment ? ' · '.$correction->comment : '' }}</div>
+                                <div class="text-muted">Proposée par {{ $correction->proposer?->name ?? 'Système' }} le {{ $correction->proposed_at->format('d/m/Y H:i') }}@if ($correction->decider) · {{ $correction->status === 'rejetee' ? 'rejetée' : 'décidée' }} par {{ $correction->decider->name }} le {{ $correction->decided_at?->format('d/m/Y H:i') }}@endif @if ($correction->signed)<span class="badge text-bg-success ms-1"><i class="bi bi-pen me-1"></i>signée</span>@endif</div>
+                                @if ($correction->decision_comment)<div class="text-muted fst-italic">{{ $correction->decision_comment }}</div>@endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <div class="card">
                 <div class="card-header">Historique</div>
                 <div class="card-body">
@@ -210,6 +269,7 @@
                                 <div class="text-muted">
                                     {{ $event->created_at->format('d/m/Y H:i') }} · {{ $event->user?->name ?? 'Système' }}
                                     @if ($event->type === 'assignment')<span class="badge text-bg-light border ms-1">affectation</span>@endif
+                                    @if ($event->type === 'correction')<span class="badge text-bg-light border ms-1">base nettoyée</span>@endif
                                     @if ($event->signed)<span class="badge text-bg-success ms-1" title="Action signée par mot de passe"><i class="bi bi-pen me-1"></i>signée</span>@endif
                                 </div>
                                 @if ($event->to_status)

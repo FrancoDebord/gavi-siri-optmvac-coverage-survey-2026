@@ -31,7 +31,25 @@ export default function queryShowPage() {
             signature.classList.toggle('d-none', !required);
             signature.querySelector('input').required = required;
         }
+        // Correction proposée : saisie des nouvelles valeurs (désactivées sinon, pour ne pas être envoyées).
+        if (corrections) {
+            const active = select.value === 'corrigee';
+            corrections.classList.toggle('d-none', !active);
+            corrections.querySelectorAll('[data-correction-rows] input, [data-correction-rows] select').forEach((el) => {
+                el.disabled = !active;
+            });
+        }
     };
+    const corrections = document.getElementById('corrections-block');
+    corrections?.querySelector('[data-add-correction]')?.addEventListener('click', () => {
+        const index = Number(corrections.dataset.nextIndex);
+        corrections.dataset.nextIndex = index + 1;
+        const html = document.getElementById('correction-template').innerHTML.replaceAll('__i__', index);
+        corrections.querySelector('[data-correction-rows]').insertAdjacentHTML('beforeend', html);
+    });
+    corrections?.addEventListener('click', (event) => {
+        event.target.closest('[data-remove-correction]')?.closest('[data-correction-row]')?.remove();
+    });
     select.addEventListener('change', update);
     update();
 }

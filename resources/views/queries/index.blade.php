@@ -171,7 +171,6 @@
                             <select id="modal-status" name="status" class="form-select">
                                 <option value="">— Ne pas changer (commentaire seul) —</option>
                                 @foreach ([
-                                    \App\Models\DataQuery::STATUS_CORRECTED => 'Réponse : correction proposée',
                                     \App\Models\DataQuery::STATUS_JUSTIFIED => 'Réponse : valeur confirmée',
                                     \App\Models\DataQuery::STATUS_VALIDATED => 'Valider la réponse et fermer',
                                     \App\Models\DataQuery::STATUS_OPEN => 'Rejeter la réponse / rouvrir',
@@ -182,7 +181,7 @@
                                     @endif
                                 @endforeach
                             </select>
-                            <div class="form-text">Valeur confirmée, rejet et irrésoluble exigent un motif. Chaque query est contrôlée : les actions impossibles sont ignorées et listées.</div>
+                            <div class="form-text">Une correction (nouvelle valeur) se saisit sur la fiche de la query. Valeur confirmée, rejet et irrésoluble exigent un motif. Chaque query est contrôlée : les actions impossibles sont ignorées et listées.</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="modal-comment">Justification / motif</label>

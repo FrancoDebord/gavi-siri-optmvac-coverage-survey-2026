@@ -51,6 +51,26 @@
                     @endforelse
                 </div>
             </div>
+
+            @if ($corrections->isNotEmpty())
+                <div class="card mt-3">
+                    <div class="card-header"><i class="bi bi-pencil-square me-1"></i>Corrections ({{ $corrections->count() }})</div>
+                    <ul class="list-group list-group-flush small">
+                        @foreach ($corrections as $correction)
+                            <li class="list-group-item">
+                                <div class="d-flex justify-content-between gap-2">
+                                    <code>{{ $correction->variable }}</code>
+                                    <span class="badge text-bg-{{ \App\Models\DataCorrection::STATUS_COLORS[$correction->status] ?? 'secondary' }} {{ $correction->status === 'remplacee' ? 'border' : '' }}">{{ $correction->statusLabel() }}</span>
+                                </div>
+                                @if ($correction->instance_path)<div class="text-muted">{{ \App\Exports\QueriesExport::memberLabel($correction->instance_path) }}</div>@endif
+                                <div>{{ \App\Models\DataCorrection::display($correction->old_value) }} <i class="bi bi-arrow-right"></i> <strong>{{ \App\Models\DataCorrection::display($correction->new_value) }}</strong></div>
+                                <div class="text-muted">ODK : {{ \App\Models\DataCorrection::display($correction->source_value) }} · {{ $correction->proposed_at->format('d/m/Y') }}@if ($correction->data_query_id) · <a href="{{ route('queries.show', $correction->data_query_id) }}">{{ \App\Models\DataQuery::codeFor($correction->data_query_id) }}</a>@endif</div>
+                            </li>
+                        @endforeach
+                    </ul>
+                    <div class="card-footer small text-muted">Les valeurs affichées sur cette fiche sont celles de la base nettoyée. La donnée ODK n'est pas modifiée.</div>
+                </div>
+            @endif
         </div>
 
         <div class="col-lg-8">

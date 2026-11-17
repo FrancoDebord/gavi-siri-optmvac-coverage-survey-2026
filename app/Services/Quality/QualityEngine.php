@@ -44,7 +44,10 @@ class QualityEngine
 
     private Dictionary $dictionary;
 
-    public function run(string $trigger = 'manual', ?int $userId = null): QualityRun
+    /**
+     * @param  list<int>|null  $householdIds  vérification limitée à ces ménages (après une correction) ; null = tous
+     */
+    public function run(string $trigger = 'manual', ?int $userId = null, ?array $householdIds = null): QualityRun
     {
         $run = QualityRun::create(['user_id' => $userId, 'trigger' => $trigger, 'status' => 'running', 'started_at' => now()]);
         $startedAt = now();
@@ -62,29 +65,31 @@ class QualityEngine
 
             $this->toInsert = $this->touched = [];
             $this->opened = 0;
-            $this->existing = DataQuery::withoutGlobalScope('kind')->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to'])
+            $this->existing = DataQuery::withoutGlobalScope('kind')
+                ->when($householdIds !== null, fn ($q) => $q->whereIn('household_id', $householdIds ?: [0]))->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to'])
                 ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value, 'assigned_to' => $q->assigned_to]])
                 ->all();
             $this->prepareAutoAssignment();
 
             $checked = 0;
             $failures = [];
-            Household::with(['caregivers', 'children'])->chunkById(200, function ($households) use ($rules, $dictionary, $today, &$checked, &$failures, $startedAt) {
-                foreach ($households as $household) {
-                    $context = new SubmissionContext($household, $dictionary, $today);
-                    foreach ($rules as [$model, $handler]) {
-                        try {
-                            foreach ($handler->evaluate($context, $model) as $candidate) {
-                                $this->collect($model, $household, $candidate, $startedAt);
+            Household::with(['caregivers', 'children'])
+                ->when($householdIds !== null, fn ($q) => $q->whereIn('id', $householdIds ?: [0]))->chunkById(200, function ($households) use ($rules, $dictionary, $today, &$checked, &$failures, $startedAt) {
+                    foreach ($households as $household) {
+                        $context = new SubmissionContext($household, $dictionary, $today);
+                        foreach ($rules as [$model, $handler]) {
+                            try {
+                                foreach ($handler->evaluate($context, $model) as $candidate) {
+                                    $this->collect($model, $household, $candidate, $startedAt);
+                                }
+                            } catch (Throwable $e) {
+                                $failures[$model->code] ??= $e->getMessage();
                             }
-                        } catch (Throwable $e) {
-                            $failures[$model->code] ??= $e->getMessage();
                         }
+                        $checked++;
                     }
-                    $checked++;
-                }
-                $this->flush();
-            });
+                    $this->flush();
+                });
 
             foreach ($failures as $code => $message) {
                 Log::warning("Règle qualité {$code} en erreur : {$message}");

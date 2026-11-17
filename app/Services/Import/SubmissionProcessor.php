@@ -12,6 +12,8 @@ use App\Models\FormVersion;
 use App\Models\HealthZone;
 use App\Models\Household;
 use App\Models\Village;
+use App\Services\Cleaning\CorrectionApplier;
+use App\Services\Cleaning\SourceSnapshot;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Dictionary\VariableMap as Map;
 use App\Support\HouseholdCode;
@@ -47,9 +49,12 @@ class SubmissionProcessor
 
     private Dictionary $dictionary;
 
+    private CorrectionApplier $corrections;
+
     public function __construct(?Dictionary $dictionary = null)
     {
         $this->dictionary = $dictionary ?? Dictionary::current();
+        $this->corrections = new CorrectionApplier;
         $this->ids = [
             'zone' => HealthZone::pluck('id', 'code')->all(),
             'commune' => Commune::pluck('id', 'code')->all(),
@@ -73,13 +78,17 @@ class SubmissionProcessor
      */
     public function process(NormalizedSubmission $submission, array $origin = []): string
     {
-        $hash = $submission->hash();
+        // Base nettoyée : la source est conservée telle quelle, les tables de travail reçoivent la version corrigée.
+        $source = $submission;
+        [$submission, $corrections] = $this->corrections->apply($source);
+        $hash = $corrections === '' ? $source->hash() : hash('sha256', $source->hash().'|'.$corrections);
         $existing = Household::where('submission_uuid', $submission->uuid)->first(['id', 'content_hash']);
         if ($existing && $existing->content_hash === $hash) {
             return self::UNCHANGED;
         }
 
         $attributes = $this->householdAttributes($submission) + [
+            'source_data' => SourceSnapshot::serialize($source),
             'content_hash' => $hash,
             'data_source_id' => $origin['data_source_id'] ?? null,
             'import_batch_id' => $origin['import_batch_id'] ?? null,

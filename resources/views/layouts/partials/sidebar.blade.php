@@ -68,6 +68,9 @@
     <a class="{{ $link('queries.index', 'queries.index') }} {{ request()->routeIs('queries.show') ? 'active' : '' }}" href="{{ route('queries.index') }}"><i class="bi bi-list-check"></i><span class="label">Liste des queries
         @if ($myQueries = \App\Models\DataQuery::where('assigned_to', auth()->id())->whereIn('status', \App\Models\DataQuery::UNRESOLVED)->count())<span class="badge rounded-pill text-bg-primary ms-1" title="Queries qui vous sont assignées">{{ $myQueries }}</span>@endif</span></a>
     <a class="{{ $link('observations.*') }}" href="{{ route('observations.index') }}"><i class="bi bi-binoculars"></i><span class="label">Observations de supervision</span></a>
+    @canany(['validate queries', 'view pi dashboard'])
+        <a class="{{ $link('corrections.*') }}" href="{{ route('corrections.index') }}"><i class="bi bi-pencil-square"></i><span class="label">Registre des corrections</span></a>
+    @endcanany
     @endcan
     @endif
 
