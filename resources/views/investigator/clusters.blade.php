@@ -62,7 +62,7 @@
                                         <span class="text-muted">Non renseignée</span>
                                     @endif
                                 </td>
-                                <td class="text-center">{{ $row['cluster_id'] ? $row['sub_clusters'] : '—' }}</td>
+                                <td class="text-center">{{ $row['sub_clusters'] ? implode(', ', $row['sub_clusters']) : '—' }}</td>
                                 <td class="text-center">{{ $row['selected'] ? implode(', ', $row['selected']) : '—' }}</td>
                                 <td class="text-end">{{ $fmt($row['visited']) }}</td>
                                 <td class="text-end">{{ $fmt($row['surveyed']) }}</td>
@@ -92,7 +92,7 @@
     @endforelse
 
     <p class="small text-muted">
-        Sous-grappes créées : sous-grappes délimitées (contours importés) ou citées dans l'identifiant des ménages.
-        Ménage enquêté : consentement donné. Les grappes délimitées mais pas encore visitées apparaissent avec 0 ménage.
+        Sous-grappes créées et sous-grappe sélectionnée : réponses 6a et 6b du formulaire (plusieurs valeurs = réponses discordantes entre soumissions).
+        Ménage enquêté : consentement donné. Les grappes délimitées mais pas encore visitées apparaissent avec 0 ménage et sans réponse.
     </p>
 </x-layouts.app>

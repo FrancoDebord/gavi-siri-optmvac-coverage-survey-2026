@@ -55,6 +55,7 @@ return [
         'village' => ['Village', 'geo', 'village', null],
         'grappe' => ['Grappe (si l\'identifiant ménage ne la donne pas ; vide = village)', 'geo', 'cluster_number', null],
         'sous_grappe' => ['Sous-grappe sélectionnée', 'geo', 'selected_sub_circuit', null],
+        'nb_sous_grappes' => ['Nombre de sous-grappes créées', 'geo', 'sub_circuits', null],
         'binome' => ['Agent de terrain (fieldworker)', 'geo', 'fieldworker', null],
         'pays' => ['Pays', 'geo', 'country', null],
 
