@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -43,29 +44,33 @@ class ImportController extends Controller
     }
 
     /** Contours GPS des grappes : réimport du dossier settings/points_gps. */
-    public function importBoundaries(ClusterBoundaryImporter $importer): RedirectResponse
+    public function importBoundaries(Request $request, ClusterBoundaryImporter $importer): RedirectResponse|JsonResponse
     {
-        $report = $importer->run();
+        $progress = $this->boundaryProgressReporter($request);
+        $report = $importer->run($progress);
         AuditLog::record('import.contours', null, ['grappes' => $report['clusters'], 'sous_grappes' => $report['sub_clusters'], 'points' => $report['points']]);
         $problems = collect($report['files'])->filter(fn ($f) => $f['error'] || $f['warnings'])->count();
         $message = sprintf('Contours importés : %d grappe(s), %d sous-grappe(s), %d point(s).', $report['clusters'], $report['sub_clusters'], $report['points']);
 
         return $problems
-            ? back()->with('warning', $message.' '.$problems.' fichier(s) à vérifier : voir les remarques dans le tableau des contours.')
-            : back()->with('success', $message);
+            ? $this->boundaryResponse($request, $progress, 'warning', $message.' '.$problems.' fichier(s) à vérifier : voir les remarques dans le tableau des contours.')
+            : $this->boundaryResponse($request, $progress, 'success', $message);
     }
 
     /** Dépôt de nouveaux relevés GPS (plusieurs fichiers), puis import de tous les contours. */
-    public function uploadBoundaries(Request $request, ClusterBoundaryImporter $importer): RedirectResponse
+    public function uploadBoundaries(Request $request, ClusterBoundaryImporter $importer): RedirectResponse|JsonResponse
     {
         $request->validate([
             'files' => ['required', 'array', 'max:50'],
             'files.*' => ['file', 'max:1024', 'extensions:csv,txt'],
         ], [], ['files' => 'fichiers', 'files.*' => 'fichier']);
 
+        $progress = $this->boundaryProgressReporter($request);
+        $uploads = $request->file('files');
         $saved = $rejected = [];
-        foreach ($request->file('files') as $file) {
+        foreach ($uploads as $i => $file) {
             $name = basename($file->getClientOriginalName());
+            $progress('depot', $i, count($uploads), $name);
             if (! $importer->isValidFileName($name)) {
                 $rejected[] = $name;
 
@@ -76,10 +81,10 @@ class ImportController extends Controller
             $saved[] = $name.($existed ? ' (remplacé)' : '');
         }
         if (! $saved) {
-            return back()->with('danger', 'Aucun fichier déposé : nom non conforme ('.implode(', ', $rejected).'). Format attendu : '.ClusterBoundaryImporter::FILE_FORMAT.', par exemple DAG-ASS-01-06-11-2026.csv ou TCH-KPR-06-H01-09-11-2026.csv.');
+            return $this->boundaryResponse($request, $progress, 'danger', 'Aucun fichier déposé : nom non conforme ('.implode(', ', $rejected).'). Format attendu : '.ClusterBoundaryImporter::FILE_FORMAT.', par exemple DAG-ASS-01-06-11-2026.csv ou TCH-KPR-06-H01-09-11-2026.csv.');
         }
 
-        $report = $importer->run();
+        $report = $importer->run($progress);
         AuditLog::record('import.contours.depot', null, ['fichiers' => $saved, 'refuses' => $rejected]);
         $files = collect($report['files'])->whereIn('file', array_map(fn ($n) => preg_replace('/ \(remplacé\)$/', '', $n), $saved));
         $problems = $files->filter(fn ($f) => $f['error'] || $f['warnings'])->pluck('file');
@@ -87,7 +92,49 @@ class ImportController extends Controller
             .($rejected ? ' Refusé(s), nom non conforme : '.implode(', ', $rejected).'.' : '')
             .($problems->isNotEmpty() ? ' À vérifier : '.$problems->implode(', ').' (voir les remarques).' : '');
 
-        return back()->with($rejected || $problems->isNotEmpty() ? 'warning' : 'success', $message);
+        return $this->boundaryResponse($request, $progress, $rejected || $problems->isNotEmpty() ? 'warning' : 'success', $message);
+    }
+
+    /** Avancement d'un import de contours en cours (lu par la page pendant le traitement). */
+    public function boundaryProgress(Request $request, string $token): JsonResponse
+    {
+        return response()->json(Cache::get(self::boundaryProgressKey($request->user()->id, $token)) ?? ['step' => 'attente']);
+    }
+
+    private static function boundaryProgressKey(int $userId, string $token): string
+    {
+        return "gavi.boundaries.progress.{$userId}.{$token}";
+    }
+
+    /**
+     * Publie l'avancement sous le jeton envoyé par la page (progress_token, UUID) ; la clé inclut l'utilisateur,
+     * qui seul peut la lire. Sans jeton, l'avancement n'est pas publié.
+     *
+     * @return callable(string, int, int, ?string): void
+     */
+    private function boundaryProgressReporter(Request $request): callable
+    {
+        $token = $request->input('progress_token');
+        if (! is_string($token) || ! Str::isUuid($token)) {
+            return static fn () => null;
+        }
+        $key = self::boundaryProgressKey($request->user()->id, $token);
+
+        return static function (string $step, int $done = 0, int $total = 0, ?string $detail = null) use ($key) {
+            Cache::put($key, ['step' => $step, 'done' => $done, 'total' => $total, 'detail' => $detail], now()->addMinutes(10));
+        };
+    }
+
+    /** Message de fin : redirection classique, ou JSON (page avec barre de progression) qui recharge la page. */
+    private function boundaryResponse(Request $request, callable $progress, string $level, string $message): RedirectResponse|JsonResponse
+    {
+        $progress('termine', 1, 1, null);
+        if (! $request->expectsJson()) {
+            return back()->with($level, $message);
+        }
+        session()->flash($level, $message);
+
+        return response()->json(['redirect' => route('imports.index')]);
     }
 
     /** Suppression d'un relevé du dossier (le contour qu'il fournissait est retiré ou remplacé par un relevé plus ancien). */

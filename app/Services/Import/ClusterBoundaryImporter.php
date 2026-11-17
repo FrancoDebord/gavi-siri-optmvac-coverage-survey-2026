@@ -130,14 +130,27 @@ class ClusterBoundaryImporter
     /**
      * Importe tous les fichiers, applique les contours retenus et réécrit la compilation.
      *
+     * $progress (facultatif) est appelé à chaque étape : (étape, faits, total, détail), étapes « lecture »
+     * (un appel par fichier), « application » puis « compilation ». Il n'est jamais appelé dans la transaction,
+     * pour que la progression soit lisible par une autre requête pendant le traitement.
+     *
+     * @param  (callable(string, int, int, ?string): void)|null  $progress
      * @return array{generated_at: string, files: list<array>, clusters: int, sub_clusters: int, points: int, compilation: string}
      */
-    public function run(): array
+    public function run(?callable $progress = null): array
     {
-        $files = collect(is_dir($this->directory()) ? glob($this->directory().DIRECTORY_SEPARATOR.'*.csv') : [])
-            ->map(fn ($path) => $this->readFile($path))
+        $progress ??= static fn () => null;
+        $paths = is_dir($this->directory()) ? glob($this->directory().DIRECTORY_SEPARATOR.'*.csv') : [];
+        $total = count($paths);
+        $files = collect($paths)
+            ->map(function ($path, $i) use ($progress, $total) {
+                $progress('lecture', $i, $total, basename($path));
+
+                return $this->readFile($path);
+            })
             ->sortBy([['key', 'asc'], ['date', 'desc'], ['file', 'desc']])->values();
 
+        $progress('application', $total, $total, null);
         $zoneCentroids = $this->householdCentroids('health_zone_id');
         $villageCentroids = $this->householdCentroids('village_id');
 
@@ -198,6 +211,7 @@ class ClusterBoundaryImporter
                 ->update(['boundary' => null, 'boundary_file' => null, 'boundary_date' => null]);
         });
 
+        $progress('compilation', $total, $total, null);
         $this->writeCompilation($files);
         DashboardCache::bump();
 

@@ -136,6 +136,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/contours', [ImportController::class, 'importBoundaries'])->name('boundaries')->middleware('throttle:10,1');
         Route::get('/contours/compilation.csv', [ImportController::class, 'boundaryCompilation'])->name('boundaries.compilation');
         Route::post('/contours/depot', [ImportController::class, 'uploadBoundaries'])->name('boundaries.upload')->middleware('throttle:20,1');
+        Route::get('/contours/progression/{token}', [ImportController::class, 'boundaryProgress'])->whereUuid('token')->name('boundaries.progress');
         Route::delete('/contours/{file}', [ImportController::class, 'destroyBoundary'])->where('file', '[A-Za-z0-9_\-() ]+\.csv')->name('boundaries.destroy');
         Route::get('/contours/contours.geojson', [ImportController::class, 'boundaryGeoJson'])->name('boundaries.geojson');
         Route::get('/contours/export.zip', [ImportController::class, 'boundaryArchive'])->name('boundaries.archive');

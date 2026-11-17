@@ -10,6 +10,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ClusterBoundaryImportTest extends TestCase
@@ -271,6 +272,43 @@ class ClusterBoundaryImportTest extends TestCase
         $reader->assignRole(User::ROLE_READER);
         $this->actingAs($reader)->post(route('imports.boundaries.upload'), ['files' => [$file('DAG-MIN-03-06-11-2026.csv', $this->square('DAG-MIN-03', 7.8, 2.3))]])->assertRedirect(route('dashboard'));
         $this->assertNotContains('DAG-MIN-03-06-11-2026.csv', app(ClusterBoundaryImporter::class)->files());
+    }
+
+    public function test_upload_with_progress_reports_each_step_and_answers_in_json(): void
+    {
+        $manager = User::factory()->create();
+        $manager->assignRole(User::ROLE_DATA_MANAGER);
+        $token = (string) Str::uuid();
+        $file = fn (string $name, string $content) => UploadedFile::fake()->createWithContent($name, self::HEADER.$content);
+
+        // Étapes publiées pendant le traitement, dans l'ordre (lecture : un appel par fichier du dossier).
+        $steps = [];
+        $this->write('TCH-SEB-01-07-11-2026.csv', $this->square('TCH-SEB-01', 9.31, 2.49));
+        app(ClusterBoundaryImporter::class)->run(function (string $step, int $done, int $total) use (&$steps) {
+            $steps[] = "{$step} {$done}/{$total}";
+        });
+        $this->assertSame(['lecture 0/1', 'application 1/1', 'compilation 1/1'], $steps);
+
+        // Envoi depuis la page (XHR) : réponse JSON avec la page à recharger, message flashé, avancement « terminé ».
+        $this->actingAs($manager)->postJson(route('imports.boundaries.upload'), [
+            'progress_token' => $token,
+            'files' => [$file('DAG-ASS-01-06-11-2026.csv', $this->square('DAG-ASS-01', 7.570, 2.282))],
+        ])->assertOk()->assertJson(['redirect' => route('imports.index')])->assertSessionHas('success');
+        $this->actingAs($manager)->getJson(route('imports.boundaries.progress', $token))->assertOk()->assertJson(['step' => 'termine']);
+
+        // Réimport du dossier, même principe.
+        $other = (string) Str::uuid();
+        $this->actingAs($manager)->postJson(route('imports.boundaries'), ['progress_token' => $other])->assertOk()->assertJsonStructure(['redirect']);
+        $this->actingAs($manager)->getJson(route('imports.boundaries.progress', $other))->assertJson(['step' => 'termine']);
+
+        // L'avancement n'est lisible que par l'auteur de l'import ; jeton inconnu : en attente.
+        $colleague = User::factory()->create();
+        $colleague->assignRole(User::ROLE_DATA_MANAGER);
+        $this->actingAs($colleague)->getJson(route('imports.boundaries.progress', $token))->assertOk()->assertExactJson(['step' => 'attente']);
+
+        // Fichier refusé (validation) : erreur 422 en JSON, affichée dans la barre.
+        $this->actingAs($manager)->postJson(route('imports.boundaries.upload'), ['progress_token' => (string) Str::uuid(), 'files' => []])
+            ->assertUnprocessable()->assertJsonValidationErrors('files');
     }
 
     public function test_import_page_and_compilation_download(): void

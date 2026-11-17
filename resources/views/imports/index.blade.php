@@ -61,14 +61,16 @@
                 <a href="{{ route('imports.boundaries.archive') }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-zip me-1"></i>Tout exporter (ZIP)</a>
                 <a href="{{ route('imports.boundaries.compilation') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-filetype-csv me-1"></i>Points (CSV)</a>
                 <a href="{{ route('imports.boundaries.geojson') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-map me-1"></i>Contours (GeoJSON)</a>
-                <form method="POST" action="{{ route('imports.boundaries') }}">
+                <form method="POST" action="{{ route('imports.boundaries') }}" data-boundary-progress
+                      data-progress-url="{{ route('imports.boundaries.progress', '00000000-0000-0000-0000-000000000000') }}">
                     @csrf
                     <button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat me-1"></i>Réimporter le dossier</button>
                 </form>
             </span>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ route('imports.boundaries.upload') }}" enctype="multipart/form-data" class="border rounded p-2 mb-3 bg-light"
+            <form method="POST" action="{{ route('imports.boundaries.upload') }}" enctype="multipart/form-data" class="border rounded p-2 mb-3 bg-light" data-boundary-progress
+                  data-progress-url="{{ route('imports.boundaries.progress', '00000000-0000-0000-0000-000000000000') }}"
                   data-confirm-title="Déposer les relevés" data-confirm-label="Déposer et importer"
                   data-confirm="Déposer les fichiers sélectionnés dans le dossier des relevés et mettre à jour les contours ? Un fichier portant le même nom qu'un relevé existant le remplace.">
                 @csrf
@@ -81,6 +83,17 @@
                 @error('files.*')<div class="small text-danger">{{ $message }}</div>@enderror
                 <div class="form-text">Plusieurs fichiers à la fois. Les fichiers mal nommés sont refusés ; les autres sont importés aussitôt.</div>
             </form>
+            {{-- Avancement de l'envoi puis du traitement (rempli par resources/js/pages/imports.js). --}}
+            <div id="boundary-progress" class="border rounded p-2 mb-3 d-none" aria-live="polite">
+                <div class="d-flex justify-content-between align-items-center small mb-1 gap-2">
+                    <span class="fw-semibold" data-progress-label>Préparation…</span>
+                    <span class="text-muted text-nowrap" data-progress-percent></span>
+                </div>
+                <div class="progress" role="progressbar" aria-label="Progression de l'import des contours" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                </div>
+                <div class="small text-muted mt-1 text-truncate" data-progress-detail></div>
+            </div>
             <p class="small text-muted mb-2">
                 Fichiers du dossier <code>{{ $boundaryDirectory }}</code>, importés automatiquement toutes les 10 minutes :
                 <code>ZONE-VIL-NN[-Sx][-Hx]-JJ-MM-AAAA.csv</code> (ex. <code>DAG-ASS-01-06-11-2026.csv</code>, <code>TCH-BEE-03-S2-07-11-2026.csv</code>,
