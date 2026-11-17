@@ -224,7 +224,7 @@ class ProgressStats
             ->where('caregivers.consented', true)->selectRaw('households.cluster_id, count(*) as n')->groupBy('households.cluster_id')->pluck('n', 'cluster_id');
         $children = $this->filters->apply(DB::table('children')->join('households', 'households.id', '=', 'children.household_id'), 'households', 'interview_date')
             ->where('children.eligible', true)->selectRaw('households.cluster_id, count(*) as n')->groupBy('households.cluster_id')->pluck('n', 'cluster_id');
-        $queries = $this->filters->apply(DB::table('data_queries'), 'data_queries', 'collection_date', false)
+        $queries = $this->filters->apply(DB::table('data_queries')->where('data_queries.kind', DataQuery::KIND), 'data_queries', 'collection_date', false)
             ->whereIn('status', DataQuery::UNRESOLVED)->selectRaw('cluster_id, count(*) as n')->groupBy('cluster_id')->pluck('n', 'cluster_id');
 
         $clusters = $this->clusterQuery()

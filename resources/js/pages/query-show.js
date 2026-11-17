@@ -21,8 +21,16 @@ export default function queryShowPage() {
     const select = document.querySelector('#query-status-form [name="status"]');
     const help = document.getElementById('status-help');
     if (!select || !help) return;
+    const signature = document.getElementById('signature-field');
     const update = () => {
-        help.textContent = select.selectedOptions[0]?.dataset.help ?? '';
+        const option = select.selectedOptions[0];
+        help.textContent = option?.dataset.help ?? '';
+        // Signature électronique (mot de passe) pour valider ou déclarer irrésoluble une query en double validation.
+        if (signature) {
+            const required = option?.dataset.signature === '1';
+            signature.classList.toggle('d-none', !required);
+            signature.querySelector('input').required = required;
+        }
     };
     select.addEventListener('change', update);
     update();

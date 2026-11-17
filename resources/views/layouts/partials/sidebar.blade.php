@@ -65,7 +65,9 @@
     <a class="{{ $link('maps.clusters') }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
     <a class="{{ $link('submissions.*') }}" href="{{ route('submissions.index') }}"><i class="bi bi-house-door"></i><span class="label">Soumissions</span></a>
     <a class="{{ $link('queries.dashboard') }}" href="{{ route('queries.dashboard') }}"><i class="bi bi-clipboard2-pulse"></i><span class="label">Dashboard queries</span></a>
-    <a class="{{ $link('queries.index', 'queries.index') }} {{ request()->routeIs('queries.show') ? 'active' : '' }}" href="{{ route('queries.index') }}"><i class="bi bi-list-check"></i><span class="label">Liste des queries</span></a>
+    <a class="{{ $link('queries.index', 'queries.index') }} {{ request()->routeIs('queries.show') ? 'active' : '' }}" href="{{ route('queries.index') }}"><i class="bi bi-list-check"></i><span class="label">Liste des queries
+        @if ($myQueries = \App\Models\DataQuery::where('assigned_to', auth()->id())->whereIn('status', \App\Models\DataQuery::UNRESOLVED)->count())<span class="badge rounded-pill text-bg-primary ms-1" title="Queries qui vous sont assignées">{{ $myQueries }}</span>@endif</span></a>
+    <a class="{{ $link('observations.*') }}" href="{{ route('observations.index') }}"><i class="bi bi-binoculars"></i><span class="label">Observations de supervision</span></a>
     @endcan
     @endif
 
@@ -93,6 +95,9 @@
         @endcan
         @can('view audit')
             <a class="{{ $link('audit.*') }}" href="{{ route('audit.index') }}"><i class="bi bi-shield-check"></i><span class="label">Journal d'audit</span></a>
+        @endcan
+        @can('manage settings')
+            <a class="{{ $link('settings.*') }}" href="{{ route('settings.edit') }}"><i class="bi bi-gear"></i><span class="label">Paramètres de l'application</span></a>
         @endcan
     @endcanany
 

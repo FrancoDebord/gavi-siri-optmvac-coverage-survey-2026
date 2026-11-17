@@ -32,6 +32,7 @@ class QualityRuleRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
             'severity' => ['required', Rule::in(array_keys(QualityRule::SEVERITIES))],
+            'kind' => ['nullable', Rule::in(array_keys(QualityRule::KINDS))],
             'scope' => [$isExpression ? 'required' : 'nullable', Rule::in(array_keys(QualityRule::SCOPES))],
             'variables' => ['nullable', 'string', 'max:255'],
             'expression' => [$isExpression ? 'required' : 'nullable', 'string', 'max:2000', function ($attribute, $value, $fail) {

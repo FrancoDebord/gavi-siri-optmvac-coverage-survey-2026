@@ -89,8 +89,8 @@ class QueryExportTest extends TestCase
         $this->assertNotNull($query->resolved_at);
         $this->assertNotNull($query->closed_at);
 
-        // Réouverture : les dates de résolution et de clôture sont effacées.
-        $workflow->transition($query, DataQuery::STATUS_OPEN, null, null);
+        // Réouverture (motif obligatoire) : les dates de résolution et de clôture sont effacées.
+        $workflow->transition($query, DataQuery::STATUS_OPEN, 'Carnet retrouvé', null);
         $this->assertNull($query->resolved_at);
         $this->assertNull($query->closed_at);
     }

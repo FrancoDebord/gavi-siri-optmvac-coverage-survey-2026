@@ -60,7 +60,8 @@ export default function queriesListPage() {
             {
                 data: 'status',
                 render: (v, t, row) => `<span class="badge text-bg-${row.status_color}">${escapeHtml(row.resolution_label)}</span>
-                    <div class="small text-muted">${escapeHtml(row.status_label)}${row.resolved_at ? ` · ${escapeHtml(row.resolved_at)}` : ''}</div>`,
+                    <div class="small text-muted">${escapeHtml(row.status_label)}${row.resolved_at ? ` · ${escapeHtml(row.resolved_at)}` : ''}</div>
+                    ${row.assignee ? `<div class="small"><i class="bi bi-person me-1"></i>${escapeHtml(row.assignee)}${row.due_on ? ` · ${escapeHtml(row.due_on)}` : ''}${row.overdue ? ' <span class="badge text-bg-danger">en retard</span>' : ''}</div>` : ''}`,
             },
             {
                 data: 'id',
@@ -126,6 +127,8 @@ export default function queriesListPage() {
         form.dataset.ids = JSON.stringify(ids);
         form.querySelector('[name="status"]').value = '';
         form.querySelector('[name="comment"]').value = '';
+        form.querySelector('[name="password"]').value = '';
+        document.getElementById('modal-signature')?.classList.add('d-none');
         form.querySelectorAll('[name="status"] option').forEach((opt) => {
             const allowed = opt.dataset.from ? JSON.parse(opt.dataset.from) : null;
             opt.disabled = Boolean(status && allowed && !allowed.includes(status));
@@ -140,6 +143,41 @@ export default function queriesListPage() {
     });
     document.getElementById('bulk-status')?.addEventListener('click', () => openModal([...selection], null));
 
+    // Signature électronique : affichée pour valider ou déclarer irrésoluble.
+    const statusSelect = modalEl?.querySelector('[name="status"]');
+    const signature = document.getElementById('modal-signature');
+    statusSelect?.addEventListener('change', () => {
+        signature?.classList.toggle('d-none', statusSelect.selectedOptions[0]?.dataset.signature !== '1');
+    });
+
+    // Affectation groupée.
+    const assignEl = document.getElementById('assign-modal');
+    const assignModal = assignEl ? new window.bootstrap.Modal(assignEl) : null;
+    document.getElementById('bulk-assign')?.addEventListener('click', () => {
+        assignEl.querySelector('form').reset();
+        assignEl.querySelector('[data-selection-count]').textContent = selection.size;
+        assignModal.show();
+    });
+    assignEl?.querySelector('form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        try {
+            const result = await postJson(root.dataset.bulkAssignUrl, {
+                ids: [...selection],
+                assigned_to: form.assigned_to.value || null,
+                due_on: form.due_on.value || null,
+                comment: form.comment.value || null,
+            });
+            toast(result.message, result.errors?.length ? 'warning' : 'success');
+            assignModal.hide();
+            selection = new Set();
+            updateSelection();
+            dt.ajax.reload(null, false);
+        } catch (error) {
+            toast(error.message, 'danger');
+        }
+    });
+
     modalEl?.querySelector('form').addEventListener('submit', async (event) => {
         event.preventDefault();
         const form = event.target;
@@ -151,8 +189,9 @@ export default function queriesListPage() {
             return;
         }
         try {
-            const result = await postJson(root.dataset.bulkUrl, { ids, status, comment });
-            toast(result.message);
+            const password = form.querySelector('[name="password"]').value;
+            const result = await postJson(root.dataset.bulkUrl, { ids, status, comment, password: password || null });
+            toast(result.message, result.errors?.length ? 'warning' : 'success');
             modal.hide();
             selection = new Set();
             updateSelection();

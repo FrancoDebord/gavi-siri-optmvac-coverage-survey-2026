@@ -16,6 +16,7 @@ class QualityRuleSeeder extends Seeder
                 'name' => $rule['name'],
                 'description' => $rule['description'],
                 'category' => $rule['category'],
+                'kind' => in_array($code, RuleCatalog::OBSERVATIONS, true) ? QualityRule::KIND_OBSERVATION : QualityRule::KIND_QUERY,
                 'severity' => $rule['severity'],
                 'scope' => $rule['scope'],
                 'variables' => $rule['variables'],

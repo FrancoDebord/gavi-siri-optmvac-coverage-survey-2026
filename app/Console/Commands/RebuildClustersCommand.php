@@ -34,7 +34,7 @@ class RebuildClustersCommand extends Command
                 ]);
                 if ($household->isDirty()) {
                     $household->saveQuietly();
-                    DataQuery::where('household_id', $household->id)->update(['cluster_id' => $household->cluster_id]);
+                    DataQuery::withoutGlobalScope('kind')->where('household_id', $household->id)->update(['cluster_id' => $household->cluster_id]);
                     $changed++;
                 }
             }
@@ -42,7 +42,7 @@ class RebuildClustersCommand extends Command
 
         // Grappes sans ménage, cible, contour ni query : anciennes grappes « une par village ».
         $removed = Cluster::whereDoesntHave('households')->whereNull('target_households')->whereNull('boundary')
-            ->whereNotIn('id', DataQuery::whereNotNull('cluster_id')->select('cluster_id'))
+            ->whereNotIn('id', DataQuery::withoutGlobalScope('kind')->whereNotNull('cluster_id')->select('cluster_id'))
             ->delete();
 
         DashboardCache::bump();

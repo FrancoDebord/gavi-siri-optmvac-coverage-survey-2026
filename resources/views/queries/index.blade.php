@@ -1,5 +1,5 @@
 <x-layouts.app title="Liste des queries" page="queries-list">
-    <div id="queries-list" data-url="{{ route('queries.datatable') }}" data-bulk-url="{{ route('queries.bulk') }}" data-can-process="{{ auth()->user()->can('process queries') ? '1' : '0' }}">
+    <div id="queries-list" data-url="{{ route('queries.datatable') }}" data-bulk-url="{{ route('queries.bulk') }}" data-bulk-assign-url="{{ route('queries.bulk-assign') }}" data-can-process="{{ auth()->user()->can('process queries') || auth()->user()->can('validate queries') ? '1' : '0' }}">
         <x-page-header title="Liste des queries" :subtitle="$lastRun ? 'Dernière exécution du moteur : '.$lastRun->started_at->format('d/m/Y H:i').' ('.($lastRun->status === 'success' ? $lastRun->households_checked.' ménages contrôlés' : 'échec').')' : 'Le moteur n\'a pas encore été exécuté.'">
             @can('run quality checks')
                 <form method="POST" action="{{ route('queries.run') }}" data-confirm="Relancer le moteur de queries sur toutes les soumissions ?">
@@ -54,6 +54,24 @@
                 <input id="f-variable" class="form-control form-control-sm" data-filter="variable" list="variables-list" placeholder="ex. Penta1date">
             </div>
             <div class="col-6 col-md-3 col-xl-2">
+                <label class="form-label small mb-0" for="f-assigned">Assignée à</label>
+                <select id="f-assigned" class="form-select form-select-sm" data-filter="assigned">
+                    <option value="">Tous</option>
+                    <option value="moi">Moi</option>
+                    <option value="aucun">Non assignée</option>
+                    @foreach ($assignees as $assignee)
+                        <option value="{{ $assignee->id }}">{{ \App\Http\Controllers\DataQueryController::assigneeLabel($assignee) }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
+                <label class="form-label small mb-0" for="f-overdue">Échéance</label>
+                <select id="f-overdue" class="form-select form-select-sm" data-filter="en_retard">
+                    <option value="">Toutes</option>
+                    <option value="1">En retard</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
                 <label class="form-label small mb-0" for="f-code">Code query</label>
                 <input id="f-code" class="form-control form-control-sm" data-filter="code" placeholder="Q-000123">
             </div>
@@ -72,7 +90,12 @@
 
         <div id="bulk-bar" class="alert alert-primary d-flex align-items-center justify-content-between py-2 d-none">
             <span><strong data-count>0</strong> query(s) sélectionnée(s)</span>
-            <button id="bulk-status" class="btn btn-sm btn-primary"><i class="bi bi-pencil-square me-1"></i>Changer le statut / commenter</button>
+            <span class="d-flex gap-2">
+                @can('assign queries')
+                    <button id="bulk-assign" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-check me-1"></i>Affecter</button>
+                @endcan
+                <button id="bulk-status" class="btn btn-sm btn-primary"><i class="bi bi-pencil-square me-1"></i>Répondre / valider / commenter</button>
+            </span>
         </div>
 
         <div class="card">
@@ -134,7 +157,7 @@
         </div>
     @endcan
 
-    @can('process queries')
+    @if (auth()->user()->can('process queries') || auth()->user()->can('validate queries'))
         <div class="modal fade" id="status-modal" tabindex="-1" aria-labelledby="status-modal-title" aria-hidden="true">
             <div class="modal-dialog">
                 <form class="modal-content">
@@ -147,20 +170,72 @@
                             <label class="form-label" for="modal-status">Nouveau statut</label>
                             <select id="modal-status" name="status" class="form-select">
                                 <option value="">— Ne pas changer (commentaire seul) —</option>
-                                @foreach (\App\Models\DataQuery::STATUSES as $key => $label)
-                                    <option value="{{ $key }}" data-from='@json(collect(\App\Models\DataQuery::TRANSITIONS)->filter(fn ($to) => in_array($key, $to, true))->keys()->values())'>{{ $label }}</option>
+                                @foreach ([
+                                    \App\Models\DataQuery::STATUS_CORRECTED => 'Réponse : correction proposée',
+                                    \App\Models\DataQuery::STATUS_JUSTIFIED => 'Réponse : valeur confirmée',
+                                    \App\Models\DataQuery::STATUS_VALIDATED => 'Valider la réponse et fermer',
+                                    \App\Models\DataQuery::STATUS_OPEN => 'Rejeter la réponse / rouvrir',
+                                    \App\Models\DataQuery::STATUS_UNRESOLVABLE => 'Déclarer irrésoluble',
+                                ] as $key => $label)
+                                    @if (in_array($key, \App\Models\DataQuery::RESPONSES, true) || auth()->user()->can('validate queries'))
+                                        <option value="{{ $key }}" data-signature="{{ in_array($key, [\App\Models\DataQuery::STATUS_VALIDATED, \App\Models\DataQuery::STATUS_UNRESOLVABLE], true) ? '1' : '0' }}" data-from='@json(collect(\App\Models\DataQuery::TRANSITIONS)->filter(fn ($to) => in_array($key, $to, true))->keys()->values())'>{{ $label }}</option>
+                                    @endif
                                 @endforeach
                             </select>
-                            <div class="form-text">« Justifiée » et « Irrésoluble » exigent un commentaire. Les transitions impossibles sont ignorées.</div>
+                            <div class="form-text">Valeur confirmée, rejet et irrésoluble exigent un motif. Chaque query est contrôlée : les actions impossibles sont ignorées et listées.</div>
                         </div>
-                        <div>
-                            <label class="form-label" for="modal-comment">Commentaire</label>
+                        <div class="mb-3">
+                            <label class="form-label" for="modal-comment">Justification / motif</label>
                             <textarea id="modal-comment" name="comment" rows="3" class="form-control" maxlength="2000"></textarea>
+                        </div>
+                        <div id="modal-signature" class="d-none">
+                            <label class="form-label" for="modal-password"><i class="bi bi-pen me-1"></i>Signature électronique : votre mot de passe</label>
+                            <input id="modal-password" type="password" name="password" class="form-control" autocomplete="current-password">
+                            <div class="form-text">Exigée pour les queries en double validation ({{ implode(', ', (array) \App\Models\AppSetting::get(\App\Models\AppSetting::DOUBLE_VALIDATION)) ?: 'aucune' }}). Une réponse n'est jamais validée par son propre auteur.</div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
                         <button class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
+    @can('assign queries')
+        <div class="modal fade" id="assign-modal" tabindex="-1" aria-labelledby="assign-modal-title" aria-hidden="true">
+            <div class="modal-dialog">
+                <form class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-5" id="assign-modal-title">Affecter <span data-selection-count>1</span> query(s)</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="assign-user">Assigner à</label>
+                            <select id="assign-user" name="assigned_to" class="form-select">
+                                <option value="">— Personne (retirer l'affectation) —</option>
+                                @foreach ($assignees as $assignee)
+                                    <option value="{{ $assignee->id }}">{{ \App\Http\Controllers\DataQueryController::assigneeLabel($assignee) }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Un compte binôme ne reçoit que les queries de ses agents ; un superviseur, celles de sa zone.</div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-sm-5">
+                                <label class="form-label" for="assign-due">Échéance</label>
+                                <input id="assign-due" type="date" name="due_on" class="form-control" min="{{ today()->toDateString() }}">
+                            </div>
+                            <div class="col-sm-7">
+                                <label class="form-label" for="assign-note">Consigne</label>
+                                <input id="assign-note" name="comment" class="form-control" maxlength="2000">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                        <button class="btn btn-primary">Affecter</button>
                     </div>
                 </form>
             </div>

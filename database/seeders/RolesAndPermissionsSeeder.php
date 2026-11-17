@@ -17,6 +17,9 @@ class RolesAndPermissionsSeeder extends Seeder
         'view team space' => [User::ROLE_ADMIN, User::ROLE_TEAM],
         'manage decisions' => [User::ROLE_ADMIN, User::ROLE_PI, User::ROLE_DATA_MANAGER],
         'process queries' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR],
+        // Affectation des queries ; validation (fermeture) réservée au data manager (GCP : revue indépendante).
+        'assign queries' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR],
+        'validate queries' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER],
         'export data' => [User::ROLE_ADMIN, User::ROLE_PI, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR],
         'report incidents' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR],
         'import data' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER],
@@ -26,6 +29,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'manage sources' => [User::ROLE_ADMIN],
         'manage users' => [User::ROLE_ADMIN],
         'view audit' => [User::ROLE_ADMIN],
+        'manage settings' => [User::ROLE_ADMIN],
     ];
 
     public function run(): void

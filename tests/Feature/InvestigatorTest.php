@@ -112,7 +112,8 @@ class InvestigatorTest extends TestCase
 
         $this->actingAs($pi)->get(route('queries.dashboard'))->assertOk();
         $this->actingAs($pi)->get(route('queries.show', $query))->assertOk()->assertSee($query->code);
-        $this->actingAs($pi)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_SENT])->assertRedirect(route('investigator.index'));
+        $this->actingAs($pi)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'comment' => 'x'])->assertSessionHasErrors('status');
+        $this->actingAs($pi)->post(route('queries.assign', $query), ['assigned_to' => $pi->id])->assertForbidden();
         $this->assertSame(DataQuery::STATUS_OPEN, $query->fresh()->status);
     }
 

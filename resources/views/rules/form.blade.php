@@ -27,6 +27,15 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="kind">Nature</label>
+                    <select id="kind" name="kind" class="form-select">
+                        @foreach (\App\Models\QualityRule::KINDS as $key => $label)
+                            <option value="{{ $key }}" @selected(old('kind', $rule->kind ?? 'query') === $key)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Query : valeur à corriger ou confirmer (cycle de résolution). Observation : fait de supervision sur les paradonnées, sans correction.</div>
+                </div>
                 <div class="col-12">
                     <label class="form-label" for="description">Description</label>
                     <textarea id="description" name="description" rows="2" class="form-control">{{ old('description', $rule->description) }}</textarea>

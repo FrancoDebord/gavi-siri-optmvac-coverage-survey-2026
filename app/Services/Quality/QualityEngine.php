@@ -2,11 +2,14 @@
 
 namespace App\Services\Quality;
 
+use App\Models\AppSetting;
+use App\Models\Collector;
 use App\Models\DataQuery;
 use App\Models\Household;
 use App\Models\QualityRule;
 use App\Models\QualityRun;
 use App\Models\QueryEvent;
+use App\Models\User;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Quality\Rules\ExpressionRule;
 use App\Support\DashboardCache;
@@ -32,6 +35,9 @@ class QualityEngine
 
     private array $toInsert = [];
 
+    /** @var array<int, int> agent → compte du binôme (affectation automatique) */
+    private array $teamAccounts = [];
+
     private array $touched = [];
 
     private int $opened = 0;
@@ -56,9 +62,10 @@ class QualityEngine
 
             $this->toInsert = $this->touched = [];
             $this->opened = 0;
-            $this->existing = DataQuery::get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value'])
-                ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value]])
+            $this->existing = DataQuery::withoutGlobalScope('kind')->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to'])
+                ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value, 'assigned_to' => $q->assigned_to]])
                 ->all();
+            $this->prepareAutoAssignment();
 
             $checked = 0;
             $failures = [];
@@ -102,6 +109,39 @@ class QualityEngine
         }
 
         return $run->fresh();
+    }
+
+    /**
+     * Affectation automatique des nouvelles queries (paramètre « queries.auto_assign ») :
+     * « team » = compte du binôme dont l'agent a collecté le ménage, avec l'échéance par défaut.
+     */
+    private function prepareAutoAssignment(): void
+    {
+        $this->teamAccounts = [];
+        if (AppSetting::get(AppSetting::AUTO_ASSIGN) !== 'team') {
+            return;
+        }
+        $accounts = User::role(User::ROLE_TEAM)->whereNotNull('team_id')->orderBy('id')->get(['id', 'team_id'])
+            ->unique('team_id')->pluck('id', 'team_id');
+        $this->teamAccounts = Collector::whereNotNull('team_id')->pluck('team_id', 'id')
+            ->map(fn ($teamId) => $accounts[$teamId] ?? null)->filter()->all();
+    }
+
+    /** Colonnes d'affectation d'une nouvelle query (vides sans affectation automatique). */
+    private function autoAssignment(QualityRule $rule, Household $household, CarbonInterface $now): array
+    {
+        $assignee = $this->teamAccounts[$household->collector_id] ?? null;
+        if (! $assignee || ($rule->kind ?: QualityRule::KIND_QUERY) !== QualityRule::KIND_QUERY) {
+            return ['assigned_to' => null, 'assigned_at' => null, 'due_on' => null];
+        }
+        $days = (int) AppSetting::get(AppSetting::DUE_DAYS);
+
+        return [
+            'status' => DataQuery::STATUS_SENT,
+            'assigned_to' => $assignee,
+            'assigned_at' => $now,
+            'due_on' => $days > 0 ? CarbonImmutable::parse($now)->addDays($days)->toDateString() : null,
+        ];
     }
 
     /** @return list<array{0: QualityRule, 1: QualityRuleInterface}> */
@@ -153,12 +193,14 @@ class QualityEngine
                 'observed_value' => $observed,
                 'expected' => $candidate->expected,
                 'message' => mb_substr($candidate->message, 0, 2000),
+                'kind' => $rule->kind ?: QualityRule::KIND_QUERY,
                 'status' => DataQuery::STATUS_OPEN,
                 'detected_at' => $now,
                 'last_detected_at' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
+            $this->toInsert[$fingerprint] = $this->autoAssignment($rule, $household, $now) + $this->toInsert[$fingerprint];
 
             return;
         }
@@ -170,6 +212,7 @@ class QualityEngine
             'caregiver_id' => $candidate->scope?->caregiverId,
             'child_id' => $candidate->scope?->childId,
             'severity' => $rule->severity,
+            'kind' => $rule->kind ?: QualityRule::KIND_QUERY,
             'collector_id' => $household->collector_id,
             'cluster_id' => $household->cluster_id,
             'collection_date' => $household->interview_date?->toDateString(),
@@ -177,13 +220,14 @@ class QualityEngine
         if ($observed !== $existing['observed']) {
             $updates += ['observed_value' => $observed, 'message' => mb_substr($candidate->message, 0, 2000), 'expected' => $candidate->expected];
         }
-        // L'anomalie réapparaît après une fermeture automatique : la query est rouverte.
+        // L'anomalie réapparaît après une fermeture automatique : la query est rouverte (et rendue à son assigné).
         if ($existing['status'] === DataQuery::STATUS_VALIDATED && $existing['auto_closed']) {
-            $updates += ['status' => DataQuery::STATUS_OPEN, 'auto_closed' => false, 'closed_at' => null, 'resolved_at' => null];
-            QueryEvent::create(['data_query_id' => $existing['id'], 'type' => 'system', 'from_status' => DataQuery::STATUS_VALIDATED, 'to_status' => DataQuery::STATUS_OPEN, 'comment' => 'Anomalie de nouveau détectée : query rouverte.']);
+            $reopened = $existing['assigned_to'] ? DataQuery::STATUS_SENT : DataQuery::STATUS_OPEN;
+            $updates += ['status' => $reopened, 'auto_closed' => false, 'closed_at' => null, 'resolved_at' => null, 'validated_by' => null];
+            QueryEvent::create(['data_query_id' => $existing['id'], 'type' => 'system', 'from_status' => DataQuery::STATUS_VALIDATED, 'to_status' => $reopened, 'comment' => 'Anomalie de nouveau détectée : query rouverte.']);
             $this->opened++;
         }
-        DataQuery::whereKey($existing['id'])->update($updates);
+        DataQuery::withoutGlobalScope('kind')->whereKey($existing['id'])->update($updates);
     }
 
     /**
@@ -248,8 +292,8 @@ class QualityEngine
         DB::transaction(function () use ($queries) {
             foreach ($queries->chunk(500) as $chunk) {
                 $ids = $chunk->pluck('id');
-                DataQuery::whereIn('id', $ids)->whereNull('resolved_at')->update(['resolved_at' => now()]);
-                DataQuery::whereIn('id', $ids)->update([
+                DataQuery::withoutGlobalScope('kind')->whereIn('id', $ids)->whereNull('resolved_at')->update(['resolved_at' => now()]);
+                DataQuery::withoutGlobalScope('kind')->whereIn('id', $ids)->update([
                     'status' => DataQuery::STATUS_VALIDATED,
                     'auto_closed' => true,
                     'closed_at' => now(),
@@ -259,7 +303,7 @@ class QualityEngine
                     'type' => 'system',
                     'from_status' => $q->status,
                     'to_status' => DataQuery::STATUS_VALIDATED,
-                    'comment' => 'Donnée corrigée : anomalie non retrouvée à la dernière vérification, query fermée automatiquement.',
+                    'comment' => 'Anomalie non retrouvée à la dernière vérification (donnée corrigée) : fermeture automatique.',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ])->all());

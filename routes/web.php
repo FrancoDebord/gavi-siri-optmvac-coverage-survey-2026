@@ -18,8 +18,10 @@ use App\Http\Controllers\MappingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QualityRuleController;
 use App\Http\Controllers\QueryDashboardController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\SupervisionController;
+use App\Http\Controllers\SupervisionObservationController;
 use App\Http\Controllers\TeamMessageController;
 use App\Http\Controllers\TeamSpaceController;
 use App\Http\Controllers\UserController;
@@ -45,6 +47,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/queries/dashboard/donnees', [QueryDashboardController::class, 'data'])->name('queries.dashboard.data');
         Route::get('/queries', [DataQueryController::class, 'index'])->name('queries.index');
         Route::get('/queries/tableau', [DataQueryController::class, 'datatable'])->name('queries.datatable');
+        Route::get('/observations', [SupervisionObservationController::class, 'index'])->name('observations.index');
 
         // Espace superviseur et incidents de terrain
         Route::get('/superviseur', [SupervisionController::class, 'index'])->name('supervision.index');
@@ -116,11 +119,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/queries/rapport-quotidien', [QueryDashboardController::class, 'dailyReport'])->name('queries.report.daily');
     });
 
-    Route::middleware('permission:process queries')->group(function () {
-        Route::post('/queries/{query}/statut', [DataQueryController::class, 'updateStatus'])->name('queries.status');
-        Route::post('/queries/{query}/commentaire', [DataQueryController::class, 'comment'])->name('queries.comment');
-        Route::post('/queries/lot', [DataQueryController::class, 'bulk'])->name('queries.bulk')->middleware('throttle:30,1');
-    });
+    // Traitement des queries : droits vérifiés par la politique (assigné, équipe de traitement, data manager).
+    Route::post('/queries/{query}/statut', [DataQueryController::class, 'updateStatus'])->whereNumber('query')->name('queries.status')->middleware('throttle:60,1');
+    Route::post('/queries/{query}/commentaire', [DataQueryController::class, 'comment'])->whereNumber('query')->name('queries.comment')->middleware('throttle:60,1');
+    Route::post('/queries/{query}/affectation', [DataQueryController::class, 'assign'])->whereNumber('query')->name('queries.assign')->middleware('throttle:60,1');
+    Route::post('/queries/lot', [DataQueryController::class, 'bulk'])->name('queries.bulk')->middleware('throttle:30,1');
+    Route::post('/queries/lot/affectation', [DataQueryController::class, 'bulkAssign'])->name('queries.bulk-assign')->middleware(['permission:assign queries', 'throttle:30,1']);
 
     Route::middleware('permission:report incidents')->group(function () {
         Route::get('/incidents/nouveau', [FieldIncidentController::class, 'create'])->name('incidents.create');
@@ -191,4 +195,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::put('/{user}', [UserController::class, 'update'])->name('update');
     });
     Route::get('/parametres/audit', [AuditLogController::class, 'index'])->middleware('permission:view audit')->name('audit.index');
+    Route::middleware('permission:manage settings')->group(function () {
+        Route::get('/parametres/application', [SettingsController::class, 'edit'])->name('settings.edit');
+        Route::put('/parametres/application', [SettingsController::class, 'update'])->name('settings.update');
+    });
 });

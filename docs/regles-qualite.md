@@ -130,12 +130,45 @@ Recopiées dans chaque query et dans les exports ; modifiables par règle (Param
 | `PARA_LATE_SUBMISSION` | Rappeler au binôme d'envoyer les formulaires chaque jour et vérifier la connectivité de la tablette. |
 | `OUTLIER` | Vérifier la valeur {valeur} de « {question} » avec le binôme ; corriger s'il s'agit d'une erreur de saisie, sinon justifier. |
 
+## Queries et observations de supervision
+
+Chaque règle a une **nature** (modifiable dans l'écran de la règle) :
+
+- **Query de données** : une valeur à corriger ou à confirmer. Elle suit le cycle de résolution ci-dessous.
+- **Observation de supervision** : un fait relevé sur les paradonnées, à examiner avec les binômes, sans valeur à corriger. Les observations sont dans le menu **Observations de supervision**, hors des listes, indicateurs et exports de queries. Par défaut : `PARA_DURATION`, `PARA_OFF_HOURS`, `PARA_TODAY_START`, `PARA_DAILY_VOLUME`, `PARA_LATE_SUBMISSION`, `GPS_ACCURACY`, `GPS_OUTSIDE_COMMUNE`.
+
+Changer la nature d'une règle reclasse toutes ses anomalies. Rien n'est supprimé.
+
+## Cycle de résolution (BPC/GCP)
+
+**Ouverte → Assignée → Réponse → Validation par le data manager → Fermée**
+
+| Étape | Qui | Règle |
+|---|---|---|
+| Affectation | data manager, superviseur (sa zone) | À un data manager, un superviseur ou un compte binôme qui a accès à la query. Échéance donnée, ou échéance par défaut des paramètres. Retirer l'affectation la remet en « Ouverte ». |
+| Réponse : correction proposée | l'assigné, ou l'équipe de traitement de la zone | Description de la correction et de sa source. |
+| Réponse : valeur confirmée | idem | Justification obligatoire (source vérifiée : carnet, photo, revisite…). |
+| Validation | data manager | Ferme la query. Possible à l'unité ou en bloc. |
+| Rejet de la réponse | data manager | Motif obligatoire ; la query revient à l'assigné. |
+| Irrésoluble | data manager | Motif obligatoire ; la query est fermée. |
+| Réouverture | data manager | Motif obligatoire. |
+
+**Double validation** (sévérités paramétrables, critiques par défaut) :
+- la réponse est validée par une autre personne que son auteur ;
+- le validateur signe en ressaisissant son mot de passe, pour une validation comme pour un « irrésoluble » ;
+- l'événement est marqué « signé » dans l'historique.
+
+**Paramètres** (administrateur, menu **Paramètres de l'application**) : affectation automatique des nouvelles queries au compte du binôme, échéance par défaut, sévérités en double validation. Chaque modification est tracée dans le journal d'audit.
+
+Chaque action est tracée dans l'historique de la query : auteur, date, ancien et nouveau statut, motif, signature.
+
 ## Statuts de résolution
 
 | Statut de résolution | Statuts détaillés | Date de résolution |
 |---|---|---|
-| Non résolu | Ouverte, Envoyée au binôme | — |
-| Résolu | Justifiée, Corrigée, Validée (fermée) | premier passage dans l'un de ces statuts |
-| Irrésoluble | Irrésoluble (motif obligatoire) | date du passage en irrésoluble |
+| Non résolu | Ouverte, Assignée | — |
+| Réponse à valider | Valeur confirmée – à valider, Correction proposée – à valider | — |
+| Résolu | Fermée (validée) | date de validation |
+| Irrésoluble | Irrésoluble (fermée), motif obligatoire | date de la décision |
 
-Une query rouverte perd sa date de résolution. Une query irrésoluble dont l'anomalie disparaît (donnée finalement corrigée) est validée automatiquement.
+Une query rouverte perd sa date de résolution. Une anomalie qui disparaît à la vérification suivante (donnée corrigée) ferme la query automatiquement ; si elle réapparaît, la query est rouverte et rendue à son assigné.

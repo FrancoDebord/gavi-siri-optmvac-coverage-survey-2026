@@ -159,9 +159,9 @@ class AccessAndPagesTest extends TestCase
         $this->actingAs($supervisor)->get(route('households.show', $other->household_id))->assertForbidden();
 
         // Traitement : seule la query du périmètre est modifiée.
-        $response = $this->actingAs($supervisor)->postJson(route('queries.bulk'), ['ids' => [$mine->id, $other->id], 'status' => DataQuery::STATUS_SENT]);
+        $response = $this->actingAs($supervisor)->postJson(route('queries.bulk'), ['ids' => [$mine->id, $other->id], 'status' => DataQuery::STATUS_CORRECTED, 'comment' => 'Corrigé d\'après le carnet']);
         $response->assertOk()->assertJsonPath('updated', 1);
-        $this->assertSame(DataQuery::STATUS_SENT, $mine->fresh()->status);
+        $this->assertSame(DataQuery::STATUS_CORRECTED, $mine->fresh()->status);
         $this->assertSame(DataQuery::STATUS_OPEN, $other->fresh()->status);
     }
 
@@ -180,14 +180,14 @@ class AccessAndPagesTest extends TestCase
         $manager = $this->user(User::ROLE_DATA_MANAGER);
         $query = DataQuery::firstOrFail();
 
-        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_SENT, 'comment' => 'Transmis au binôme'])
-            ->assertRedirect()->assertSessionHas('success');
-        $this->assertSame(DataQuery::STATUS_SENT, $query->fresh()->status);
-        $this->assertDatabaseHas('query_events', ['data_query_id' => $query->id, 'to_status' => DataQuery::STATUS_SENT, 'user_id' => $manager->id]);
-
-        // Transition interdite.
+        // Transition interdite : pas de fermeture sans réponse.
         $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED])
             ->assertSessionHasErrors('status');
+
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'comment' => 'Date relue sur le carnet'])
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertSame(DataQuery::STATUS_CORRECTED, $query->fresh()->status);
+        $this->assertDatabaseHas('query_events', ['data_query_id' => $query->id, 'to_status' => DataQuery::STATUS_CORRECTED, 'user_id' => $manager->id]);
     }
 
     public function test_custom_expression_rule_can_be_created_and_tested(): void

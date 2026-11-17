@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\BulkQueryRequest;
+use App\Http\Requests\QueryAssignRequest;
 use App\Http\Requests\QueryCommentRequest;
 use App\Http\Requests\QueryStatusRequest;
 use App\Jobs\RunQualityChecksJob;
+use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\DataQuery;
 use App\Models\QualityRule;
 use App\Models\QualityRun;
+use App\Models\User;
 use App\Services\Attachments\SubmissionPhotos;
 use App\Services\Dashboard\QueryStats;
 use App\Services\Quality\QueryWorkflow;
@@ -17,6 +20,7 @@ use App\Support\Filters;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use InvalidArgumentException;
@@ -39,10 +43,25 @@ class DataQueryController extends Controller
         'status' => 'data_queries.status',
     ];
 
-    public function index(): View
+    /** Personnes à qui une query peut être affectée : data managers, superviseurs, comptes binômes (actifs). */
+    public static function assignableUsers(): Collection
+    {
+        return User::role([User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR, User::ROLE_TEAM])->where('is_active', true)
+            ->with(['roles:id,name', 'team:id,code,name'])->orderBy('name')->get(['id', 'name', 'team_id']);
+    }
+
+    public static function assigneeLabel(User $user): string
+    {
+        $role = User::ROLES[$user->roles->first()?->name] ?? '';
+
+        return $user->name.($user->team ? ' · binôme '.$user->team->code : ($role ? ' · '.$role : ''));
+    }
+
+    public function index(Request $request): View
     {
         return view('queries.index', [
-            'rules' => QualityRule::orderBy('code')->get(['code', 'name']),
+            'assignees' => $request->user()->can('assign queries') || $request->user()->can('view dashboards') ? self::assignableUsers() : collect(),
+            'rules' => QualityRule::where('kind', QualityRule::KIND_QUERY)->orderBy('code')->get(['code', 'name']),
             'lastRun' => QualityRun::latest('id')->first(),
             'variables' => DataQuery::whereNotNull('variable')->distinct()->orderBy('variable')->pluck('variable'),
         ]);
@@ -60,7 +79,8 @@ class DataQueryController extends Controller
             ->leftJoin('communes', 'communes.id', '=', 'data_queries.commune_id')
             ->leftJoin('villages', 'villages.id', '=', 'data_queries.village_id')
             ->leftJoin('clusters', 'clusters.id', '=', 'data_queries.cluster_id')
-            ->leftJoin('collectors', 'collectors.id', '=', 'data_queries.collector_id');
+            ->leftJoin('collectors', 'collectors.id', '=', 'data_queries.collector_id')
+            ->leftJoin('users as assignees', 'assignees.id', '=', 'data_queries.assigned_to');
 
         $search = trim((string) $request->input('search'));
         if ($search !== '') {
@@ -83,7 +103,7 @@ class DataQueryController extends Controller
             ->limit(min(100, max(1, $request->integer('length', 25))))
             ->get([
                 'data_queries.*', 'health_zones.name as zone', 'communes.name as commune', 'villages.name as village',
-                'clusters.name as cluster', 'collectors.name as collector',
+                'clusters.name as cluster', 'collectors.name as collector', 'assignees.name as assignee',
             ]);
 
         return response()->json([
@@ -117,6 +137,9 @@ class DataQueryController extends Controller
                 'status' => $q->status,
                 'status_label' => DataQuery::STATUSES[$q->status] ?? $q->status,
                 'status_color' => DataQuery::STATUS_COLORS[$q->status] ?? 'secondary',
+                'assignee' => $q->assignee,
+                'due_on' => $q->due_on ? date('d/m/Y', strtotime($q->due_on)) : null,
+                'overdue' => $q->due_on && in_array($q->status, DataQuery::UNRESOLVED, true) && $q->due_on < now()->toDateString(),
                 'url' => route('queries.show', $q->id),
             ]),
         ]);
@@ -125,10 +148,12 @@ class DataQueryController extends Controller
     public function show(DataQuery $query, SubmissionPhotos $photos): View
     {
         $this->authorize('view', $query);
-        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user']);
+        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator']);
 
         return view('queries.show', [
             'query' => $query,
+            'assignees' => request()->user()->can('assign', $query) ? self::assignableUsers() : collect(),
+            'doubleValidation' => AppSetting::requiresDoubleValidation($query->severity),
             'photos' => $photos->forQuery($query),
             'related' => DataQuery::where('household_id', $query->household_id)->whereKeyNot($query->id)->latest('id')->limit(20)->get(),
         ]);
@@ -136,9 +161,9 @@ class DataQueryController extends Controller
 
     public function updateStatus(QueryStatusRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
     {
-        $this->authorize('update', $query);
+        $this->authorize('view', $query);
         try {
-            $workflow->transition($query, $request->validated('status'), $request->validated('comment'), $request->user());
+            $workflow->transition($query, $request->validated('status'), $request->validated('comment'), $request->user(), $request->validated('password'));
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['status' => $e->getMessage()])->withInput();
         }
@@ -148,13 +173,64 @@ class DataQueryController extends Controller
 
     public function comment(QueryCommentRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
     {
-        $this->authorize('update', $query);
+        $this->authorize('comment', $query);
         $workflow->comment($query, $request->validated('comment'), $request->user());
 
         return back()->with('success', 'Commentaire ajouté.');
     }
 
-    /** Action rapide depuis la liste : statut et/ou commentaire sur une ou plusieurs queries. */
+    public function assign(QueryAssignRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
+    {
+        $this->authorize('assign', $query);
+        $assignee = $request->validated('assigned_to') ? User::find($request->validated('assigned_to')) : null;
+        try {
+            $workflow->assign($query, $assignee, $request->validated('due_on'), $request->user(), $request->validated('comment'));
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['assigned_to' => $e->getMessage()])->withInput();
+        }
+
+        return back()->with('success', $assignee ? "Query affectée à {$assignee->name}." : 'Affectation retirée.');
+    }
+
+    /** Affectation groupée depuis la liste. */
+    public function bulkAssign(QueryAssignRequest $request, QueryWorkflow $workflow): JsonResponse
+    {
+        $request->validate(['ids' => ['required']]);
+        $assignee = $request->validated('assigned_to') ? User::find($request->validated('assigned_to')) : null;
+        $done = 0;
+        $errors = [];
+        $queries = DataQuery::visibleTo($request->user())->whereIn('id', $request->validated('ids'))->get();
+        DB::transaction(function () use ($queries, $assignee, $request, $workflow, &$done, &$errors) {
+            foreach ($queries as $query) {
+                try {
+                    if ($request->user()->cannot('assign', $query)) {
+                        throw new InvalidArgumentException('hors de votre périmètre');
+                    }
+                    $workflow->assign($query, $assignee, $request->validated('due_on'), $request->user(), $request->validated('comment'));
+                    $done++;
+                } catch (InvalidArgumentException $e) {
+                    $errors[] = "{$query->code} : {$e->getMessage()}";
+                }
+            }
+        });
+
+        return response()->json(self::bulkResult($done, $errors, $assignee ? 'affectée(s) à '.$assignee->name : 'désaffectée(s)'));
+    }
+
+    private static function bulkResult(int $done, array $errors, string $verb): array
+    {
+        $message = "{$done} query(s) {$verb}.";
+        if ($errors) {
+            $message .= ' '.count($errors).' ignorée(s) : '.implode(' ; ', array_slice($errors, 0, 3));
+        }
+
+        return ['message' => $message, 'updated' => $done, 'errors' => $errors];
+    }
+
+    /**
+     * Action groupée depuis la liste : réponse, validation en bloc (signature unique pour les queries qui l'exigent),
+     * rejet, irrésoluble, ou commentaire. Chaque query est contrôlée individuellement ; les refus sont listés.
+     */
     public function bulk(BulkQueryRequest $request, QueryWorkflow $workflow): JsonResponse
     {
         $status = $request->validated('status');
@@ -166,22 +242,20 @@ class DataQueryController extends Controller
         DB::transaction(function () use ($queries, $status, $comment, $request, $workflow, &$done, &$errors) {
             foreach ($queries as $query) {
                 try {
+                    if (! $status && $request->user()->cannot('comment', $query)) {
+                        throw new InvalidArgumentException('hors de votre périmètre');
+                    }
                     $status
-                        ? $workflow->transition($query, $status, $comment, $request->user())
+                        ? $workflow->transition($query, $status, $comment, $request->user(), $request->validated('password'))
                         : $workflow->comment($query, (string) $comment, $request->user());
                     $done++;
                 } catch (InvalidArgumentException $e) {
-                    $errors[] = "#{$query->id} : {$e->getMessage()}";
+                    $errors[] = "{$query->code} : {$e->getMessage()}";
                 }
             }
         });
 
-        $message = "{$done} query(s) mise(s) à jour.";
-        if ($errors) {
-            $message .= ' '.count($errors).' ignorée(s) : '.implode(' ; ', array_slice($errors, 0, 3));
-        }
-
-        return response()->json(['message' => $message, 'updated' => $done, 'errors' => $errors]);
+        return response()->json(self::bulkResult($done, $errors, 'mise(s) à jour'));
     }
 
     public function run(Request $request): RedirectResponse

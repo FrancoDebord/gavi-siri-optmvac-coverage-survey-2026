@@ -31,6 +31,21 @@
                         <dt class="col-sm-4">Valeur observée</dt><dd class="col-sm-8">{{ $query->observed_value ?? '—' }}</dd>
                         <dt class="col-sm-4">Attendu</dt><dd class="col-sm-8">{{ $query->expected ?? '—' }}</dd>
                         <dt class="col-sm-4">Date de génération</dt><dd class="col-sm-8">{{ $query->detected_at->format('d/m/Y H:i') }} · dernière détection {{ $query->last_detected_at->format('d/m/Y H:i') }}</dd>
+                        <dt class="col-sm-4">Assignée à</dt>
+                        <dd class="col-sm-8">
+                            @if ($query->assignee)
+                                {{ $query->assignee->name }}
+                                <span class="text-muted">· le {{ $query->assigned_at?->format('d/m/Y') }}</span>
+                                @if ($query->due_on)
+                                    · échéance {{ $query->due_on->format('d/m/Y') }}
+                                    @if ($query->isOverdue())<span class="badge text-bg-danger ms-1">en retard</span>@endif
+                                @endif
+                            @else
+                                <span class="text-muted">Non assignée</span>
+                            @endif
+                        </dd>
+                        <dt class="col-sm-4">Réponse</dt><dd class="col-sm-8">{{ $query->responder ? $query->responder->name.' · '.$query->responded_at?->format('d/m/Y H:i') : '—' }}</dd>
+                        <dt class="col-sm-4">Validation</dt><dd class="col-sm-8">{{ $query->validator ? $query->validator->name : '—' }} @if ($doubleValidation)<span class="badge text-bg-light border ms-1" title="Validation par une autre personne que l'auteur de la réponse, avec signature électronique">double validation</span>@endif</dd>
                         <dt class="col-sm-4">Date de résolution</dt><dd class="col-sm-8">{{ $query->resolved_at?->format('d/m/Y H:i') ?? '—' }} @if ($query->auto_closed)<span class="badge text-bg-success">fermeture automatique</span>@endif</dd>
                     </dl>
                 </div>
@@ -104,34 +119,87 @@
         </div>
 
         <div class="col-lg-5">
-            @can('update', $query)
+            @php
+                $user = auth()->user();
+                $options = collect(\App\Models\DataQuery::TRANSITIONS[$query->status] ?? [])
+                    ->filter(fn ($status) => in_array($status, \App\Models\DataQuery::RESPONSES, true) ? $user->can('respond', $query) : $user->can('validate', $query))
+                    ->mapWithKeys(fn ($status) => [$status => $status === \App\Models\DataQuery::STATUS_OPEN
+                        ? (in_array($query->status, \App\Models\DataQuery::RESPONSES, true) ? 'Rejeter la réponse (retour à l\'assigné)' : 'Rouvrir la query')
+                        : ($status === \App\Models\DataQuery::STATUS_VALIDATED ? 'Valider la réponse et fermer' : \App\Models\DataQuery::STATUSES[$status])]);
+                $needsSignature = $doubleValidation && $user->can('validate', $query);
+            @endphp
+
+            @can('assign', $query)
                 <div class="card mb-3">
-                    <div class="card-header">Traitement</div>
+                    <div class="card-header"><i class="bi bi-person-check me-1"></i>Affectation</div>
                     <div class="card-body">
-                        <form id="query-status-form" method="POST" action="{{ route('queries.status', $query) }}" class="mb-3" data-confirm-when="status:irresoluble" data-confirm-variant="warning" data-confirm-title="Query irrésoluble" data-confirm="Déclarer la query {{ $query->code }} irrésoluble ? Elle sera fermée sans correction de la donnée.">
+                        <form method="POST" action="{{ route('queries.assign', $query) }}">
                             @csrf
-                            <label class="form-label" for="status">Nouveau statut</label>
-                            <select id="status" name="status" class="form-select mb-1" required>
-                                @foreach (\App\Models\DataQuery::TRANSITIONS[$query->status] ?? [] as $status)
-                                    <option value="{{ $status }}" data-help="{{ \App\Services\Quality\QueryWorkflow::help($status) }}" @selected(old('status') === $status)>{{ \App\Models\DataQuery::STATUSES[$status] }}</option>
+                            <label class="form-label" for="assigned_to">Assigner à</label>
+                            <select id="assigned_to" name="assigned_to" class="form-select mb-2">
+                                <option value="">— Personne (retirer l'affectation) —</option>
+                                @foreach ($assignees as $assignee)
+                                    <option value="{{ $assignee->id }}" @selected((int) old('assigned_to', $query->assigned_to) === $assignee->id)>{{ \App\Http\Controllers\DataQueryController::assigneeLabel($assignee) }}</option>
                                 @endforeach
                             </select>
-                            <div id="status-help" class="form-text mb-2"></div>
-                            <label class="form-label" for="comment">Commentaire / justification</label>
-                            <textarea id="comment" name="comment" rows="3" class="form-control mb-2" maxlength="2000">{{ old('comment') }}</textarea>
-                            <button class="btn btn-primary w-100"><i class="bi bi-check2 me-1"></i>Appliquer</button>
-                        </form>
-                        <form method="POST" action="{{ route('queries.comment', $query) }}">
-                            @csrf
-                            <label class="form-label" for="note">Ajouter un commentaire sans changer le statut</label>
-                            <div class="input-group">
-                                <input id="note" name="comment" class="form-control" maxlength="2000" required>
-                                <button class="btn btn-outline-primary"><i class="bi bi-chat-left-text"></i></button>
+                            @error('assigned_to')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+                            <div class="row g-2 mb-2">
+                                <div class="col-sm-5">
+                                    <label class="form-label" for="due_on">Échéance</label>
+                                    <input id="due_on" type="date" name="due_on" class="form-control" value="{{ old('due_on', $query->due_on?->toDateString()) }}" min="{{ today()->toDateString() }}">
+                                </div>
+                                <div class="col-sm-7">
+                                    <label class="form-label" for="assign-comment">Consigne</label>
+                                    <input id="assign-comment" name="comment" class="form-control" maxlength="2000">
+                                </div>
                             </div>
+                            <div class="form-text mb-2">Sans échéance saisie : {{ (int) \App\Models\AppSetting::get(\App\Models\AppSetting::DUE_DAYS) }} jour(s) (paramètre).</div>
+                            <button class="btn btn-outline-primary w-100"><i class="bi bi-person-check me-1"></i>Enregistrer l'affectation</button>
                         </form>
                     </div>
                 </div>
             @endcan
+
+            @if ($options->isNotEmpty() || $user->can('comment', $query))
+                <div class="card mb-3">
+                    <div class="card-header">Traitement</div>
+                    <div class="card-body">
+                        @if ($options->isNotEmpty())
+                            <form id="query-status-form" method="POST" action="{{ route('queries.status', $query) }}" class="mb-3" data-confirm-when="status:irresoluble" data-confirm-variant="warning" data-confirm-title="Query irrésoluble" data-confirm="Déclarer la query {{ $query->code }} irrésoluble ? Elle sera fermée sans correction de la donnée.">
+                                @csrf
+                                <label class="form-label" for="status">Action</label>
+                                <select id="status" name="status" class="form-select mb-1" required>
+                                    @foreach ($options as $status => $label)
+                                        <option value="{{ $status }}" data-help="{{ \App\Services\Quality\QueryWorkflow::help($status) }}" data-signature="{{ $needsSignature && in_array($status, [\App\Models\DataQuery::STATUS_VALIDATED, \App\Models\DataQuery::STATUS_UNRESOLVABLE], true) ? '1' : '0' }}" @selected(old('status') === $status)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                <div id="status-help" class="form-text mb-2"></div>
+                                @error('status')<div class="alert alert-danger py-2 small">{{ $message }}</div>@enderror
+                                <label class="form-label" for="comment">Justification / motif</label>
+                                <textarea id="comment" name="comment" rows="3" class="form-control mb-2" maxlength="2000">{{ old('comment') }}</textarea>
+                                @if ($needsSignature)
+                                    <div id="signature-field" class="mb-2 d-none">
+                                        <label class="form-label" for="password"><i class="bi bi-pen me-1"></i>Signature électronique : votre mot de passe</label>
+                                        <input id="password" type="password" name="password" class="form-control" autocomplete="current-password">
+                                        <div class="form-text">Query {{ $query->severity }} : validation par une autre personne que l'auteur de la réponse, signée.</div>
+                                    </div>
+                                @endif
+                                <button class="btn btn-primary w-100"><i class="bi bi-check2 me-1"></i>Appliquer</button>
+                            </form>
+                        @endif
+                        @can('comment', $query)
+                            <form method="POST" action="{{ route('queries.comment', $query) }}">
+                                @csrf
+                                <label class="form-label" for="note">Ajouter un commentaire sans changer le statut</label>
+                                <div class="input-group">
+                                    <input id="note" name="comment" class="form-control" maxlength="2000" required>
+                                    <button class="btn btn-outline-primary"><i class="bi bi-chat-left-text"></i></button>
+                                </div>
+                            </form>
+                        @endcan
+                    </div>
+                </div>
+            @endif
 
             <div class="card">
                 <div class="card-header">Historique</div>
@@ -139,7 +207,11 @@
                     <div class="timeline">
                         @forelse ($query->events as $event)
                             <div class="event small">
-                                <div class="text-muted">{{ $event->created_at->format('d/m/Y H:i') }} · {{ $event->user?->name ?? 'Système' }}</div>
+                                <div class="text-muted">
+                                    {{ $event->created_at->format('d/m/Y H:i') }} · {{ $event->user?->name ?? 'Système' }}
+                                    @if ($event->type === 'assignment')<span class="badge text-bg-light border ms-1">affectation</span>@endif
+                                    @if ($event->signed)<span class="badge text-bg-success ms-1" title="Action signée par mot de passe"><i class="bi bi-pen me-1"></i>signée</span>@endif
+                                </div>
                                 @if ($event->to_status)
                                     <div>
                                         @if ($event->from_status)<x-status-badge :status="$event->from_status" /> <i class="bi bi-arrow-right"></i>@endif

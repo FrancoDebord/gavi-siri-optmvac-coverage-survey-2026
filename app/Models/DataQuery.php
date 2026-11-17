@@ -3,15 +3,30 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasGeographicScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/** Query de contrôle qualité (donnée suspecte à vérifier par le binôme). */
+/**
+ * Query de données (valeur suspecte à corriger ou confirmer), selon un cycle conforme aux BPC/GCP :
+ * Ouverte → Assignée → Réponse (correction proposée, valeur confirmée) → Validation par le data manager → Fermée.
+ * Les observations de supervision (paradonnées) partagent la table mais sont exclues par le scope global « kind »
+ * (voir SupervisionObservation).
+ */
 class DataQuery extends Model
 {
     use HasFactory, HasGeographicScope;
+
+    public const KIND = 'query';
+
+    protected static function booted(): void
+    {
+        $kind = static::KIND;
+        static::addGlobalScope('kind', fn (Builder $query) => $query->where($query->qualifyColumn('kind'), $kind));
+        static::creating(fn (self $model) => $model->kind ??= $kind);
+    }
 
     public const STATUS_OPEN = 'ouverte';
 
@@ -28,11 +43,11 @@ class DataQuery extends Model
 
     public const STATUSES = [
         self::STATUS_OPEN => 'Ouverte',
-        self::STATUS_SENT => 'Envoyée au binôme',
-        self::STATUS_JUSTIFIED => 'Justifiée',
-        self::STATUS_CORRECTED => 'Corrigée',
-        self::STATUS_VALIDATED => 'Validée (fermée)',
-        self::STATUS_UNRESOLVABLE => 'Irrésoluble',
+        self::STATUS_SENT => 'Assignée',
+        self::STATUS_JUSTIFIED => 'Valeur confirmée – à valider',
+        self::STATUS_CORRECTED => 'Correction proposée – à valider',
+        self::STATUS_VALIDATED => 'Fermée (validée)',
+        self::STATUS_UNRESOLVABLE => 'Irrésoluble (fermée)',
     ];
 
     public const STATUS_COLORS = [
@@ -44,15 +59,25 @@ class DataQuery extends Model
         self::STATUS_UNRESOLVABLE => 'irresoluble',
     ];
 
-    /** Transitions autorisées du cycle de vie. */
+    /**
+     * Transitions autorisées du cycle de vie (l'affectation fait passer Ouverte ↔ Assignée, voir QueryWorkflow::assign).
+     * Réponse : Ouverte/Assignée → Valeur confirmée / Correction proposée. Validation (data manager) : réponse → Fermée,
+     * ou rejet → Ouverte (Assignée si un assigné existe). Irrésoluble : décision du data manager. Réouverture possible.
+     */
     public const TRANSITIONS = [
-        self::STATUS_OPEN => [self::STATUS_SENT, self::STATUS_JUSTIFIED, self::STATUS_CORRECTED, self::STATUS_VALIDATED, self::STATUS_UNRESOLVABLE],
-        self::STATUS_SENT => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED, self::STATUS_UNRESOLVABLE, self::STATUS_OPEN],
+        self::STATUS_OPEN => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED, self::STATUS_UNRESOLVABLE],
+        self::STATUS_SENT => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED, self::STATUS_UNRESOLVABLE],
         self::STATUS_JUSTIFIED => [self::STATUS_VALIDATED, self::STATUS_OPEN],
         self::STATUS_CORRECTED => [self::STATUS_VALIDATED, self::STATUS_OPEN],
         self::STATUS_VALIDATED => [self::STATUS_OPEN],
         self::STATUS_UNRESOLVABLE => [self::STATUS_OPEN],
     ];
+
+    /** Réponse de l'assigné (à valider). */
+    public const RESPONSES = [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED];
+
+    /** Décisions réservées au data manager (permission « validate queries »). */
+    public const DECISIONS = [self::STATUS_VALIDATED, self::STATUS_UNRESOLVABLE, self::STATUS_OPEN];
 
     /** Statuts considérés comme « non résolus ». */
     public const UNRESOLVED = [self::STATUS_OPEN, self::STATUS_SENT];
@@ -60,13 +85,16 @@ class DataQuery extends Model
     /** Statut de résolution simplifié (exports, filtres) : regroupement des statuts détaillés. */
     public const RESOLUTION_UNRESOLVED = 'non_resolu';
 
+    public const RESOLUTION_PENDING = 'a_valider';
+
     public const RESOLUTION_RESOLVED = 'resolu';
 
     public const RESOLUTION_UNRESOLVABLE = 'irresoluble';
 
     public const RESOLUTIONS = [
         self::RESOLUTION_UNRESOLVED => ['label' => 'Non résolu', 'statuses' => [self::STATUS_OPEN, self::STATUS_SENT]],
-        self::RESOLUTION_RESOLVED => ['label' => 'Résolu', 'statuses' => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED, self::STATUS_VALIDATED]],
+        self::RESOLUTION_PENDING => ['label' => 'Réponse à valider', 'statuses' => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED]],
+        self::RESOLUTION_RESOLVED => ['label' => 'Résolu', 'statuses' => [self::STATUS_VALIDATED]],
         self::RESOLUTION_UNRESOLVABLE => ['label' => 'Irrésoluble', 'statuses' => [self::STATUS_UNRESOLVABLE]],
     ];
 
@@ -74,7 +102,8 @@ class DataQuery extends Model
         'fingerprint', 'quality_rule_id', 'rule_code', 'label', 'severity', 'household_id', 'caregiver_id',
         'child_id', 'submission_uuid', 'household_code', 'health_zone_id', 'commune_id', 'village_id',
         'cluster_id', 'collector_id', 'collection_date', 'variable', 'variable_label', 'instance_path', 'observed_value',
-        'expected', 'message', 'suggestion', 'status', 'assigned_to', 'detected_at', 'last_detected_at',
+        'expected', 'message', 'suggestion', 'status', 'kind', 'assigned_to', 'assigned_by', 'assigned_at', 'due_on',
+        'responded_by', 'responded_at', 'validated_by', 'detected_at', 'last_detected_at',
         'resolved_at', 'closed_at', 'auto_closed',
     ];
 
@@ -124,6 +153,9 @@ class DataQuery extends Model
             'last_detected_at' => 'datetime',
             'resolved_at' => 'datetime',
             'closed_at' => 'datetime',
+            'assigned_at' => 'datetime',
+            'responded_at' => 'datetime',
+            'due_on' => 'date',
             'auto_closed' => 'boolean',
         ];
     }
@@ -168,9 +200,30 @@ class DataQuery extends Model
         return $this->belongsTo(Collector::class);
     }
 
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function responder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'responded_by');
+    }
+
+    public function validator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by');
+    }
+
+    /** Échéance dépassée pour une query non résolue. */
+    public function isOverdue(): bool
+    {
+        return $this->due_on !== null && ! $this->isResolved() && $this->due_on->lt(today());
+    }
+
     public function events(): HasMany
     {
-        return $this->hasMany(QueryEvent::class)->latest('id');
+        return $this->hasMany(QueryEvent::class, 'data_query_id')->latest('id');
     }
 
     public function canTransitionTo(string $status): bool

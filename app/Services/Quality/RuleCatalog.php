@@ -9,6 +9,15 @@ namespace App\Services\Quality;
 class RuleCatalog
 {
     /**
+     * Règles de paradonnées : observations de supervision (faits à examiner), pas des queries de données.
+     * Elles ne portent pas sur une valeur à corriger ou confirmer et n'entrent pas dans le cycle de résolution.
+     */
+    public const OBSERVATIONS = [
+        'PARA_DURATION', 'PARA_OFF_HOURS', 'PARA_TODAY_START', 'PARA_DAILY_VOLUME', 'PARA_LATE_SUBMISSION',
+        'GPS_ACCURACY', 'GPS_OUTSIDE_COMMUNE',
+    ];
+
+    /**
      * @return array<string, array{name: string, description: string, category: string, severity: string, scope: string, variables: string|null, parameters: array, handler: class-string, suggestion: string|null}>
      */
     public static function all(): array

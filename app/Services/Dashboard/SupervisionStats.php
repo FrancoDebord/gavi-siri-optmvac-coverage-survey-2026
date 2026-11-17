@@ -113,7 +113,7 @@ class SupervisionStats
                 avg(case when households.consented and households.duration_minutes between 1 and 300 then households.duration_minutes end) as avg_duration,
                 max(households.submitted_at) as last_submission', [$this->today->toDateString()])
             ->groupBy($key)->get()->keyBy(fn ($r) => $r->k ?? 0);
-        $queries = DB::table('data_queries')->join('collectors', 'collectors.id', '=', 'data_queries.collector_id')
+        $queries = DB::table('data_queries')->where('data_queries.kind', DataQuery::KIND)->join('collectors', 'collectors.id', '=', 'data_queries.collector_id')
             ->where("data_queries.{$this->column}", $this->id)->whereIn('data_queries.status', DataQuery::UNRESOLVED)
             ->selectRaw("{$key} as k, count(*) as n")->groupBy($key)->get()->pluck('n', 'k');
 

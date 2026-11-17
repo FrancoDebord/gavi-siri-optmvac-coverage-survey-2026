@@ -10,7 +10,7 @@ class BulkQueryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('process queries');
+        return $this->user()->can('process queries') || $this->user()->can('validate queries');
     }
 
     public function rules(): array
@@ -20,6 +20,7 @@ class BulkQueryRequest extends FormRequest
             'ids.*' => ['integer'],
             'status' => ['nullable', Rule::in(array_keys(DataQuery::STATUSES))],
             'comment' => ['nullable', 'string', 'max:2000', 'required_without:status'],
+            'password' => ['nullable', 'string', 'max:255'],
         ];
     }
 

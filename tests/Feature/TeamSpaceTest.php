@@ -102,7 +102,9 @@ class TeamSpaceTest extends TestCase
         $this->assertTrue(collect($queries->items())->every(fn ($q) => in_array($q->household_code, ['TCH-SEB-01-001', 'TCH-SEB-01-002', 'TCH-SEB-02-001'], true)));
         $query = $queries->items()[0];
         $this->actingAs($account)->get(route('queries.show', $query))->assertOk()->assertSee($query->code)->assertSee('Mes queries')->assertDontSee('query-status-form');
-        $this->actingAs($account)->post(route('queries.status', $query), ['status' => 'envoyee'])->assertRedirect(route('team.space'));
+        // Sans affectation, le compte binôme ne peut pas répondre.
+        $this->actingAs($account)->post(route('queries.status', $query), ['status' => 'corrigee', 'comment' => 'x'])->assertSessionHasErrors('status');
+        $this->assertSame(DataQuery::STATUS_OPEN, $query->fresh()->status);
         $foreign = DataQuery::where('household_code', 'DAG-ASS-01-001')->firstOrFail();
         $this->actingAs($account)->get(route('queries.show', $foreign))->assertForbidden();
 

@@ -8,7 +8,8 @@ class QueryCommentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('process queries');
+        // Droits vérifiés sur la query elle-même (politique : assigné, équipe de traitement, data manager).
+        return true;
     }
 
     public function rules(): array

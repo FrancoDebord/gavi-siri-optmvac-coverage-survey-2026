@@ -49,6 +49,13 @@ class QueryDashboardController extends Controller
             'generated_from' => DateInput::parse($request->input('generated_from')),
             'generated_to' => DateInput::parse($request->input('generated_to')),
             'code' => is_string($request->input('code')) ? DataQuery::idFromCode($request->input('code')) : null,
+            'assigned' => match (true) {
+                $request->input('assigned') === 'moi' => $request->user()?->id,
+                $request->input('assigned') === 'aucun' => 'aucun',
+                ctype_digit((string) $request->input('assigned')) => (int) $request->input('assigned'),
+                default => null,
+            },
+            'overdue' => $request->boolean('en_retard') ?: null,
         ];
     }
 

@@ -13,6 +13,16 @@ class QualityRule extends Model
         'expression' => 'Expression personnalisée',
     ];
 
+    public const KIND_QUERY = 'query';
+
+    public const KIND_OBSERVATION = 'observation';
+
+    /** Nature : query (valeur à corriger ou confirmer) ou observation de supervision (fait à examiner, hors cycle de résolution). */
+    public const KINDS = [
+        self::KIND_QUERY => 'Query de données',
+        self::KIND_OBSERVATION => 'Observation de supervision',
+    ];
+
     public const SEVERITIES = [
         'critique' => 'Critique',
         'majeure' => 'Majeure',
@@ -32,7 +42,7 @@ class QualityRule extends Model
     ];
 
     protected $fillable = [
-        'code', 'name', 'description', 'category', 'severity', 'scope', 'variables', 'suggestion',
+        'code', 'name', 'description', 'category', 'kind', 'severity', 'scope', 'variables', 'suggestion',
         'expression', 'message', 'parameters', 'handler', 'is_active',
     ];
 

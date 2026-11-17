@@ -179,18 +179,24 @@ class ImportAndQualityTest extends TestCase
         $query = DataQuery::where('rule_code', 'VAC_DOSE_ORDER')->firstOrFail();
         $workflow = app(QueryWorkflow::class);
 
-        $workflow->transition($query, DataQuery::STATUS_SENT, null, null);
-        $this->assertSame(DataQuery::STATUS_SENT, $query->status);
-
         try {
             $workflow->transition($query, DataQuery::STATUS_JUSTIFIED, '', null);
             $this->fail('Une justification devrait être exigée.');
         } catch (InvalidArgumentException) {
         }
 
+        // Réponse : à valider, pas encore résolue.
         $workflow->transition($query, DataQuery::STATUS_JUSTIFIED, 'Dates vérifiées sur le carnet.', null);
-        $this->assertNotNull($query->resolved_at);
+        $this->assertNotNull($query->responded_at);
+        $this->assertNull($query->resolved_at);
+        $this->assertSame(DataQuery::RESOLUTION_PENDING, $query->resolution());
 
+        // Validation : fermée et résolue.
+        $workflow->transition($query, DataQuery::STATUS_VALIDATED, null, null);
+        $this->assertNotNull($query->resolved_at);
+        $this->assertNotNull($query->closed_at);
+
+        // « Assignée » ne s'obtient que par une affectation.
         $this->expectException(InvalidArgumentException::class);
         $workflow->transition($query, DataQuery::STATUS_SENT, null, null);
     }

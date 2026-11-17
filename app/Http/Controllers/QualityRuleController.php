@@ -41,7 +41,7 @@ class QualityRuleController extends Controller
 
     public function store(QualityRuleRequest $request): RedirectResponse
     {
-        $rule = QualityRule::create($request->safe()->except('parameters') + ['category' => 'expression', 'is_active' => $request->boolean('is_active')]);
+        $rule = QualityRule::create($request->safe()->except(['parameters', 'kind']) + ['category' => 'expression', 'kind' => $request->validated('kind') ?: QualityRule::KIND_QUERY, 'is_active' => $request->boolean('is_active')]);
         AuditLog::record('rule.created', $rule, ['code' => $rule->code]);
 
         return redirect()->route('rules.index')->with('success', "Règle {$rule->code} créée. Elle sera appliquée à la prochaine exécution du moteur.");
@@ -65,6 +65,7 @@ class QualityRuleController extends Controller
             'description' => $data['description'] ?? null,
             'suggestion' => $data['suggestion'] ?? null,
             'severity' => $data['severity'],
+            'kind' => $data['kind'] ?? $rule->kind ?? QualityRule::KIND_QUERY,
             'is_active' => $request->boolean('is_active'),
             'parameters' => $parameters ?: null,
         ];
@@ -75,7 +76,11 @@ class QualityRuleController extends Controller
         }
         $rule->update($attributes);
         // La sévérité des queries non résolues suit la règle.
-        DataQuery::where('quality_rule_id', $rule->id)->whereIn('status', DataQuery::UNRESOLVED)->update(['severity' => $rule->severity]);
+        DataQuery::withoutGlobalScope('kind')->where('quality_rule_id', $rule->id)->whereIn('status', DataQuery::UNRESOLVED)->update(['severity' => $rule->severity]);
+        // La nature (query / observation) s'applique à toutes les anomalies de la règle, historique conservé.
+        if ($rule->wasChanged('kind')) {
+            DataQuery::withoutGlobalScope('kind')->where('quality_rule_id', $rule->id)->update(['kind' => $rule->kind]);
+        }
         AuditLog::record('rule.updated', $rule, ['code' => $rule->code, 'modifications' => $rule->getChanges()]);
 
         return redirect()->route('rules.index')->with('success', "Règle {$rule->code} mise à jour.");

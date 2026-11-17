@@ -16,11 +16,16 @@ class QueryStats
     /**
      * @param  array{status?: string|null, severity?: string|null, rule_code?: string|null}  $extra
      */
-    public function __construct(private readonly Filters $filters, private readonly array $extra = []) {}
+    public function __construct(
+        private readonly Filters $filters,
+        private readonly array $extra = [],
+        /** query (défaut) ou observation : les observations de supervision partagent la table. */
+        private readonly string $kind = DataQuery::KIND,
+    ) {}
 
     public function all(): array
     {
-        return DashboardCache::remember('queries', $this->filters->cacheContext() + $this->extra, fn () => [
+        return DashboardCache::remember('queries', $this->filters->cacheContext() + $this->extra + ['kind' => $this->kind], fn () => [
             'kpis' => $this->kpis(),
             'by_severity' => $this->bySeverity(),
             'by_status' => $this->byStatus(),
@@ -41,7 +46,7 @@ class QueryStats
 
     public function queries()
     {
-        $query = $this->filters->apply(DB::table('data_queries'), 'data_queries', 'collection_date', false);
+        $query = $this->filters->apply(DB::table('data_queries')->where('data_queries.kind', $this->kind), 'data_queries', 'collection_date', false);
         if ($this->filters->get('source')) {
             $this->filters->applyThroughHouseholds($query, 'data_queries.household_id');
         }
@@ -67,6 +72,16 @@ class QueryStats
         }
         if (! empty($this->extra['generated_to'])) {
             $query->where('data_queries.detected_at', '<=', $this->extra['generated_to'].' 23:59:59');
+        }
+        // Assigné : « moi » (résolu par le contrôleur en identifiant), « aucun », ou un utilisateur.
+        if (! empty($this->extra['assigned'])) {
+            $this->extra['assigned'] === 'aucun'
+                ? $query->whereNull('data_queries.assigned_to')
+                : $query->where('data_queries.assigned_to', (int) $this->extra['assigned']);
+        }
+        if (! empty($this->extra['overdue'])) {
+            $query->whereIn('data_queries.status', DataQuery::UNRESOLVED)->whereNotNull('data_queries.due_on')
+                ->where('data_queries.due_on', '<', now()->toDateString());
         }
         if (! empty($this->extra['code'])) {
             $query->where('data_queries.id', $this->extra['code']);
