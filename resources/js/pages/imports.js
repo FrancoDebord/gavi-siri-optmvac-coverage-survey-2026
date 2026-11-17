@@ -104,6 +104,9 @@ function boundaryUploads() {
             // La confirmation (data-confirm, lib/dialog.js) passe d'abord ; on intercepte l'envoi confirmé.
             if (form.dataset.confirm && form.dataset.confirmed !== '1') return;
             event.preventDefault();
+            // L'envoi confirmé ne doit pas remonter jusqu'au gestionnaire de confirmation (écouteur sur document) :
+            // la marque « confirmé » étant retirée ci-dessous, il redemanderait confirmation en boucle.
+            event.stopPropagation();
             delete form.dataset.confirmed;
             if (running) return;
 
