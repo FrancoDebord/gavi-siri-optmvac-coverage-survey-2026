@@ -89,6 +89,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/investigateur/progression', [InvestigatorController::class, 'progress'])->name('investigator.progress');
         Route::get('/investigateur/synthese', [InvestigatorController::class, 'summary'])->name('investigator.summary');
         Route::get('/investigateur/synthese.pdf', [InvestigatorController::class, 'summary'])->name('investigator.summary.pdf')->middleware('throttle:20,1');
+        Route::get('/investigateur/grappes', [InvestigatorController::class, 'clusters'])->name('investigator.clusters');
+        Route::get('/investigateur/grappes.pdf', [InvestigatorController::class, 'clusters'])->name('investigator.clusters.pdf')->middleware('throttle:20,1');
         Route::get('/investigateur/rapport', [InvestigatorController::class, 'report'])->name('investigator.report')->middleware('throttle:20,1');
     });
     // Décisions de terrain (saisie)

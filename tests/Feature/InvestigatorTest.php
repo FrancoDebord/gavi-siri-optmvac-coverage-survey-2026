@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Cluster;
 use App\Models\DataQuery;
 use App\Models\DecisionCategory;
 use App\Models\FieldDecision;
 use App\Models\HealthZone;
+use App\Models\Household;
+use App\Models\SubCluster;
 use App\Models\Team;
 use App\Models\TeamMessage;
 use App\Models\User;
@@ -90,7 +93,7 @@ class InvestigatorTest extends TestCase
         preg_match_all('/<span class="label">\s*([^<]+?)\s*(?:<|$)/u', $menu[0], $labels);
 
         $this->assertSame(
-            ['GAVI SIRI · Round 2', 'Vue d\'ensemble', 'Progression', 'Rapport de synthèse', 'Carte des grappes', 'Soumissions', 'Queries', 'Décisions de terrain', 'Messages aux équipes', 'Incidents terrain', 'Documentation'],
+            ['GAVI SIRI · Round 2', 'Vue d\'ensemble', 'Progression', 'Rapport de synthèse', 'Grappes par village', 'Carte des grappes', 'Soumissions', 'Queries', 'Décisions de terrain', 'Messages aux équipes', 'Incidents terrain', 'Documentation'],
             array_map('trim', $labels[1]),
         );
         $this->assertStringNotContainsString(route('supervision.index'), $menu[0]);
@@ -199,6 +202,35 @@ class InvestigatorTest extends TestCase
             ->assertRedirect(route('investigator.summary.pdf', ['health_zone_id' => $this->tchaourou->id]));
 
         $this->actingAs($this->user(User::ROLE_READER))->get(route('investigator.summary'))->assertRedirect(route('dashboard'));
+    }
+
+    public function test_clusters_by_village_page_and_pdf(): void
+    {
+        $pi = $this->user(User::ROLE_PI);
+        $cluster = Cluster::whereHas('households', fn ($q) => $q->where('household_code', 'like', 'TCH-%'))->firstOrFail();
+        SubCluster::create(['cluster_id' => $cluster->id, 'number' => 1]);
+        SubCluster::create(['cluster_id' => $cluster->id, 'number' => 2]);
+        Household::where('cluster_id', $cluster->id)->update(['sub_cluster' => 2]);
+
+        $report = $this->actingAs($pi)->get(route('investigator.clusters', ['health_zone_id' => $this->tchaourou->id]))->assertOk()
+            ->assertSee('Grappes par village')->viewData('report');
+        $this->assertCount(1, $report['zones']);
+        $row = collect($report['zones'][0]['villages'])->flatMap(fn ($v) => $v['rows'])->firstWhere('cluster_id', $cluster->id);
+        $this->assertSame(2, $row['sub_clusters']);
+        $this->assertSame([2], $row['selected']);
+        $this->assertSame(3, $row['visited']);
+        $this->assertSame(2, $row['surveyed']);
+        $this->assertSame(3, $report['totals']['visited']);
+
+        $all = $this->actingAs($pi)->get(route('investigator.clusters'))->assertOk()->viewData('report');
+        $this->assertSame(4, $all['totals']['visited']);
+        $this->assertCount(2, $all['zones']);
+
+        $pdf = $this->actingAs($pi)->get(route('investigator.clusters.pdf', ['health_zone_id' => $this->tchaourou->id]))->assertOk();
+        $this->assertSame('application/pdf', $pdf->headers->get('Content-Type'));
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+
+        $this->actingAs($this->user(User::ROLE_TEAM))->get(route('investigator.clusters'))->assertRedirect();
     }
 
     public function test_messages_reach_the_right_supervisors(): void

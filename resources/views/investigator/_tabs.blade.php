@@ -4,6 +4,7 @@
         'investigator.index' => ['grid-1x2', 'Vue d\'ensemble'],
         'investigator.progress' => ['graph-up', 'Progression'],
         'investigator.summary' => ['file-earmark-text', 'Rapport de synthèse'],
+        'investigator.clusters' => ['bounding-box', 'Grappes par village'],
     ] as $route => [$icon, $label])
         <li class="nav-item">
             <a class="nav-link {{ request()->routeIs($route) ? 'active' : '' }}" href="{{ route($route, array_filter(['health_zone_id' => $zoneId])) }}" @if (request()->routeIs($route)) aria-current="page" @endif>

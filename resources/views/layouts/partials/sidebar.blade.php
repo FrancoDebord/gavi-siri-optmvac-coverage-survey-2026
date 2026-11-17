@@ -31,6 +31,7 @@
         <a class="{{ $link('investigator.index') }}" href="{{ route('investigator.index') }}"><i class="bi bi-grid-1x2"></i><span class="label">Vue d'ensemble</span></a>
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
+        <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
         <a class="{{ $link('maps.clusters', 'clusters.*') }} {{ request()->routeIs('maps.clusters') ? 'active' : '' }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
         <a class="{{ $link('submissions.*', 'households.*') }} {{ request()->routeIs('submissions.*') ? 'active' : '' }}" href="{{ route('submissions.index') }}"><i class="bi bi-house-door"></i><span class="label">Soumissions</span></a>
         <a class="{{ $link('queries.*') }}" href="{{ route('queries.dashboard') }}"><i class="bi bi-flag"></i><span class="label">Queries
@@ -47,6 +48,7 @@
         <a class="{{ $link('investigator.index') }}" href="{{ route('investigator.index') }}"><i class="bi bi-grid-1x2"></i><span class="label">Vue d'ensemble PI</span></a>
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
+        <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
     @endcan
     @can('view dashboards')
     <div class="nav-section">Supervision</div>

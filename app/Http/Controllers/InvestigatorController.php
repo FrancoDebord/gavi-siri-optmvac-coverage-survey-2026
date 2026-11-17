@@ -9,6 +9,7 @@ use App\Models\HealthZone;
 use App\Models\Team;
 use App\Models\TeamMessage;
 use App\Models\Village;
+use App\Services\Dashboard\ClusterSelection;
 use App\Services\Dashboard\InvestigatorStats;
 use App\Services\Dashboard\PiSummary;
 use App\Services\Dashboard\ProgressStats;
@@ -134,6 +135,33 @@ class InvestigatorController extends Controller
         }
 
         return view('investigator.summary', $viewData);
+    }
+
+    /**
+     * Grappes par village : pour chaque zone et chaque village, grappe et sous-grappes sélectionnées, ménages visités
+     * et enquêtés, enfants éligibles et binômes. Page web, ou PDF à imprimer (même contenu, même filtre).
+     */
+    public function clusters(Request $request): View|Response
+    {
+        $data = $request->validate(['health_zone_id' => ['nullable', 'integer', 'exists:health_zones,id']], [], ['health_zone_id' => 'zone sanitaire']);
+        $zoneId = isset($data['health_zone_id']) ? (int) $data['health_zone_id'] : null;
+        $zones = HealthZone::whereHas('communes')->orderBy('name')->get(['id', 'name']);
+        $viewData = [
+            'zones' => $zones,
+            'zoneId' => $zoneId,
+            'generatedAt' => CarbonImmutable::now(config('app.timezone')),
+            'scopeLabel' => $zoneId ? 'Zone sanitaire de '.$zones->firstWhere('id', $zoneId)?->name : 'Toutes les zones sanitaires',
+            'report' => (new ClusterSelection($zoneId))->build(),
+        ];
+
+        if ($request->routeIs('investigator.clusters.pdf')) {
+            AuditLog::record('export.grappes_villages', null, array_filter(['zone' => $zoneId]));
+
+            return Pdf::loadView('pdf.cluster-selection', $viewData)->setPaper('a4', 'landscape')
+                ->download('grappes-par-village-'.now()->format('Ymd-Hi').'.pdf');
+        }
+
+        return view('investigator.clusters', $viewData);
     }
 
     /**
