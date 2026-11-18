@@ -134,24 +134,25 @@ class ClusterSelection
             : null;
         $frames = ClusterFrame::with('healthZone:id,name')->whereNotNull('health_zone_id')->when($this->zoneId, fn ($q, $zone) => $q->where('health_zone_id', $zone))->get()
             ->when($teamVillages !== null, fn ($all) => $all->filter(fn (ClusterFrame $f) => array_intersect($f->village_ids ?? [], $teamVillages) !== []))->values();
-        // Une grappe de la liste ne va qu'à une grappe de la plateforme : celle qui a le plus de ménages visités
-        // (village séparé en deux avec chacun sa « grappe 1 ») ; les autres sont signalées comme ambiguës.
+        // Seule la grappe tirée dans chaque village (identifiée par l'identifiant ménage) reçoit les chiffres de la
+        // base de sondage : même village (ou l'une des moitiés d'un village séparé en deux) et même numéro de grappe.
+        // Deux grappes du même village au même numéro : identifiant mal saisi, la moins visitée est signalée.
         $assigned = [];
         $ambiguous = [];
-        $usedFrames = [];
-        foreach ($frames as $frame) {
-            $candidates = $clusters->filter(fn (Cluster $c) => $c->number !== null && (int) $c->number === $frame->cluster_number
-                && in_array($c->village_id, $frame->village_ids ?? [], true))
-                ->sortByDesc(fn (Cluster $c) => $stats['c'.$c->id]['visited'] ?? 0)->values();
-            if ($candidates->isEmpty()) {
-                continue;
-            }
-            $assigned[$candidates->first()->id] = $frame;
-            $usedFrames[$frame->id] = true;
-            foreach ($candidates->slice(1) as $other) {
-                $ambiguous[$other->id] = $frame->village_label.' grappe '.$frame->cluster_number;
+        foreach ($clusters as $cluster) {
+            $frame = $cluster->number === null ? null : $frames->first(fn (ClusterFrame $f) => $f->cluster_number === (int) $cluster->number
+                && in_array($cluster->village_id, $f->village_ids ?? [], true));
+            if ($frame) {
+                $assigned[$cluster->id] = $frame;
             }
         }
+        $clusters->filter(fn (Cluster $c) => isset($assigned[$c->id]))->groupBy(fn (Cluster $c) => $c->village_id.'|'.$c->number)
+            ->each(function ($group) use ($stats, &$ambiguous) {
+                $group->sortByDesc(fn (Cluster $c) => $stats['c'.$c->id]['visited'] ?? 0)->slice(1)
+                    ->each(function (Cluster $c) use ($group, &$ambiguous) {
+                        $ambiguous[$c->id] = 'même grappe que '.$group->sortByDesc('id')->first(fn ($o) => $o->id !== $c->id)?->code;
+                    });
+            });
         $frameFor = fn (Cluster $cluster) => $assigned[$cluster->id] ?? null;
         $villages = Village::with('healthZone:id,name')
             ->whereIn('id', collect($stats)->whereNull('cluster_id')->pluck('village_id')->filter()->all())->get()->keyBy('id');
@@ -174,22 +175,6 @@ class ClusterSelection
                 'selected' => $values($s['selected']),
                 'teams' => collect($s['teams'])->sortKeys(SORT_NATURAL)->values()->all(),
             ] + array_intersect_key($s, array_flip(['visited', 'surveyed', 'children'])));
-        }
-        // Grappes de la base de sondage pas encore visitées.
-        $villageNames = Village::whereIn('id', $frames->pluck('village_ids')->flatten()->unique()->all())->pluck('name', 'id');
-        foreach ($frames->reject(fn ($f) => isset($usedFrames[$f->id])) as $frame) {
-            $names = collect($frame->village_ids ?? [])->map(fn ($id) => $villageNames[$id] ?? null)->filter();
-            $rows->push(['frame_only' => true] + self::frameColumns($frame, 0, []) + [
-                'zone' => $frame->healthZone?->name ?? 'Zone non renseignée',
-                'village' => $names->count() === 1 ? $names->first() : $frame->village_label.($names->isNotEmpty() ? ' ('.$names->implode(' / ').')' : ''),
-                'cluster_id' => null,
-                'cluster_code' => null,
-                'cluster_numbers' => [$frame->cluster_number],
-                'sub_clusters' => [],
-                'selected' => [],
-                'teams' => [],
-                'visited' => 0, 'surveyed' => 0, 'children' => 0,
-            ]);
         }
         foreach (collect($stats)->whereNull('cluster_id') as $s) {
             $village = $villages[$s['village_id']] ?? null;

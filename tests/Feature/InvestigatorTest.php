@@ -267,13 +267,14 @@ class InvestigatorTest extends TestCase
 
         $pi = $this->user(User::ROLE_PI);
         $report = $this->actingAs($pi)->get(route('investigator.clusters', ['health_zone_id' => $this->tchaourou->id]))->assertOk()
-            ->assertSee('Ménages dénombrés')->assertSee('Ménages attendus')->assertSee('non visitée')->viewData('report');
+            ->assertSee('Ménages dénombrés')->assertSee('Ménages attendus')->assertDontSee('non visitée')->viewData('report');
         $rows = collect($report['zones'][0]['villages'])->flatMap(fn ($v) => $v['rows']);
         $visited = $rows->firstWhere('cluster_code', 'TCH-SEB-01');
         $this->assertSame([288, 3, 96, 3, -93, 3], [$visited['enumerated'], $visited['subdivisions'], $visited['expected'], $visited['visited'], $visited['gap'], $visited['rate']]);
-        // Grappes de la base de sondage pas encore visitées : listées avec 0 ménage.
-        $this->assertTrue($rows->contains(fn ($r) => $r['frame_only'] && $r['enumerated'] === 284 && $r['visited'] === 0));
-        $this->assertSame(239, $report['zones'][0]['totals']['frame_clusters']);
+        // Seule la grappe tirée (identifiée par l'identifiant ménage) est confrontée ; les autres grappes de la liste sont laissées.
+        $this->assertFalse($rows->contains(fn ($r) => $r['enumerated'] === 284));
+        $this->assertSame(1, $report['zones'][0]['totals']['frame_clusters']);
+        $this->assertSame(96, $report['zones'][0]['totals']['expected']);
 
         // Binôme : seulement ses villages.
         $team = Team::where('code', '46-47')->firstOrFail();

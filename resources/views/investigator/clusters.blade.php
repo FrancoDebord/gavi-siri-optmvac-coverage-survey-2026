@@ -22,7 +22,7 @@
 
     <div class="row g-3 mb-3">
         <div class="col-6 col-xl"><x-kpi-card label="Villages" kpi="villages" icon="geo-alt" color="dark">{{ $fmt($total['villages']) }}</x-kpi-card></div>
-        <div class="col-6 col-xl"><x-kpi-card label="Grappes (base de sondage)" kpi="clusters" icon="bounding-box" color="dark" :sub="$total['clusters'].' visitée(s)'">{{ $fmt($total['frame_clusters']) }}</x-kpi-card></div>
+        <div class="col-6 col-xl"><x-kpi-card label="Grappes sélectionnées" kpi="clusters" icon="bounding-box" color="dark" :sub="$total['frame_clusters'].' rapprochée(s) de la base de sondage'">{{ $fmt($total['clusters']) }}</x-kpi-card></div>
         <div class="col-6 col-xl"><x-kpi-card label="Ménages attendus (base de sondage)" kpi="expected" icon="clipboard-data" color="dark">{{ $fmt($total['expected']) }}</x-kpi-card></div>
         <div class="col-6 col-xl"><x-kpi-card label="Ménages visités" kpi="visited" icon="house-door" :sub="$total['expected'] ? round(100 * $total['visited_framed'] / $total['expected']).' % des attendus' : null">{{ $fmt($total['visited']) }}</x-kpi-card></div>
         <div class="col-6 col-xl"><x-kpi-card label="Ménages enquêtés" kpi="surveyed" icon="house-check" color="success">{{ $fmt($total['surveyed']) }}</x-kpi-card></div>
@@ -32,6 +32,7 @@
     @include('investigator._cluster-table', ['report' => $report, 'withTeams' => true])
 
     <p class="small text-muted">
+        Base de sondage : ménages dénombrés et subdivisions prévues de la grappe tirée dans chaque village (identifiée par l'identifiant ménage) ; ménages attendus = dénombrés ÷ subdivisions ; réalisation = visités ÷ attendus.<br>
         N° grappe et N° sous-grappe sélectionnée : lus dans l'identifiant ménage (ZONE-VIL-NN-Sx-MMM) ; NA quand l'identifiant ne porte pas de sous-grappe. Sous-grappes créées : réponse 6a du formulaire. Plusieurs valeurs = identifiants ou réponses discordants entre soumissions.
         Ménage enquêté : consentement donné. Les grappes délimitées mais pas encore visitées apparaissent avec 0 ménage et sans réponse.
     </p>

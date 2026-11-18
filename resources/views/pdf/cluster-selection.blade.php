@@ -16,7 +16,7 @@
     <table class="kpis" style="margin-top: 8px;">
         <tr>
             <td><div class="v">{{ $fmt($total['villages']) }}</div>villages</td>
-            <td><div class="v">{{ $fmt($total['frame_clusters']) }}</div>grappes (base de sondage)</td>
+            <td><div class="v">{{ $fmt($total['clusters']) }}</div>grappes sélectionnées</td>
             <td><div class="v">{{ $fmt($total['expected']) }}</div>ménages attendus</td>
             <td><div class="v">{{ $fmt($total['visited']) }}</div>ménages visités</td>
             <td><div class="v">{{ $fmt($total['surveyed']) }}</div>ménages enquêtés</td>
@@ -56,7 +56,7 @@
             @endforeach
             <tr class="lvl0">
                 <td>Total {{ $zone['name'] }} ({{ $zone['totals']['villages'] }} village(s))</td>
-                <td class="num">{{ $zone['totals']['frame_clusters'] }}</td>
+                <td class="num">{{ $zone['totals']['clusters'] }}</td>
                 <td class="num">{{ $fmt($zone['totals']['enumerated']) }}</td>
                 <td></td>
                 <td class="num">{{ $zone['totals']['sub_clusters'] }}</td>

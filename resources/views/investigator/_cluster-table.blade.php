@@ -7,7 +7,7 @@
     <div class="card mb-3">
         <div class="card-header d-flex flex-wrap justify-content-between gap-2">
             <span class="fw-semibold"><i class="bi bi-hospital me-1"></i>Zone sanitaire de {{ $zone['name'] }}</span>
-            <span class="small text-muted">{{ $zone['totals']['villages'] }} village(s) · {{ $zone['totals']['frame_clusters'] }} grappe(s) de la base de sondage, {{ $zone['totals']['clusters'] }} visitée(s) · {{ $fmt($zone['totals']['visited']) }} ménage(s) visité(s) sur {{ $fmt($zone['totals']['expected']) }} attendus</span>
+            <span class="small text-muted">{{ $zone['totals']['villages'] }} village(s) · {{ $zone['totals']['clusters'] }} grappe(s) sélectionnée(s), {{ $zone['totals']['frame_clusters'] }} rapprochée(s) de la base de sondage · {{ $fmt($zone['totals']['visited']) }} ménage(s) visité(s) sur {{ $fmt($zone['totals']['expected']) }} attendus</span>
         </div>
         <div class="table-responsive">
             <table class="table table-sm table-bordered align-middle mb-0 small">
@@ -38,7 +38,7 @@
                                 @if ($row['cluster_id'])
                                     <a href="{{ route('clusters.show', $row['cluster_id']) }}" title="Grappe {{ $row['cluster_code'] }}">{{ $row['cluster_numbers'] ? implode(', ', $row['cluster_numbers']) : $row['cluster_code'] }}</a>
                                     <div class="text-muted">{{ $row['cluster_code'] }}</div>
-                                    @if ($row['frame_ambiguous'] ?? null)<div class="text-warning-emphasis" title="Deux grappes de la plateforme pour la même grappe de la base de sondage : identifiants ménage à vérifier">≈ {{ $row['frame_ambiguous'] }}</div>@endif
+                                    @if ($row['frame_ambiguous'] ?? null)<div class="text-warning-emphasis" title="Deux grappes du même village avec le même numéro : identifiants ménage à vérifier">≈ {{ $row['frame_ambiguous'] }}</div>@endif
                                 @elseif ($row['frame_only'])
                                     {{ implode(', ', $row['cluster_numbers']) }}<div><span class="badge text-bg-light border">non visitée</span></div>
                                 @else
@@ -67,7 +67,7 @@
                 <tfoot>
                 <tr class="table-secondary fw-semibold">
                     <td>Total {{ $zone['name'] }}</td>
-                    <td class="text-center">{{ $zone['totals']['frame_clusters'] }}</td>
+                    <td class="text-center">{{ $zone['totals']['clusters'] }}</td>
                     <td class="text-end">{{ $fmt($zone['totals']['enumerated']) }}</td>
                     <td></td>
                     <td class="text-center">{{ $zone['totals']['sub_clusters'] }}</td>
