@@ -166,18 +166,20 @@ class InvestigatorController extends Controller
                     foreach ($village['rows'] as $row) {
                         $rows[] = [
                             $zone['name'], $village['name'],
-                            $value($row['cluster_numbers']), $row['cluster_code'] ?? 'Non rattachée',
+                            $value($row['cluster_numbers']), $row['cluster_code'] ?? ($row['frame_only'] ? 'Non visitée' : 'Non rattachée'),
+                            $row['enumerated'], $row['subdivisions'],
                             $value($row['sub_clusters']), $value($row['selected']),
-                            $row['visited'], $row['surveyed'], $row['children'], implode(' ; ', $row['teams']),
+                            $row['expected'], $row['visited'], $row['rate'] !== null ? $row['rate'] / 100 : null, $row['gap'],
+                            $row['surveyed'], $row['children'], implode(' ; ', $row['teams']),
                         ];
                     }
                 }
             }
 
             return Excel::download(new ArrayExport($rows, [
-                'Zone sanitaire', 'Village', 'N° grappe sélectionnée', 'Code grappe', 'Sous-grappes créées', 'N° sous-grappe sélectionnée',
-                'Ménages visités', 'Ménages enquêtés', 'Enfants éligibles (12-35 mois)', 'Binôme(s)',
-            ], 'Grappes par village'), 'grappes-par-village-'.now()->format('Ymd-Hi').'.xlsx');
+                'Zone sanitaire', 'Village', 'N° grappe', 'Code grappe', 'Ménages dénombrés', 'Subdivisions prévues', 'Sous-grappes créées', 'N° sous-grappe sélectionnée',
+                'Ménages attendus', 'Ménages visités', 'Réalisation', 'Écart (visités - attendus)', 'Ménages enquêtés', 'Enfants éligibles (12-35 mois)', 'Binôme(s)',
+            ], 'Grappes par village', ['K' => '0%']), 'grappes-par-village-'.now()->format('Ymd-Hi').'.xlsx');
         }
         if ($request->routeIs('investigator.clusters.pdf')) {
             AuditLog::record('export.grappes_villages', null, array_filter(['zone' => $zoneId]));

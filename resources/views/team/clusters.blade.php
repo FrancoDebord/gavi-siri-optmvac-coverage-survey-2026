@@ -14,6 +14,10 @@
         </div>
     </div>
 
+    <h2 class="h6 mt-2"><i class="bi bi-clipboard-data me-1"></i>Mes villages : grappes de la base de sondage, ménages attendus et visités</h2>
+    <p class="small text-muted mb-2">Ménages attendus = ménages dénombrés ÷ subdivisions prévues (une subdivision tirée est enquêtée). Réalisation = ménages visités ÷ attendus. Cartes détaillées : bouton « Cartes des grappes (PDF) ».</p>
+    @include('investigator._cluster-table', ['report' => $selection, 'withTeams' => false])
+
     <div class="card">
         <div class="card-header"><i class="bi bi-pin-map me-1"></i>Grappes où le binôme a travaillé</div>
         <div class="table-responsive">

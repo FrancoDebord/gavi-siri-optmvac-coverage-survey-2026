@@ -10,6 +10,7 @@ use App\Models\QualityRule;
 use App\Models\Team;
 use App\Models\TeamMessage;
 use App\Models\User;
+use App\Services\Dashboard\ClusterSelection;
 use App\Services\Dashboard\TeamProgress;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Dictionary\VariableMap as Map;
@@ -121,6 +122,8 @@ class TeamSpaceController extends Controller
 
         return view('team.clusters', $this->shared($request, $team, $teams, 'grappes') + [
             'clusters' => $clusters,
+            // Base de sondage limitée aux villages du binôme.
+            'selection' => (new ClusterSelection(null, $team->collectors->pluck('id')->all()))->build(),
             'mapData' => [
                 'boundaries' => $clusters->filter->hasMapBoundary()->map->mapBoundary()->values()->all(),
                 'points' => (clone $households)->whereNotNull('latitude')->whereNotNull('longitude')->with('cluster:id,code')

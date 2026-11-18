@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Cluster;
+use App\Models\ClusterFrame;
 use App\Models\DataQuery;
 use App\Models\DecisionCategory;
 use App\Models\FieldDecision;
@@ -12,12 +13,15 @@ use App\Models\Team;
 use App\Models\TeamMessage;
 use App\Models\User;
 use App\Models\Village;
+use App\Services\Dashboard\ClusterSelection;
 use App\Services\Import\NormalizedSubmission;
+use App\Services\Import\SamplingFrameImporter;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QualityEngine;
 use Database\Seeders\QualityRuleSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
@@ -244,11 +248,38 @@ class InvestigatorTest extends TestCase
         file_put_contents($path, $xlsx->streamedContent());
         $sheet = IOFactory::load($path)->getActiveSheet()->toArray(null, true, false);
         @unlink($path);
-        $this->assertSame('Sous-grappes créées', $sheet[0][4]);
+        $this->assertSame('Sous-grappes créées', $sheet[0][6]);
         $line = collect($sheet)->firstWhere(3, $cluster->code);
-        $this->assertSame([1, '3, 4', '2, NA', 3, 2], [$line[2], $line[4], $line[5], $line[6], $line[7]]);
+        $this->assertSame([1, '3, 4', '2, NA', 3, 2], [$line[2], $line[6], $line[7], $line[9], $line[12]]);
 
         $this->actingAs($this->user(User::ROLE_TEAM))->get(route('investigator.clusters'))->assertRedirect();
+    }
+
+    public function test_sampling_frame_gives_expected_households_per_cluster(): void
+    {
+        $report = (new SamplingFrameImporter)->import();
+        $this->assertSame(404, $report['clusters']);
+        $sebou = Village::where('code', '66')->firstOrFail();
+        $frame = ClusterFrame::where('village_label', 'SEBOU')->where('cluster_number', 1)->firstOrFail();
+        $this->assertContains($sebou->id, $frame->village_ids);
+        $this->assertSame(288, $frame->households_enumerated);
+        $this->assertSame(96, $frame->expected()); // 288 ménages ÷ 3 subdivisions
+
+        $pi = $this->user(User::ROLE_PI);
+        $report = $this->actingAs($pi)->get(route('investigator.clusters', ['health_zone_id' => $this->tchaourou->id]))->assertOk()
+            ->assertSee('Ménages dénombrés')->assertSee('Ménages attendus')->assertSee('non visitée')->viewData('report');
+        $rows = collect($report['zones'][0]['villages'])->flatMap(fn ($v) => $v['rows']);
+        $visited = $rows->firstWhere('cluster_code', 'TCH-SEB-01');
+        $this->assertSame([288, 3, 96, 3, -93, 3], [$visited['enumerated'], $visited['subdivisions'], $visited['expected'], $visited['visited'], $visited['gap'], $visited['rate']]);
+        // Grappes de la base de sondage pas encore visitées : listées avec 0 ménage.
+        $this->assertTrue($rows->contains(fn ($r) => $r['frame_only'] && $r['enumerated'] === 284 && $r['visited'] === 0));
+        $this->assertSame(239, $report['zones'][0]['totals']['frame_clusters']);
+
+        // Binôme : seulement ses villages.
+        $team = Team::where('code', '46-47')->firstOrFail();
+        $selection = (new ClusterSelection(null, $team->collectors()->pluck('id')->all()))->build();
+        $villages = collect($selection['zones'])->flatMap(fn ($z) => collect($z['villages'])->pluck('name'))->unique()->values()->all();
+        $this->assertSame(['Sébou'], array_map(fn ($v) => Str::ascii($v) === 'Sebou' ? 'Sébou' : $v, $villages));
     }
 
     public function test_messages_reach_the_right_supervisors(): void

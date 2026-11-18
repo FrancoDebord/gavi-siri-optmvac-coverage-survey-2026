@@ -3,6 +3,7 @@
 namespace App\Services\Dashboard;
 
 use App\Models\Cluster;
+use App\Models\ClusterFrame;
 use App\Models\Village;
 use App\Services\Dictionary\VariableMap as Map;
 use App\Support\HouseholdCode;
@@ -19,9 +20,32 @@ use Illuminate\Support\Facades\DB;
  */
 class ClusterSelection
 {
-    public function __construct(private readonly ?int $zoneId = null) {}
+    /**
+     * @param  list<int>|null  $collectorIds  binôme : ses ménages, et les grappes de la base de sondage de ses villages
+     */
+    public function __construct(private readonly ?int $zoneId = null, private readonly ?array $collectorIds = null) {}
 
     public const NA = 'NA';
+
+    /**
+     * Colonnes de la base de sondage : ménages dénombrés, subdivisions prévues, ménages attendus (dénombrés /
+     * subdivisions), écart et taux de réalisation ; sous-grappes déclarées (6a) différentes des subdivisions prévues.
+     */
+    private static function frameColumns(?ClusterFrame $frame, int $visited, array $created): array
+    {
+        $expected = $frame?->expected();
+
+        return [
+            'frame_village' => $frame?->village_label,
+            'enumerated' => $frame?->households_enumerated,
+            'subdivisions' => $frame?->subdivisions,
+            'expected' => $expected,
+            'gap' => $expected !== null ? $visited - $expected : null,
+            'rate' => $expected ? (int) round(100 * $visited / $expected) : null,
+            'sub_mismatch' => $frame && $created !== [] && ! in_array($frame->subdivisions, $created, true),
+            'frame_only' => false,
+        ];
+    }
 
     private static function first(array $numbers): int
     {
@@ -30,7 +54,8 @@ class ClusterSelection
 
     private function households()
     {
-        return DB::table('households')->whereNull('households.excluded_at')->when($this->zoneId, fn ($q, $zone) => $q->where('households.health_zone_id', $zone));
+        return DB::table('households')->whereNull('households.excluded_at')->when($this->zoneId, fn ($q, $zone) => $q->where('households.health_zone_id', $zone))
+            ->when($this->collectorIds !== null, fn ($q) => $q->whereIn('households.collector_id', $this->collectorIds ?: [0]));
     }
 
     /** Clé d'une ligne : la grappe, ou le village pour les ménages sans grappe. */
@@ -97,9 +122,37 @@ class ClusterSelection
         // Grappes visitées, plus celles déjà délimitées mais pas encore visitées.
         $clusterIds = collect($stats)->pluck('cluster_id')->filter()->all();
         $clusters = Cluster::with(['village:id,name,health_zone_id', 'village.healthZone:id,name', 'healthZone:id,name'])
-            ->where(fn ($q) => $q->whereIn('id', $clusterIds)->orWhereNotNull('boundary')->orWhereHas('subClusters'))
+            ->when($this->collectorIds !== null,
+                fn ($q) => $q->whereIn('id', $clusterIds ?: [0]),
+                fn ($q) => $q->where(fn ($w) => $w->whereIn('id', $clusterIds)->orWhereNotNull('boundary')->orWhereHas('subClusters')))
             ->when($this->zoneId, fn ($q, $zone) => $q->where(fn ($w) => $w->where('health_zone_id', $zone)->orWhereIn('id', $clusterIds)))
             ->get()->keyBy('id');
+
+        // Base de sondage : grappes de la zone (binôme : de ses villages), rattachées par village et numéro de grappe.
+        $teamVillages = $this->collectorIds !== null
+            ? $clusters->pluck('village_id')->merge(collect($stats)->pluck('village_id'))->filter()->unique()->values()->all()
+            : null;
+        $frames = ClusterFrame::with('healthZone:id,name')->whereNotNull('health_zone_id')->when($this->zoneId, fn ($q, $zone) => $q->where('health_zone_id', $zone))->get()
+            ->when($teamVillages !== null, fn ($all) => $all->filter(fn (ClusterFrame $f) => array_intersect($f->village_ids ?? [], $teamVillages) !== []))->values();
+        // Une grappe de la liste ne va qu'à une grappe de la plateforme : celle qui a le plus de ménages visités
+        // (village séparé en deux avec chacun sa « grappe 1 ») ; les autres sont signalées comme ambiguës.
+        $assigned = [];
+        $ambiguous = [];
+        $usedFrames = [];
+        foreach ($frames as $frame) {
+            $candidates = $clusters->filter(fn (Cluster $c) => $c->number !== null && (int) $c->number === $frame->cluster_number
+                && in_array($c->village_id, $frame->village_ids ?? [], true))
+                ->sortByDesc(fn (Cluster $c) => $stats['c'.$c->id]['visited'] ?? 0)->values();
+            if ($candidates->isEmpty()) {
+                continue;
+            }
+            $assigned[$candidates->first()->id] = $frame;
+            $usedFrames[$frame->id] = true;
+            foreach ($candidates->slice(1) as $other) {
+                $ambiguous[$other->id] = $frame->village_label.' grappe '.$frame->cluster_number;
+            }
+        }
+        $frameFor = fn (Cluster $cluster) => $assigned[$cluster->id] ?? null;
         $villages = Village::with('healthZone:id,name')
             ->whereIn('id', collect($stats)->whereNull('cluster_id')->pluck('village_id')->filter()->all())->get()->keyBy('id');
 
@@ -109,7 +162,8 @@ class ClusterSelection
         $rows = collect();
         foreach ($clusters as $cluster) {
             $s = ($stats['c'.$cluster->id] ?? []) + $empty;
-            $rows->push([
+            $frame = $frameFor($cluster);
+            $rows->push(['frame_ambiguous' => $ambiguous[$cluster->id] ?? null] + self::frameColumns($frame, $s['visited'], $values($s['created'])) + [
                 'zone' => $cluster->healthZone?->name ?? $cluster->village?->healthZone?->name ?? 'Zone non renseignée',
                 'village' => $cluster->village?->name ?? 'Village non renseigné',
                 'cluster_id' => $cluster->id,
@@ -121,9 +175,25 @@ class ClusterSelection
                 'teams' => collect($s['teams'])->sortKeys(SORT_NATURAL)->values()->all(),
             ] + array_intersect_key($s, array_flip(['visited', 'surveyed', 'children'])));
         }
+        // Grappes de la base de sondage pas encore visitées.
+        $villageNames = Village::whereIn('id', $frames->pluck('village_ids')->flatten()->unique()->all())->pluck('name', 'id');
+        foreach ($frames->reject(fn ($f) => isset($usedFrames[$f->id])) as $frame) {
+            $names = collect($frame->village_ids ?? [])->map(fn ($id) => $villageNames[$id] ?? null)->filter();
+            $rows->push(['frame_only' => true] + self::frameColumns($frame, 0, []) + [
+                'zone' => $frame->healthZone?->name ?? 'Zone non renseignée',
+                'village' => $names->count() === 1 ? $names->first() : $frame->village_label.($names->isNotEmpty() ? ' ('.$names->implode(' / ').')' : ''),
+                'cluster_id' => null,
+                'cluster_code' => null,
+                'cluster_numbers' => [$frame->cluster_number],
+                'sub_clusters' => [],
+                'selected' => [],
+                'teams' => [],
+                'visited' => 0, 'surveyed' => 0, 'children' => 0,
+            ]);
+        }
         foreach (collect($stats)->whereNull('cluster_id') as $s) {
             $village = $villages[$s['village_id']] ?? null;
-            $rows->push([
+            $rows->push(self::frameColumns(null, $s['visited'], []) + [
                 'zone' => $village?->healthZone?->name ?? 'Zone non renseignée',
                 'village' => $village?->name ?? 'Village non renseigné',
                 'cluster_id' => null,
@@ -137,6 +207,10 @@ class ClusterSelection
 
         $sum = fn (Collection $items) => [
             'clusters' => $items->whereNotNull('cluster_id')->count(),
+            'frame_clusters' => $items->whereNotNull('enumerated')->count(),
+            'enumerated' => $items->sum('enumerated'),
+            'expected' => $items->sum('expected'),
+            'visited_framed' => $items->whereNotNull('expected')->sum('visited'),
             // Une valeur par grappe (la plus grande si les réponses diffèrent).
             'sub_clusters' => $items->sum(fn ($row) => $row['sub_clusters'] ? max($row['sub_clusters']) : 0),
             'visited' => $items->sum('visited'),
