@@ -228,6 +228,28 @@ class QueryWorkflow
         return $query;
     }
 
+    /**
+     * Confie la validation de la query à un superviseur ou à un validateur (null = la reprend) ; tracé.
+     */
+    public function assignReview(DataQuery $query, ?User $reviewer, User $user, ?string $comment = null): DataQuery
+    {
+        if ($reviewer && ! $reviewer->hasAnyRole([User::ROLE_SUPERVISOR, User::ROLE_VALIDATOR, User::ROLE_DATA_MANAGER, User::ROLE_ADMIN])) {
+            throw new InvalidArgumentException("{$reviewer->name} n'a pas de rôle de validation (superviseur, validateur, data manager).");
+        }
+        if (in_array($query->status, [DataQuery::STATUS_VALIDATED, DataQuery::STATUS_UNRESOLVABLE], true)) {
+            throw new InvalidArgumentException('Query fermée : rien à valider.');
+        }
+        DB::transaction(function () use ($query, $reviewer, $user, $comment) {
+            $query->update(['reviewer_id' => $reviewer?->id, 'review_assigned_by' => $user->id, 'review_assigned_at' => now()]);
+            QueryEvent::create([
+                'data_query_id' => $query->id, 'user_id' => $user->id, 'type' => 'assignment',
+                'comment' => ($reviewer ? 'Validation confiée à '.$reviewer->name : 'Validation reprise par le data manager').($comment ? ' — '.trim($comment) : ''),
+            ]);
+        });
+
+        return $query;
+    }
+
     public function comment(DataQuery $query, string $comment, ?User $user): QueryEvent
     {
         return QueryEvent::create([

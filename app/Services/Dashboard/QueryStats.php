@@ -79,6 +79,9 @@ class QueryStats
                 ? $query->whereNull('data_queries.assigned_to')
                 : $query->where('data_queries.assigned_to', (int) $this->extra['assigned']);
         }
+        if (! empty($this->extra['reviewer'])) {
+            $query->where('data_queries.reviewer_id', (int) $this->extra['reviewer'])->whereIn('data_queries.status', DataQuery::RESPONSES);
+        }
         if (! empty($this->extra['overdue'])) {
             $query->whereIn('data_queries.status', DataQuery::UNRESOLVED)->whereNotNull('data_queries.due_on')
                 ->where('data_queries.due_on', '<', now()->toDateString());

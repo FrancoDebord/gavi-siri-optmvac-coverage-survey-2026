@@ -60,6 +60,13 @@ class DataQueryController extends Controller
             ->with(['roles:id,name', 'team:id,code,name'])->orderBy('name')->get(['id', 'name', 'team_id']);
     }
 
+    /** Personnes à qui confier la validation : superviseurs, validateurs, data managers (actifs). */
+    public static function reviewerUsers(): Collection
+    {
+        return User::role([User::ROLE_SUPERVISOR, User::ROLE_VALIDATOR, User::ROLE_DATA_MANAGER])->where('is_active', true)
+            ->with(['roles:id,name', 'team:id,code,name'])->orderBy('name')->get(['id', 'name', 'team_id']);
+    }
+
     public static function assigneeLabel(User $user): string
     {
         $role = User::ROLES[$user->roles->first()?->name] ?? '';
@@ -71,6 +78,7 @@ class DataQueryController extends Controller
     {
         return view('queries.index', [
             'assignees' => $request->user()->can('assign queries') || $request->user()->can('view dashboards') ? self::assignableUsers() : collect(),
+            'reviewers' => $request->user()->can('validate queries') ? self::reviewerUsers() : collect(),
             'rules' => QualityRule::where('kind', QualityRule::KIND_QUERY)->orderBy('code')->get(['code', 'name']),
             'lastRun' => QualityRun::latest('id')->first(),
             'variables' => DataQuery::whereNotNull('variable')->distinct()->orderBy('variable')->pluck('variable'),
@@ -90,7 +98,8 @@ class DataQueryController extends Controller
             ->leftJoin('villages', 'villages.id', '=', 'data_queries.village_id')
             ->leftJoin('clusters', 'clusters.id', '=', 'data_queries.cluster_id')
             ->leftJoin('collectors', 'collectors.id', '=', 'data_queries.collector_id')
-            ->leftJoin('users as assignees', 'assignees.id', '=', 'data_queries.assigned_to');
+            ->leftJoin('users as assignees', 'assignees.id', '=', 'data_queries.assigned_to')
+            ->leftJoin('users as reviewers', 'reviewers.id', '=', 'data_queries.reviewer_id');
 
         $search = trim((string) $request->input('search'));
         if ($search !== '') {
@@ -113,7 +122,7 @@ class DataQueryController extends Controller
             ->limit(min(100, max(1, $request->integer('length', 25))))
             ->get([
                 'data_queries.*', 'health_zones.name as zone', 'communes.name as commune', 'villages.name as village',
-                'clusters.name as cluster', 'collectors.name as collector', 'assignees.name as assignee',
+                'clusters.name as cluster', 'collectors.name as collector', 'assignees.name as assignee', 'reviewers.name as reviewer',
             ]);
 
         return response()->json([
@@ -148,6 +157,7 @@ class DataQueryController extends Controller
                 'status_label' => DataQuery::STATUSES[$q->status] ?? $q->status,
                 'status_color' => DataQuery::STATUS_COLORS[$q->status] ?? 'secondary',
                 'assignee' => $q->assignee,
+                'reviewer' => $q->reviewer,
                 'due_on' => $q->due_on ? date('d/m/Y', strtotime($q->due_on)) : null,
                 'overdue' => $q->due_on && in_array($q->status, DataQuery::UNRESOLVED, true) && $q->due_on < now()->toDateString(),
                 'url' => route('queries.show', $q->id),
@@ -158,7 +168,7 @@ class DataQueryController extends Controller
     public function show(DataQuery $query, SubmissionPhotos $photos): View
     {
         $this->authorize('view', $query);
-        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator', 'suggester']);
+        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator', 'suggester', 'reviewer']);
 
         $user = request()->user();
 
@@ -176,6 +186,7 @@ class DataQueryController extends Controller
             'memberValues' => $user->can('respond', $query) ? $this->memberValues($query) : [],
             'variableOptions' => $user->can('respond', $query) ? $this->variableOptions() : [],
             'assignees' => request()->user()->can('assign', $query) ? self::assignableUsers() : collect(),
+            'reviewers' => request()->user()->can('assignReview', $query) ? self::reviewerUsers() : collect(),
             'doubleValidation' => AppSetting::requiresDoubleValidation($query->severity),
             'photos' => $photos->forQuery($query),
             'related' => DataQuery::where('household_id', $query->household_id)->whereKeyNot($query->id)->latest('id')->limit(20)->get(),
@@ -387,6 +398,7 @@ class DataQueryController extends Controller
         return back()->with('success', match (true) {
             $auto !== null && $auto['applied'] => 'Correction prise en compte : l\'erreur est levée.',
             $auto !== null => 'Correction enregistrée ; elle sera examinée par le data manager ('.$auto['reason'].').',
+            in_array($request->validated('status'), DataQuery::RESPONSES, true) => 'Réponse enregistrée : en attente de validation.',
             default => 'Statut mis à jour : '.$query->fresh()->statusLabel().'.',
         });
     }
@@ -410,6 +422,47 @@ class DataQueryController extends Controller
         }
 
         return back()->with('success', $assignee ? "Query affectée à {$assignee->name}." : 'Affectation retirée.');
+    }
+
+    /** Confier la validation d'une query (data manager, administrateur). */
+    public function assignReview(Request $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
+    {
+        $this->authorize('assignReview', $query);
+        $data = $request->validate(['reviewer_id' => ['nullable', 'integer', 'exists:users,id'], 'comment' => ['nullable', 'string', 'max:2000']]);
+        $reviewer = isset($data['reviewer_id']) ? User::find($data['reviewer_id']) : null;
+        try {
+            $workflow->assignReview($query, $reviewer, $request->user(), $data['comment'] ?? null);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['reviewer_id' => $e->getMessage()]);
+        }
+
+        return back()->with('success', $reviewer ? "Validation confiée à {$reviewer->name}." : 'Validation reprise.');
+    }
+
+    /** Confier la validation de plusieurs queries. */
+    public function bulkAssignReview(Request $request, QueryWorkflow $workflow): JsonResponse
+    {
+        abort_unless($request->user()->can('validate queries'), 403);
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'], 'ids.*' => ['integer'],
+            'reviewer_id' => ['nullable', 'integer', 'exists:users,id'], 'comment' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $reviewer = isset($data['reviewer_id']) ? User::find($data['reviewer_id']) : null;
+        $done = 0;
+        $errors = [];
+        foreach (DataQuery::visibleTo($request->user())->whereIn('id', $data['ids'])->get() as $query) {
+            try {
+                if ($request->user()->cannot('assignReview', $query)) {
+                    throw new InvalidArgumentException('hors de votre périmètre');
+                }
+                $workflow->assignReview($query, $reviewer, $request->user(), $data['comment'] ?? null);
+                $done++;
+            } catch (InvalidArgumentException $e) {
+                $errors[] = "{$query->code} : {$e->getMessage()}";
+            }
+        }
+
+        return response()->json(self::bulkResult($done, $errors, $reviewer ? 'confiée(s) à '.$reviewer->name.' pour validation' : 'reprise(s)'));
     }
 
     /** Affectation groupée depuis la liste. */

@@ -10,7 +10,7 @@ class BulkQueryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('process queries') || $this->user()->can('validate queries');
+        return $this->user()->can('process queries') || $this->user()->can('validate queries') || $this->user()->can('review queries');
     }
 
     public function rules(): array

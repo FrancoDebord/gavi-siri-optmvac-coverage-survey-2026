@@ -98,7 +98,7 @@ class DataLockTest extends TestCase
         $this->propose()->assertSessionHas('success');
 
         $this->actingAs($this->admin)->get(route('audit.index', ['user_id' => $this->manager->id]))->assertOk()
-            ->assertSee('Correction proposée')->assertSee('Statut → Correction proposée – à valider');
+            ->assertSee('Correction proposée')->assertSee('Statut → Correction proposée – en attente de validation');
         $this->actingAs($this->admin)->get(route('audit.index', ['source' => 'correction']))->assertOk()->assertSee('C-000001');
         $this->actingAs($this->manager)->get(route('audit.index'))->assertRedirect();
 

@@ -25,7 +25,7 @@ class AppSetting extends Model
         self::AUTO_ASSIGN => 'none',
         self::DUE_DAYS => 3,
         self::DOUBLE_VALIDATION => ['critique'],
-        self::AUTO_APPLY => true,
+        self::AUTO_APPLY => false,
     ];
 
     /** Affectation automatique des nouvelles queries. */

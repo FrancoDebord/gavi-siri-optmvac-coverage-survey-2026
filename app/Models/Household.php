@@ -44,9 +44,18 @@ class Household extends Model
      * Base nettoyée : les soumissions exclues (doublons, par correction validée) sont écartées partout
      * (tableaux de bord, moteur, exports nettoyés) ; elles restent dans la base brute.
      */
+    /**
+     * Vérification ciblée (après une correction) : les règles qui comparent les soumissions entre elles ne préparent
+     * leurs données que sur ce voisinage (même grappe, même agent), au lieu de toute la base. null = toute la base.
+     *
+     * @var list<int>|null
+     */
+    public static ?array $datasetIds = null;
+
     protected static function booted(): void
     {
         static::addGlobalScope('included', fn (Builder $query) => $query->whereNull($query->qualifyColumn('excluded_at')));
+        static::addGlobalScope('dataset', fn (Builder $query) => self::$datasetIds === null ? $query : $query->whereIn($query->qualifyColumn('id'), self::$datasetIds ?: [0]));
     }
 
     /** Les fiches restent consultables, même exclues (piste d'audit). */

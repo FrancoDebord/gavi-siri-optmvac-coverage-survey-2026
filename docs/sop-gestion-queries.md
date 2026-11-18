@@ -20,7 +20,8 @@ Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont e
 | Acteur | Rôle dans la procédure |
 |---|---|
 | Data manager | Lance le moteur, trie, affecte, valide ou rejette les réponses, décide « irrésoluble », rouvre, revoit les conflits. |
-| Superviseur | Affecte et répond aux queries de sa zone ; vérifie sur le terrain. |
+| Superviseur | Affecte et répond aux queries de sa zone ; vérifie sur le terrain ; valide ou rouvre les queries dont la validation lui est confiée. |
+| Validateur (compte dédié) | Valide ou rouvre les queries dont la validation lui est confiée ; arrive directement sur « À valider par moi ». |
 | Compte binôme | Se connecte avec l'identifiant `nom1.nom2` (noms des deux agents) et arrive sur ses queries. Il répond à toutes les queries de ses agents d'après la pièce source, sans attendre d'affectation. |
 | Investigateur principal | Suit les indicateurs ; approuve les écarts avant le gel final. |
 | Administrateur | Paramètres (affectation automatique, échéance, double validation), gel et dégel. |
@@ -70,7 +71,7 @@ Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont e
 
 3. Si on ne peut ni corriger ni confirmer, l'assigné l'explique en commentaire. Seul le data manager peut alors déclarer la query « irrésoluble ».
 
-### 5.3 bis Prise en compte immédiate (paramètre, activé par défaut)
+### 5.3 bis Prise en compte immédiate (paramètre, désactivé par défaut)
 
 Une correction proposée est appliquée tout de suite si :
 - elle lève l'erreur ;
@@ -82,7 +83,9 @@ Le data manager revoit ces corrections dans le registre (« À revoir »). Il pe
 - **les accepter**, à l'unité ou toutes à la fois ;
 - **les refuser**, avec un motif : la valeur précédente est rétablie et, si l'erreur revient, la query est rouverte et rendue à l'assigné.
 
-### 5.4 Validation (data manager)
+### 5.4 Validation (data manager, ou valideur désigné)
+
+La réponse de l'agent s'affiche pour lui « en attente de validation ». Le data manager ou l'administrateur peut confier la validation d'une query, ou de plusieurs à la fois depuis la liste, à un superviseur ou à un compte validateur. La personne désignée valide ou rouvre ; la règle de double validation s'applique à elle comme au data manager.
 
 1. Revue de chaque réponse : cohérence avec la pièce source et avec les autres données de la soumission.
 2. Décision :

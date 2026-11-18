@@ -61,6 +61,7 @@ export default function queriesListPage() {
                 data: 'status',
                 render: (v, t, row) => `<span class="badge text-bg-${row.status_color}">${escapeHtml(row.resolution_label)}</span>
                     <div class="small text-muted">${escapeHtml(row.status_label)}${row.resolved_at ? ` · ${escapeHtml(row.resolved_at)}` : ''}</div>
+                    ${row.reviewer ? `<div class="small"><i class="bi bi-patch-check me-1"></i>à valider : ${escapeHtml(row.reviewer)}</div>` : ''}
                     ${row.assignee ? `<div class="small"><i class="bi bi-person me-1"></i>${escapeHtml(row.assignee)}${row.due_on ? ` · ${escapeHtml(row.due_on)}` : ''}${row.overdue ? ' <span class="badge text-bg-danger">en retard</span>' : ''}</div>` : ''}`,
             },
             {
@@ -148,6 +149,29 @@ export default function queriesListPage() {
     const signature = document.getElementById('modal-signature');
     statusSelect?.addEventListener('change', () => {
         signature?.classList.toggle('d-none', statusSelect.selectedOptions[0]?.dataset.signature !== '1');
+    });
+
+    // Validation confiée en bloc.
+    const reviewEl = document.getElementById('review-modal');
+    const reviewModal = reviewEl ? new window.bootstrap.Modal(reviewEl) : null;
+    document.getElementById('bulk-review')?.addEventListener('click', () => {
+        reviewEl.querySelector('form').reset();
+        reviewEl.querySelector('[data-selection-count]').textContent = selection.size;
+        reviewModal.show();
+    });
+    reviewEl?.querySelector('form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        try {
+            const result = await postJson(root.dataset.bulkReviewUrl, { ids: [...selection], reviewer_id: form.reviewer_id.value || null, comment: form.comment.value || null });
+            toast(result.message, result.errors?.length ? 'warning' : 'success');
+            reviewModal.hide();
+            selection = new Set();
+            updateSelection();
+            dt.ajax.reload(null, false);
+        } catch (error) {
+            toast(error.message, 'danger');
+        }
     });
 
     // Affectation groupée.

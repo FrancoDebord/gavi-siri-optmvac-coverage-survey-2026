@@ -46,7 +46,7 @@
                             @endif
                         </dd>
                         <dt class="col-sm-4">Réponse</dt><dd class="col-sm-8">{{ $query->responder ? $query->responder->name.' · '.$query->responded_at?->format('d/m/Y H:i') : '—' }}</dd>
-                        <dt class="col-sm-4">Validation</dt><dd class="col-sm-8">{{ $query->validator ? $query->validator->name : '—' }} @if ($doubleValidation)<span class="badge text-bg-light border ms-1" title="Validation par une autre personne que l'auteur de la réponse, avec signature électronique">double validation</span>@endif</dd>
+                        <dt class="col-sm-4">Validation</dt><dd class="col-sm-8">{{ $query->validator ? $query->validator->name : ($query->reviewer ? 'confiée à '.$query->reviewer->name : '—') }} @if ($doubleValidation)<span class="badge text-bg-light border ms-1" title="Validation par une autre personne que l'auteur de la réponse, avec signature électronique">double validation</span>@endif</dd>
                         <dt class="col-sm-4">Date de résolution</dt><dd class="col-sm-8">{{ $query->resolved_at?->format('d/m/Y H:i') ?? '—' }} @if ($query->auto_closed)<span class="badge text-bg-success">fermeture automatique</span>@endif</dd>
                     </dl>
                 </div>
@@ -180,6 +180,29 @@
                         </form>
                     </div>
                 </div>
+            @endcan
+
+            @can('assignReview', $query)
+                @unless ($query->isResolved() && ! in_array($query->status, \App\Models\DataQuery::RESPONSES, true))
+                    <div class="card mb-3">
+                        <div class="card-header"><i class="bi bi-patch-check me-1"></i>Validation</div>
+                        <div class="card-body">
+                            <form method="POST" action="{{ route('queries.review-assign', $query) }}">
+                                @csrf
+                                <label class="form-label" for="reviewer_id">Confier la validation à</label>
+                                <select id="reviewer_id" name="reviewer_id" class="form-select mb-2">
+                                    <option value="">— Data manager (moi / l'équipe) —</option>
+                                    @foreach ($reviewers as $reviewer)
+                                        <option value="{{ $reviewer->id }}" @selected((int) $query->reviewer_id === $reviewer->id)>{{ \App\Http\Controllers\DataQueryController::assigneeLabel($reviewer) }}</option>
+                                    @endforeach
+                                </select>
+                                @error('reviewer_id')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+                                <input name="comment" class="form-control mb-2" maxlength="2000" placeholder="Consigne (facultatif)">
+                                <button class="btn btn-outline-primary w-100"><i class="bi bi-patch-check me-1"></i>Enregistrer</button>
+                            </form>
+                        </div>
+                    </div>
+                @endunless
             @endcan
 
             @if ($options->isNotEmpty() || $user->can('comment', $query))

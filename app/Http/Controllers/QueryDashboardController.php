@@ -56,6 +56,12 @@ class QueryDashboardController extends Controller
                 default => null,
             },
             'overdue' => $request->boolean('en_retard') ?: null,
+            // Validation confiée : « moi » ou une personne ; seules les réponses en attente.
+            'reviewer' => match (true) {
+                $request->input('a_valider') === 'moi' => $request->user()?->id,
+                ctype_digit((string) $request->input('a_valider')) => (int) $request->input('a_valider'),
+                default => null,
+            },
         ];
     }
 

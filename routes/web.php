@@ -134,6 +134,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/queries/{query}/suggestion', [DataQueryController::class, 'suggest'])->whereNumber('query')->name('queries.suggest')->middleware('throttle:60,1');
     Route::post('/queries/{query}/affectation', [DataQueryController::class, 'assign'])->whereNumber('query')->name('queries.assign')->middleware('throttle:60,1');
     Route::post('/queries/lot', [DataQueryController::class, 'bulk'])->name('queries.bulk')->middleware('throttle:30,1');
+    Route::post('/queries/{query}/validation', [DataQueryController::class, 'assignReview'])->whereNumber('query')->name('queries.review-assign')->middleware('throttle:60,1');
+    Route::post('/queries/lot/validation', [DataQueryController::class, 'bulkAssignReview'])->name('queries.bulk-review-assign')->middleware('throttle:30,1');
     Route::post('/queries/lot/affectation', [DataQueryController::class, 'bulkAssign'])->name('queries.bulk-assign')->middleware(['permission:assign queries', 'throttle:30,1']);
 
     Route::middleware('permission:report incidents')->group(function () {

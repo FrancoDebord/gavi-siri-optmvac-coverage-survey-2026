@@ -56,11 +56,20 @@ class QualityEngine
             $dictionary = $this->dictionary = Dictionary::current();
             $today = CarbonImmutable::today();
             $rules = $this->loadRules();
-
-            foreach ($rules as [$model, $handler]) {
-                if ($handler instanceof PreparesDataset) {
-                    $handler->prepare($model);
+            if ($householdIds !== null) {
+                // Vérification ciblée (correction) : les observations de supervision (paradonnées), qu'une correction
+                // ne change pas, restent à la passe complète ; leurs anomalies ne sont ni réévaluées ni fermées.
+                $rules = array_values(array_filter($rules, fn ($r) => ($r[0]->kind ?: QualityRule::KIND_QUERY) === QualityRule::KIND_QUERY));
+                Household::$datasetIds = $this->neighbourhood($householdIds);
+            }
+            try {
+                foreach ($rules as [$model, $handler]) {
+                    if ($handler instanceof PreparesDataset) {
+                        $handler->prepare($model);
+                    }
                 }
+            } finally {
+                Household::$datasetIds = null;
             }
 
             $this->toInsert = $this->touched = [];
@@ -116,6 +125,22 @@ class QualityEngine
         }
 
         return $run->fresh();
+    }
+
+    /**
+     * Voisinage d'une vérification ciblée : les ménages ciblés et ceux de la même grappe ou du même agent, seuls
+     * comparables pour les doublons, les valeurs aberrantes (par agent ou par grappe) et la distance à la grappe.
+     *
+     * @return list<int>
+     */
+    private function neighbourhood(array $householdIds): array
+    {
+        $targets = Household::withoutGlobalScope('included')->whereIn('id', $householdIds ?: [0])->get(['id', 'cluster_id', 'collector_id']);
+        $clusters = $targets->pluck('cluster_id')->filter()->unique()->all();
+        $collectors = $targets->pluck('collector_id')->filter()->unique()->all();
+
+        return Household::query()->where(fn ($q) => $q->whereIn('cluster_id', $clusters ?: [0])->orWhereIn('collector_id', $collectors ?: [0]))
+            ->pluck('id')->merge($targets->pluck('id'))->unique()->values()->all();
     }
 
     /**

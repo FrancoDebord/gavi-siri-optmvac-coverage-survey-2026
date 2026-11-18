@@ -44,8 +44,8 @@ class DataQuery extends Model
     public const STATUSES = [
         self::STATUS_OPEN => 'Ouverte',
         self::STATUS_SENT => 'Assignée',
-        self::STATUS_JUSTIFIED => 'Valeur confirmée – à valider',
-        self::STATUS_CORRECTED => 'Correction proposée – à valider',
+        self::STATUS_JUSTIFIED => 'Valeur confirmée – en attente de validation',
+        self::STATUS_CORRECTED => 'Correction proposée – en attente de validation',
         self::STATUS_VALIDATED => 'Fermée (validée)',
         self::STATUS_UNRESOLVABLE => 'Irrésoluble (fermée)',
     ];
@@ -93,7 +93,7 @@ class DataQuery extends Model
 
     public const RESOLUTIONS = [
         self::RESOLUTION_UNRESOLVED => ['label' => 'Non résolu', 'statuses' => [self::STATUS_OPEN, self::STATUS_SENT]],
-        self::RESOLUTION_PENDING => ['label' => 'Réponse à valider', 'statuses' => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED]],
+        self::RESOLUTION_PENDING => ['label' => 'En attente de validation', 'statuses' => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED]],
         self::RESOLUTION_RESOLVED => ['label' => 'Résolu', 'statuses' => [self::STATUS_VALIDATED]],
         self::RESOLUTION_UNRESOLVABLE => ['label' => 'Irrésoluble', 'statuses' => [self::STATUS_UNRESOLVABLE]],
     ];
@@ -105,6 +105,7 @@ class DataQuery extends Model
         'expected', 'message', 'suggestion', 'status', 'kind', 'assigned_to', 'assigned_by', 'assigned_at', 'due_on',
         'responded_by', 'responded_at', 'validated_by', 'detected_at', 'last_detected_at',
         'suggested_value', 'suggested_source', 'suggested_note', 'suggested_by', 'suggested_at',
+        'reviewer_id', 'review_assigned_by', 'review_assigned_at',
         'resolved_at', 'closed_at', 'auto_closed',
     ];
 
@@ -156,6 +157,7 @@ class DataQuery extends Model
             'closed_at' => 'datetime',
             'assigned_at' => 'datetime',
             'suggested_at' => 'datetime',
+            'review_assigned_at' => 'datetime',
             'responded_at' => 'datetime',
             'due_on' => 'date',
             'auto_closed' => 'boolean',
@@ -213,6 +215,12 @@ class DataQuery extends Model
     public function suggester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'suggested_by');
+    }
+
+    /** Personne à qui la validation est confiée (superviseur, validateur). */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
     }
 
     public function responder(): BelongsTo

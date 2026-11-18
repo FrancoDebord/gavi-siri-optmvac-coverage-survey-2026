@@ -128,6 +128,7 @@ class CleanDataTest extends TestCase
 
     public function test_correction_that_removes_the_error_is_applied_at_once_and_can_be_refused(): void
     {
+        AppSetting::put(AppSetting::AUTO_APPLY, true);
         $query = $this->gpsQuery();
         $this->propose($query, [['variable' => 'current_location', 'new_value' => '9.31 2.49 0 5', 'reason' => 'revisite']])
             ->assertSessionHas('success', "Correction prise en compte : l'erreur est levée.");
@@ -151,6 +152,7 @@ class CleanDataTest extends TestCase
 
     public function test_correction_that_does_not_remove_the_error_waits_for_the_data_manager(): void
     {
+        AppSetting::put(AppSetting::AUTO_APPLY, true);
         $query = $this->gpsQuery();
         $this->propose($query, [['variable' => 'visit_num', 'new_value' => '2', 'reason' => 'saisie']])->assertSessionHas('success');
 

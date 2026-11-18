@@ -87,11 +87,33 @@ class TeamFieldWorkTest extends TestCase
             // Valeurs de la soumission transmises pour « corriger une autre question » : [actuelle, ODK].
             ->assertSee('"visit_num":["1","1"]', false);
 
-        // Le binôme corrige directement : prise en compte immédiate, query levée.
+        // Le binôme corrige directement : la réponse attend la validation.
         $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
             ['variable' => 'visit_num', 'new_value' => '2', 'reason' => 'carnet'],
-        ]])->assertSessionHas('success', "Correction prise en compte : l'erreur est levée.");
-        $this->assertSame(DataQuery::STATUS_VALIDATED, $query->fresh()->status);
+        ]])->assertSessionHas('success', 'Réponse enregistrée : en attente de validation.');
+        $this->assertSame(DataQuery::STATUS_CORRECTED, $query->fresh()->status);
+        $this->actingAs($account)->get(route('team.queries', ['resolution' => DataQuery::RESOLUTION_PENDING]))->assertSee('en attente de validation');
+
+        // Le data manager confie la validation à un compte validateur, qui valide ; un autre validateur ne peut pas.
+        $manager = User::factory()->create();
+        $manager->assignRole(User::ROLE_DATA_MANAGER);
+        $validator = User::factory()->create();
+        $validator->assignRole(User::ROLE_VALIDATOR);
+        $other = User::factory()->create();
+        $other->assignRole(User::ROLE_VALIDATOR);
+        $this->actingAs($account)->post(route('queries.review-assign', $query), ['reviewer_id' => $validator->id])->assertForbidden();
+        $this->actingAs($manager)->post(route('queries.review-assign', $query), ['reviewer_id' => $account->id])->assertSessionHasErrors('reviewer_id');
+        $this->actingAs($manager)->post(route('queries.review-assign', $query), ['reviewer_id' => $validator->id])->assertSessionHas('success');
+        $this->assertSame($validator->id, $query->fresh()->reviewer_id);
+        $this->assertSame(route('queries.index', ['a_valider' => 'moi']), $validator->homeRoute());
+        $data = $this->actingAs($validator)->getJson(route('queries.datatable', ['draw' => 1, 'length' => 50, 'a_valider' => 'moi']))->json('data');
+        $this->assertSame([$query->id], array_column($data, 'id'));
+        $this->actingAs($other)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED])->assertSessionHasErrors('status');
+        $this->actingAs($validator)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED])->assertSessionHasNoErrors();
+        $query->refresh();
+        $this->assertSame(DataQuery::STATUS_VALIDATED, $query->status);
+        $this->assertSame($validator->id, $query->validated_by);
+        $this->assertSame('2', \App\Models\Household::where('submission_uuid', 'uuid:1')->firstOrFail()->data['visit_num']);
     }
 
     public function test_data_manager_records_the_value_read_on_the_photo(): void

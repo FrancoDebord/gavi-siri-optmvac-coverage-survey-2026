@@ -28,6 +28,9 @@ class User extends Authenticatable
     /** Binôme d'agents de terrain : ne voit que sa propre progression (users.team_id). */
     public const ROLE_TEAM = 'binome';
 
+    /** Compte de validation : valide ou rouvre les queries dont la validation lui est confiée. */
+    public const ROLE_VALIDATOR = 'validateur';
+
     public const ROLES = [
         self::ROLE_ADMIN => 'Administrateur',
         self::ROLE_PI => 'Investigateur principal',
@@ -35,6 +38,7 @@ class User extends Authenticatable
         self::ROLE_SUPERVISOR => 'Superviseur',
         self::ROLE_READER => 'Lecteur',
         self::ROLE_TEAM => 'Binôme (agents de terrain)',
+        self::ROLE_VALIDATOR => 'Validateur des queries',
     ];
 
     /**
@@ -101,6 +105,8 @@ class User extends Authenticatable
         return match (true) {
             // Compte binôme : directement sur ses queries à corriger.
             $this->hasRole(self::ROLE_TEAM) => route('team.queries'),
+            // Validateur : directement sur les queries dont la validation lui est confiée.
+            $this->hasRole(self::ROLE_VALIDATOR) => route('queries.index', ['a_valider' => 'moi']),
             $this->hasRole(self::ROLE_SUPERVISOR) => route('supervision.index'),
             $this->hasRole(self::ROLE_PI) => route('investigator.index'),
             default => route('dashboard'),

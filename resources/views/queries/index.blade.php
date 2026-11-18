@@ -1,5 +1,5 @@
 <x-layouts.app title="Liste des queries" page="queries-list">
-    <div id="queries-list" data-url="{{ route('queries.datatable') }}" data-bulk-url="{{ route('queries.bulk') }}" data-bulk-assign-url="{{ route('queries.bulk-assign') }}" data-can-process="{{ auth()->user()->can('process queries') || auth()->user()->can('validate queries') ? '1' : '0' }}">
+    <div id="queries-list" data-url="{{ route('queries.datatable') }}" data-bulk-url="{{ route('queries.bulk') }}" data-bulk-assign-url="{{ route('queries.bulk-assign') }}" data-bulk-review-url="{{ route('queries.bulk-review-assign') }}" data-can-process="{{ auth()->user()->can('process queries') || auth()->user()->can('validate queries') || auth()->user()->can('review queries') ? '1' : '0' }}">
         <x-page-header title="Liste des queries" :subtitle="$lastRun ? 'Dernière exécution du moteur : '.$lastRun->started_at->format('d/m/Y H:i').' ('.($lastRun->status === 'success' ? $lastRun->households_checked.' ménages contrôlés' : 'échec').')' : 'Le moteur n\'a pas encore été exécuté.'">
             @can('run quality checks')
                 <form method="POST" action="{{ route('queries.run') }}" data-confirm="Relancer le moteur de queries sur toutes les soumissions ?">
@@ -65,6 +65,16 @@
                 </select>
             </div>
             <div class="col-6 col-md-3 col-xl-2">
+                <label class="form-label small mb-0" for="f-review">À valider par</label>
+                <select id="f-review" class="form-select form-select-sm" data-filter="a_valider">
+                    <option value="">Tous</option>
+                    <option value="moi" @selected(request('a_valider') === 'moi')>Moi</option>
+                    @foreach ($reviewers as $reviewer)
+                        <option value="{{ $reviewer->id }}">{{ \App\Http\Controllers\DataQueryController::assigneeLabel($reviewer) }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
                 <label class="form-label small mb-0" for="f-overdue">Échéance</label>
                 <select id="f-overdue" class="form-select form-select-sm" data-filter="en_retard">
                     <option value="">Toutes</option>
@@ -93,6 +103,9 @@
             <span class="d-flex gap-2">
                 @can('assign queries')
                     <button id="bulk-assign" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-check me-1"></i>Affecter</button>
+                @endcan
+                @can('validate queries')
+                    <button id="bulk-review" class="btn btn-sm btn-outline-primary"><i class="bi bi-patch-check me-1"></i>Confier la validation</button>
                 @endcan
                 <button id="bulk-status" class="btn btn-sm btn-primary"><i class="bi bi-pencil-square me-1"></i>Répondre / valider / commenter</button>
             </span>
@@ -157,7 +170,7 @@
         </div>
     @endcan
 
-    @if (auth()->user()->can('process queries') || auth()->user()->can('validate queries'))
+    @if (auth()->user()->can('process queries') || auth()->user()->can('validate queries') || auth()->user()->can('review queries'))
         <div class="modal fade" id="status-modal" tabindex="-1" aria-labelledby="status-modal-title" aria-hidden="true">
             <div class="modal-dialog">
                 <form class="modal-content">
@@ -176,7 +189,7 @@
                                     \App\Models\DataQuery::STATUS_OPEN => 'Rejeter la réponse / rouvrir',
                                     \App\Models\DataQuery::STATUS_UNRESOLVABLE => 'Déclarer irrésoluble',
                                 ] as $key => $label)
-                                    @if (in_array($key, \App\Models\DataQuery::RESPONSES, true) || auth()->user()->can('validate queries'))
+                                    @if (in_array($key, \App\Models\DataQuery::RESPONSES, true) || auth()->user()->can('validate queries') || auth()->user()->can('review queries'))
                                         <option value="{{ $key }}" data-signature="{{ in_array($key, [\App\Models\DataQuery::STATUS_VALIDATED, \App\Models\DataQuery::STATUS_UNRESOLVABLE], true) ? '1' : '0' }}" data-from='@json(collect(\App\Models\DataQuery::TRANSITIONS)->filter(fn ($to) => in_array($key, $to, true))->keys()->values())'>{{ $label }}</option>
                                     @endif
                                 @endforeach
@@ -201,6 +214,35 @@
             </div>
         </div>
     @endif
+
+    @can('validate queries')
+        <div class="modal fade" id="review-modal" tabindex="-1" aria-labelledby="review-modal-title" aria-hidden="true">
+            <div class="modal-dialog">
+                <form class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-5" id="review-modal-title">Confier la validation de <span data-selection-count>1</span> query(s)</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label" for="review-user">Valideur</label>
+                        <select id="review-user" name="reviewer_id" class="form-select mb-3">
+                            <option value="">— Data manager (reprendre) —</option>
+                            @foreach ($reviewers as $reviewer)
+                                <option value="{{ $reviewer->id }}">{{ \App\Http\Controllers\DataQueryController::assigneeLabel($reviewer) }}</option>
+                            @endforeach
+                        </select>
+                        <label class="form-label" for="review-note">Consigne</label>
+                        <input id="review-note" name="comment" class="form-control" maxlength="2000">
+                        <div class="form-text">Le valideur voit ces queries dans « À valider par : moi » et peut valider ou rouvrir.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                        <button class="btn btn-primary">Confier</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endcan
 
     @can('assign queries')
         <div class="modal fade" id="assign-modal" tabindex="-1" aria-labelledby="assign-modal-title" aria-hidden="true">

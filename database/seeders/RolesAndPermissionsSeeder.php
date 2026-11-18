@@ -11,7 +11,7 @@ use Spatie\Permission\PermissionRegistrar;
 class RolesAndPermissionsSeeder extends Seeder
 {
     public const PERMISSIONS = [
-        'view dashboards' => [User::ROLE_ADMIN, User::ROLE_PI, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR, User::ROLE_READER],
+        'view dashboards' => [User::ROLE_ADMIN, User::ROLE_PI, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR, User::ROLE_READER, User::ROLE_VALIDATOR],
         'view pi dashboard' => [User::ROLE_ADMIN, User::ROLE_PI, User::ROLE_DATA_MANAGER],
         'send messages' => [User::ROLE_ADMIN, User::ROLE_PI],
         'view team space' => [User::ROLE_ADMIN, User::ROLE_TEAM],
@@ -20,6 +20,8 @@ class RolesAndPermissionsSeeder extends Seeder
         // Affectation des queries ; validation (fermeture) réservée au data manager (GCP : revue indépendante).
         'assign queries' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR],
         'validate queries' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER],
+        // Valider ou rouvrir les queries dont la validation est confiée (superviseurs, validateurs).
+        'review queries' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR, User::ROLE_VALIDATOR],
         'export data' => [User::ROLE_ADMIN, User::ROLE_PI, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR],
         'report incidents' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR],
         'import data' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER],
