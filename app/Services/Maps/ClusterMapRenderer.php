@@ -4,22 +4,33 @@ namespace App\Services\Maps;
 
 use App\Models\Cluster;
 use App\Support\Geo;
-use App\Support\HouseholdCode;
 use GdImage;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use Throwable;
 
 /**
- * Carte d'une grappe en image PNG haute résolution (pour les PDF) : contours de la grappe et des sous-grappes,
- * ménages géolocalisés numérotés (vert : enquêté, orange : visité non enquêté, cerclé de rouge : hors contour),
- * échelle, nord et légende. Projection locale équirectangulaire (échelle exacte à l'échelle d'une grappe).
+ * Carte d'une grappe sur fond satellite (tuiles Esri World Imagery, mises en cache), en PNG haute résolution pour
+ * les PDF : contours de la grappe et des sous-grappes, ménages visités en simples points (vert : enquêté, orange :
+ * visité non enquêté, cerclé de rouge : hors contour), échelle, nord, légende et attribution. Zoom le plus fort qui
+ * contient la grappe et ses ménages, pour repérer d'un coup d'œil les ménages restant à visiter.
  */
 class ClusterMapRenderer
 {
-    public const WIDTH = 1600;
+    public const WIDTH = 2000;
 
-    public const HEIGHT = 1100;
+    public const HEIGHT = 1300;
+
+    public const TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
+    public const ATTRIBUTION = 'Imagerie © Esri, Maxar, Earthstar Geographics';
 
     private const LEGEND = 70;
+
+    private const MAX_ZOOM = 18;
 
     private string $font;
 
@@ -32,8 +43,8 @@ class ClusterMapRenderer
     }
 
     /**
-     * @param  Collection<int, object>  $households  latitude, longitude, household_code, consented
-     * @return array{png: string, outside: array<int, int>} image et distance (m) au contour des ménages hors contour
+     * @param  Collection<int, object>  $households  latitude, longitude, consented
+     * @return array{png: string, outside: int, tiles: bool} image, ménages hors contour, fond satellite disponible
      */
     public function render(Cluster $cluster, Collection $households): array
     {
@@ -48,44 +59,49 @@ class ClusterMapRenderer
         }
         $points = $households->filter(fn ($h) => $h->latitude !== null && $h->longitude !== null)->values();
 
-        // Emprise : contours et points, marge de 8 %.
-        $lngs = $lats = [];
-        foreach ($shapes as $shape) {
-            foreach ($shape['ring'] as [$lng, $lat]) {
-                $lngs[] = $lng;
-                $lats[] = $lat;
-            }
-        }
-        foreach ($points as $p) {
-            $lngs[] = $p->longitude;
-            $lats[] = $p->latitude;
-        }
         $img = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
         imagealphablending($img, true);
         $c = $this->palette($img);
-        imagefilledrectangle($img, 0, 0, self::WIDTH, self::HEIGHT, $c['bg']);
-        if (! $lngs) {
-            $this->text($img, 22, self::WIDTH / 2 - 300, self::HEIGHT / 2, $c['muted'], 'Ni contour ni point GPS pour cette grappe');
+        imagefilledrectangle($img, 0, 0, self::WIDTH, self::HEIGHT, $c['ground']);
 
-            return ['png' => $this->png($img), 'outside' => []];
+        $coords = [];
+        foreach ($shapes as $shape) {
+            array_push($coords, ...$shape['ring']);
+        }
+        foreach ($points as $p) {
+            $coords[] = [$p->longitude, $p->latitude];
+        }
+        if (! $coords) {
+            $this->text($img, 26, self::WIDTH / 2 - 380, self::HEIGHT / 2, $c['white'], 'Ni contour ni point GPS pour cette grappe', true);
+
+            return ['png' => $this->png($img), 'outside' => 0, 'tiles' => false];
         }
 
-        $midLat = (min($lats) + max($lats)) / 2;
-        $kx = 111320 * cos(deg2rad($midLat));
-        $ky = 110540;
-        $spanX = max((max($lngs) - min($lngs)) * $kx, 60);
-        $spanY = max((max($lats) - min($lats)) * $ky, 60);
-        $drawW = self::WIDTH - 80;
-        $drawH = self::HEIGHT - self::LEGEND - 80;
-        $scale = min($drawW / ($spanX * 1.16), $drawH / ($spanY * 1.16)); // pixels par mètre
-        $cx = (min($lngs) + max($lngs)) / 2;
-        $cy = (min($lats) + max($lats)) / 2;
-        $project = fn (float $lng, float $lat) => [
-            (int) round(self::WIDTH / 2 + ($lng - $cx) * $kx * $scale),
-            (int) round(40 + $drawH / 2 - ($lat - $cy) * $ky * $scale),
-        ];
+        // Zoom le plus fort qui contient tout (marge de 6 %), centré sur l'emprise.
+        $lngs = array_column($coords, 0);
+        $lats = array_column($coords, 1);
+        $mapH = self::HEIGHT - self::LEGEND;
+        $zoom = self::MAX_ZOOM;
+        for (; $zoom > 3; $zoom--) {
+            [$x1, $y1] = self::pixel(min($lngs), max($lats), $zoom);
+            [$x2, $y2] = self::pixel(max($lngs), min($lats), $zoom);
+            if (($x2 - $x1) <= self::WIDTH * 0.88 && ($y2 - $y1) <= $mapH * 0.88) {
+                break;
+            }
+        }
+        [$x1, $y1] = self::pixel(min($lngs), max($lats), $zoom);
+        [$x2, $y2] = self::pixel(max($lngs), min($lats), $zoom);
+        $originX = ($x1 + $x2) / 2 - self::WIDTH / 2;
+        $originY = ($y1 + $y2) / 2 - $mapH / 2;
+        $project = function (float $lng, float $lat) use ($zoom, $originX, $originY) {
+            [$x, $y] = self::pixel($lng, $lat, $zoom);
 
-        // Contours : grappe (bleu, remplie), sous-grappes (orange).
+            return [(int) round($x - $originX), (int) round($y - $originY)];
+        };
+
+        $tiles = $this->drawTiles($img, $zoom, $originX, $originY, $mapH);
+
+        // Contours : grappe en jaune, sous-grappes en cyan (lisibles sur l'imagerie).
         foreach (['cluster', 'sub'] as $kind) {
             foreach (array_filter($shapes, fn ($s) => $s['kind'] === $kind) as $shape) {
                 $xy = [];
@@ -95,45 +111,92 @@ class ClusterMapRenderer
                 if (count($xy) < 6) {
                     continue;
                 }
-                if ($kind === 'cluster') {
-                    imagefilledpolygon($img, $xy, $c['fill']);
-                }
-                imagesetthickness($img, $kind === 'cluster' ? 4 : 3);
+                imagesetthickness($img, $kind === 'cluster' ? 6 : 4);
                 imagepolygon($img, $xy, $kind === 'cluster' ? $c['cluster'] : $c['sub']);
                 if ($shape['label']) {
-                    // Étiquette au sommet le plus au nord, à l'intérieur, pour ne pas masquer les ménages.
                     $top = 1;
                     for ($k = 1; $k < count($xy); $k += 2) {
                         $top = $xy[$k] < $xy[$top] ? $k : $top;
                     }
-                    $this->text($img, 24, $xy[$top - 1] - 15, $xy[$top] + 36, $c['sub'], $shape['label'], true, $c['white']);
+                    $this->text($img, 26, $xy[$top - 1] - 18, $xy[$top] + 40, $c['sub'], $shape['label'], true, $c['black']);
                 }
             }
         }
         imagesetthickness($img, 1);
 
-        // Ménages : numéro d'ordre de l'identifiant, couleur selon l'enquête, rouge si hors contour.
-        $outside = [];
+        // Ménages visités : simples points, sans nom.
+        $outside = 0;
         foreach ($points as $p) {
             [$x, $y] = $project($p->longitude, $p->latitude);
             $position = $cluster->boundary ? Geo::locate($p->latitude, $p->longitude, $cluster->boundary) : null;
-            $isOut = $position && ! $position['inside'];
-            if ($isOut) {
-                $outside[$p->id] = $position['distance_m'];
-                imagefilledellipse($img, $x, $y, 34, 34, $c['out']);
+            if ($position && ! $position['inside']) {
+                $outside++;
+                imagefilledellipse($img, $x, $y, 40, 40, $c['out']);
             }
-            imagefilledellipse($img, $x, $y, 22, 22, $c['white']);
-            imagefilledellipse($img, $x, $y, 17, 17, $p->consented ? $c['ok'] : $c['visited']);
-            $number = HouseholdCode::parse($p->household_code)['order'] ?? null;
-            $label = $number !== null ? str_pad((string) $number, 3, '0', STR_PAD_LEFT) : (string) $p->household_code;
-            $this->text($img, 15, $x + 14, $y - 10, $c['ink'], $label, true, $c['white']);
+            imagefilledellipse($img, $x, $y, 26, 26, $c['white']);
+            imagefilledellipse($img, $x, $y, 19, 19, $p->consented ? $c['ok'] : $c['visited']);
         }
 
-        $this->scaleBar($img, $c, $scale);
+        $this->scaleBar($img, $c, $zoom, ($y1 + $y2) / 2, $mapH);
         $this->north($img, $c);
-        $this->legend($img, $c);
+        $this->legend($img, $c, $tiles);
 
-        return ['png' => $this->png($img), 'outside' => $outside];
+        return ['png' => $this->png($img), 'outside' => $outside, 'tiles' => $tiles];
+    }
+
+    /** Coordonnées pixel Web Mercator au zoom donné. */
+    private static function pixel(float $lng, float $lat, int $zoom): array
+    {
+        $size = 256 * (2 ** $zoom);
+        $sin = sin(deg2rad(max(-85.0, min(85.0, $lat))));
+
+        return [($lng + 180) / 360 * $size, (0.5 - log((1 + $sin) / (1 - $sin)) / (4 * M_PI)) * $size];
+    }
+
+    /** Fond satellite : tuiles du cache, les manquantes téléchargées en parallèle. Faux si aucune n'est disponible. */
+    private function drawTiles(GdImage $img, int $zoom, float $originX, float $originY, int $mapH): bool
+    {
+        $tx1 = (int) floor($originX / 256);
+        $ty1 = (int) floor($originY / 256);
+        $tx2 = (int) floor(($originX + self::WIDTH) / 256);
+        $ty2 = (int) floor(($originY + $mapH) / 256);
+        $wanted = [];
+        for ($tx = $tx1; $tx <= $tx2; $tx++) {
+            for ($ty = $ty1; $ty <= $ty2; $ty++) {
+                $wanted["{$zoom}/{$tx}/{$ty}"] = [$tx, $ty];
+            }
+        }
+
+        $dir = storage_path('app/tiles/esri');
+        $missing = array_filter($wanted, fn ($key) => ! is_file("{$dir}/{$key}.jpg"), ARRAY_FILTER_USE_KEY);
+        foreach (array_chunk($missing, 16, true) as $batch) {
+            try {
+                $responses = Http::pool(fn (Pool $pool) => collect($batch)->map(fn ($t, $key) => $pool->as($key)->timeout(20)
+                    ->withHeaders(['User-Agent' => 'plateforme-enquete-couverture/1.0'])
+                    ->get(strtr(self::TILE_URL, ['{z}' => $zoom, '{x}' => $t[0], '{y}' => $t[1]])))->all());
+            } catch (Throwable) {
+                continue;
+            }
+            foreach ($responses as $key => $response) {
+                if ($response instanceof Response && $response->successful() && str_starts_with((string) $response->header('Content-Type'), 'image/')) {
+                    File::ensureDirectoryExists(dirname("{$dir}/{$key}.jpg"));
+                    file_put_contents("{$dir}/{$key}.jpg", $response->body());
+                }
+            }
+        }
+
+        $drawn = false;
+        foreach ($wanted as $key => [$tx, $ty]) {
+            $path = "{$dir}/{$key}.jpg";
+            $tile = is_file($path) ? @imagecreatefromstring((string) file_get_contents($path)) : false;
+            if ($tile) {
+                imagecopy($img, $tile, (int) round($tx * 256 - $originX), (int) round($ty * 256 - $originY), 0, 0, 256, 256);
+                imagedestroy($tile);
+                $drawn = true;
+            }
+        }
+
+        return $drawn;
     }
 
     /** @return list<list<array{0: float, 1: float}>> */
@@ -164,16 +227,15 @@ class ClusterMapRenderer
     private function palette(GdImage $img): array
     {
         return [
-            'bg' => imagecolorallocate($img, 248, 247, 244),
+            'ground' => imagecolorallocate($img, 70, 78, 66),
             'white' => imagecolorallocate($img, 255, 255, 255),
-            'fill' => imagecolorallocatealpha($img, 30, 110, 200, 105),
-            'cluster' => imagecolorallocate($img, 20, 80, 160),
-            'sub' => imagecolorallocate($img, 220, 110, 0),
-            'ok' => imagecolorallocate($img, 25, 135, 84),
-            'visited' => imagecolorallocate($img, 240, 160, 0),
-            'out' => imagecolorallocate($img, 200, 0, 0),
+            'black' => imagecolorallocate($img, 0, 0, 0),
+            'cluster' => imagecolorallocate($img, 255, 214, 0),
+            'sub' => imagecolorallocate($img, 0, 229, 255),
+            'ok' => imagecolorallocate($img, 0, 200, 83),
+            'visited' => imagecolorallocate($img, 255, 145, 0),
+            'out' => imagecolorallocate($img, 230, 0, 0),
             'ink' => imagecolorallocate($img, 20, 20, 20),
-            'muted' => imagecolorallocate($img, 110, 110, 110),
         ];
     }
 
@@ -181,60 +243,67 @@ class ClusterMapRenderer
     {
         $font = $bold ? $this->bold : $this->font;
         if ($halo !== null) {
-            foreach ([[-2, 0], [2, 0], [0, -2], [0, 2], [-1, -1], [1, 1], [-1, 1], [1, -1]] as [$dx, $dy]) {
+            foreach ([[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, 2], [-2, 2], [2, -2]] as [$dx, $dy]) {
                 imagettftext($img, $size, 0, $x + $dx, $y + $dy, $halo, $font, $text);
             }
         }
         imagettftext($img, $size, 0, $x, $y, $color, $font, $text);
     }
 
-    private function scaleBar(GdImage $img, array $c, float $scale): void
+    private function scaleBar(GdImage $img, array $c, int $zoom, float $centerY, int $mapH): void
     {
-        $target = 250 / $scale; // mètres pour ~250 px
-        $steps = [10, 20, 50, 100, 200, 250, 500, 1000, 2000, 5000];
-        $meters = collect($steps)->last(fn ($s) => $s <= $target) ?? 10;
-        $px = (int) round($meters * $scale);
+        $size = 256 * (2 ** $zoom);
+        $lat = rad2deg(atan(sinh(M_PI * (1 - 2 * $centerY / $size))));
+        $metersPerPixel = 156543.03392 * cos(deg2rad($lat)) / (2 ** $zoom);
+        $meters = collect([10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000])->last(fn ($s) => $s / $metersPerPixel <= 320) ?? 10;
+        $px = (int) round($meters / $metersPerPixel);
         $x = 40;
-        $y = self::HEIGHT - self::LEGEND - 20;
-        imagefilledrectangle($img, $x, $y, $x + $px, $y + 10, $c['ink']);
-        imagefilledrectangle($img, $x + (int) ($px / 2), $y + 2, $x + $px - 2, $y + 8, $c['white']);
-        $this->text($img, 16, $x, $y - 10, $c['ink'], $meters >= 1000 ? ($meters / 1000).' km' : $meters.' m', true, $c['white']);
+        $y = $mapH - 34;
+        imagefilledrectangle($img, $x - 10, $y - 36, $x + $px + 14, $y + 22, $c['white']);
+        imagefilledrectangle($img, $x, $y, $x + $px, $y + 12, $c['ink']);
+        imagefilledrectangle($img, $x + (int) ($px / 2), $y + 2, $x + $px - 2, $y + 10, $c['white']);
+        $this->text($img, 18, $x, $y - 10, $c['ink'], $meters >= 1000 ? ($meters / 1000).' km' : $meters.' m', true);
     }
 
     private function north(GdImage $img, array $c): void
     {
         $x = self::WIDTH - 60;
-        imagefilledpolygon($img, [$x, 30, $x - 16, 75, $x, 65, $x + 16, 75], $c['ink']);
-        $this->text($img, 20, $x - 9, 100, $c['ink'], 'N', true);
+        imagefilledellipse($img, $x, 70, 90, 110, $c['white']);
+        imagefilledpolygon($img, [$x, 30, $x - 17, 78, $x, 67, $x + 17, 78], $c['ink']);
+        $this->text($img, 22, $x - 10, 108, $c['ink'], 'N', true);
     }
 
-    private function legend(GdImage $img, array $c): void
+    private function legend(GdImage $img, array $c, bool $tiles): void
     {
-        $y = self::HEIGHT - self::LEGEND + 10;
-        imagefilledrectangle($img, 0, $y - 10, self::WIDTH, self::HEIGHT, $c['white']);
+        $y = self::HEIGHT - self::LEGEND;
+        imagefilledrectangle($img, 0, $y, self::WIDTH, self::HEIGHT, $c['white']);
         $x = 40;
         $item = function (callable $draw, string $label) use (&$x, $y, $img, $c) {
-            $draw($x + 12, $y + 22);
-            $this->text($img, 16, $x + 32, $y + 29, $c['ink'], $label);
-            $box = imagettfbbox(16, 0, $this->font, $label);
-            $x += 60 + abs($box[2] - $box[0]);
+            $draw($x + 12, $y + 35);
+            $this->text($img, 17, $x + 34, $y + 42, $c['ink'], $label);
+            $box = imagettfbbox(17, 0, $this->font, $label);
+            $x += 70 + abs($box[2] - $box[0]);
         };
-        $item(fn ($cx, $cy) => imagefilledellipse($img, $cx, $cy, 17, 17, $c['ok']), 'Ménage enquêté');
-        $item(fn ($cx, $cy) => imagefilledellipse($img, $cx, $cy, 17, 17, $c['visited']), 'Visité, non enquêté');
-        $item(function ($cx, $cy) use ($img, $c) {
-            imagefilledellipse($img, $cx, $cy, 30, 30, $c['out']);
-            imagefilledellipse($img, $cx, $cy, 17, 17, $c['ok']);
-        }, 'Hors du contour');
-        $item(function ($cx, $cy) use ($img, $c) {
-            imagesetthickness($img, 4);
-            imagerectangle($img, $cx - 12, $cy - 9, $cx + 12, $cy + 9, $c['cluster']);
+        $dot = fn ($color, $ring = false) => function ($cx, $cy) use ($img, $c, $color, $ring) {
+            if ($ring) {
+                imagefilledellipse($img, $cx, $cy, 32, 32, $c['out']);
+            }
+            imagefilledellipse($img, $cx, $cy, 22, 22, $c['ink']);
+            imagefilledellipse($img, $cx, $cy, 17, 17, $c[$color]);
+        };
+        $line = fn ($color) => function ($cx, $cy) use ($img, $c, $color) {
+            imagesetthickness($img, 5);
+            imageline($img, $cx - 14, $cy, $cx + 14, $cy, $c[$color]);
             imagesetthickness($img, 1);
-        }, 'Contour de la grappe');
-        $item(function ($cx, $cy) use ($img, $c) {
-            imagesetthickness($img, 3);
-            imagerectangle($img, $cx - 12, $cy - 9, $cx + 12, $cy + 9, $c['sub']);
-            imagesetthickness($img, 1);
-        }, 'Sous-grappe');
+        };
+        $item($dot('ok'), 'Ménage enquêté');
+        $item($dot('visited'), 'Visité, non enquêté');
+        $item($dot('ok', true), 'Hors du contour');
+        $item($line('cluster'), 'Grappe');
+        $item($line('sub'), 'Sous-grappe');
+        $note = $tiles ? self::ATTRIBUTION : 'Fond satellite indisponible (connexion)';
+        $box = imagettfbbox(14, 0, $this->font, $note);
+        $this->text($img, 14, self::WIDTH - 30 - abs($box[2] - $box[0]), $y + 42, $c['ink'], $note);
     }
 
     private function png(GdImage $img): string

@@ -14,6 +14,8 @@ use App\Services\Quality\QualityEngine;
 use Database\Seeders\QualityRuleSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /** Comptes binômes, queries présentées clairement aux agents, PDF des cartes de grappes. */
@@ -47,9 +49,17 @@ class TeamFieldWorkTest extends TestCase
         $this->assertMatchesRegularExpression('/^[a-z0-9-]+(\.[a-z0-9-]+)?(\.\d+)?$/', $account->username);
         $this->assertCount($rows->pluck('username')->count(), $rows->pluck('username')->unique());
 
-        // Connexion par identifiant et mot de passe « password » ; accueil sur ses queries.
+        // Connexion par identifiant et mot de passe « password » ; changement de mot de passe imposé avant tout.
+        $this->assertTrue($account->must_change_password);
         $this->post('/login', ['email' => strtoupper($account->username), 'password' => 'password'])->assertRedirect();
         $this->assertAuthenticatedAs($account);
+        $this->get(route('team.queries'))->assertRedirect(route('profile.edit'));
+        $this->get(route('profile.edit'))->assertOk()->assertSee('Première connexion');
+        $this->put(route('user-password.update'), ['current_password' => 'password', 'password' => 'password', 'password_confirmation' => 'password'])
+            ->assertSessionHasErrors('password', null, 'updatePassword');
+        $this->put(route('user-password.update'), ['current_password' => 'password', 'password' => 'Binome-4647', 'password_confirmation' => 'Binome-4647'])
+            ->assertSessionHasNoErrors();
+        $this->assertFalse($account->fresh()->must_change_password);
         $this->get('/')->assertRedirect(route('team.queries'));
 
         // Relancer ne crée pas de doublon et ne change pas un mot de passe modifié.
@@ -66,6 +76,7 @@ class TeamFieldWorkTest extends TestCase
         app(QualityEngine::class)->run('test');
         CreateTeamAccountsCommand::sync();
         $account = User::where('team_id', $this->team->id)->firstOrFail();
+        $account->update(['must_change_password' => false]);
         $query = DataQuery::where('rule_code', 'PHOTO_CHECK')->firstOrFail();
 
         $this->actingAs($account)->get(route('team.queries'))->assertOk()
@@ -88,12 +99,21 @@ class TeamFieldWorkTest extends TestCase
             'geometry' => ['type' => 'Polygon', 'coordinates' => [[[2.489, 9.309], [2.492, 9.309], [2.492, 9.312], [2.489, 9.312], [2.489, 9.309]]]]]]]]);
         CreateTeamAccountsCommand::sync();
         $account = User::where('team_id', $this->team->id)->firstOrFail();
+        $account->update(['must_change_password' => false]);
+        // Tuiles satellite simulées (une image JPEG unie).
+        $tile = imagecreatetruecolor(256, 256);
+        ob_start();
+        imagejpeg($tile);
+        Http::fake(['server.arcgisonline.com/*' => Http::response(ob_get_clean(), 200, ['Content-Type' => 'image/jpeg'])]);
+        File::deleteDirectory(storage_path('app/tiles'));
 
         $this->actingAs($account)->get(route('team.clusters'))->assertOk()->assertSee(route('team.clusters.pdf'));
         $pdf = $this->actingAs($account)->get(route('team.clusters.pdf'))->assertOk();
         $this->assertSame('application/pdf', $pdf->headers->get('Content-Type'));
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
         $this->assertDatabaseHas('audit_logs', ['action' => 'export.cartes_binome']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'World_Imagery/MapServer/tile/'));
+        $this->assertNotEmpty(File::allFiles(storage_path('app/tiles/esri')), 'Tuiles mises en cache');
 
         // Équipe centrale : PDF de n'importe quel binôme.
         $manager = User::factory()->create();

@@ -55,6 +55,7 @@ class User extends Authenticatable
         'name',
         'email',
         'username',
+        'must_change_password',
         'password',
         'is_active',
         'health_zone_id',
@@ -75,6 +76,7 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
         ];
     }
 

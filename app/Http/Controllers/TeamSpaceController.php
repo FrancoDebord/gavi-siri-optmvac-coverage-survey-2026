@@ -135,47 +135,41 @@ class TeamSpaceController extends Controller
     }
 
     /**
-     * PDF des grappes du binôme : pour chaque village d'intervention, la carte de chaque grappe (contours, ménages
-     * géolocalisés numérotés, hors contour signalés) et la liste de ses ménages, pour une vérification rapide.
+     * PDF des grappes du binôme : une page par grappe de ses villages d'intervention, carte sur fond satellite avec
+     * les contours et les ménages visités en points (sans nom), pour repérer les ménages restant à visiter.
      */
     public function clustersPdf(Request $request, ClusterMapRenderer $renderer): Response
     {
+        @set_time_limit(600);
         [$team] = $this->team($request);
-        $statusLabel = $this->statusLabeler();
         $households = Household::whereIn('collector_id', $team->collectors->pluck('id'))
-            ->get(['id', 'household_code', 'cluster_id', 'village_id', 'sub_cluster', 'latitude', 'longitude', 'consented', 'survey_status', 'interview_date']);
+            ->get(['id', 'cluster_id', 'latitude', 'longitude', 'consented']);
         $clusters = Cluster::whereIn('id', $households->pluck('cluster_id')->filter()->unique())->with(['village:id,name', 'subClusters'])->get()
             ->sortBy([fn ($a, $b) => strnatcasecmp((string) $a->village?->name, (string) $b->village?->name), fn ($a, $b) => strnatcmp($a->code, $b->code)]);
 
-        $sections = $clusters->groupBy(fn ($c) => $c->village?->name ?? 'Village non renseigné')->map(fn ($villageClusters) => $villageClusters->map(function (Cluster $cluster) use ($households, $renderer, $statusLabel) {
-            $own = $households->where('cluster_id', $cluster->id)->sortBy('household_code', SORT_NATURAL)->values();
+        $pages = $clusters->map(function (Cluster $cluster) use ($households, $renderer) {
+            $own = $households->where('cluster_id', $cluster->id)->values();
             $map = $renderer->render($cluster, $own);
 
             return [
                 'cluster' => $cluster,
+                'village' => $cluster->village?->name ?? 'Village non renseigné',
                 'map' => 'data:image/png;base64,'.base64_encode($map['png']),
-                'households' => $own->map(fn ($h) => [
-                    'code' => $h->household_code,
-                    'status' => $statusLabel($h->survey_status),
-                    'consented' => $h->consented,
-                    'date' => $h->interview_date?->format('d/m/Y'),
-                    'sub' => $h->sub_cluster,
-                    'gps' => $h->latitude !== null ? number_format($h->latitude, 5, '.', '').', '.number_format($h->longitude, 5, '.', '') : null,
-                    'outside' => $map['outside'][$h->id] ?? null,
-                ])->all(),
+                'visited' => $own->count(),
+                'surveyed' => $own->where('consented', true)->count(),
+                'outside' => $map['outside'],
+                'no_gps' => $own->whereNull('latitude')->count(),
             ];
-        })->values());
+        })->values();
 
         AuditLog::record('export.cartes_binome', $team, ['grappes' => $clusters->count()]);
 
         return Pdf::loadView('pdf.team-clusters', [
             'team' => $team,
-            'sections' => $sections,
-            'unclustered' => $households->whereNull('cluster_id')->values(),
-            'totals' => ['households' => $households->count(), 'surveyed' => $households->where('consented', true)->count(),
-                'gps' => $households->whereNotNull('latitude')->count(), 'clusters' => $clusters->count(), 'villages' => $sections->count()],
+            'pages' => $pages,
+            'villages' => $pages->groupBy('village')->map->count(),
             'generatedAt' => CarbonImmutable::now(config('app.timezone')),
-        ])->setPaper('a4', 'portrait')->download('grappes-binome-'.Str::slug($team->code).'-'.now()->format('Ymd-Hi').'.pdf');
+        ])->setPaper('a4', 'landscape')->download('grappes-binome-'.Str::slug($team->code).'-'.now()->format('Ymd-Hi').'.pdf');
     }
 
     /**

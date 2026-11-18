@@ -15,6 +15,8 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->string('username', 100)->nullable()->unique()->after('email');
+            // Mot de passe initial ou fixé par l'administrateur : à changer à la première connexion.
+            $table->boolean('must_change_password')->default(false)->after('password');
         });
         if (Schema::hasTable('teams')) {
             CreateTeamAccountsCommand::sync();
@@ -25,7 +27,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->dropUnique(['username']);
-            $table->dropColumn('username');
+            $table->dropColumn(['username', 'must_change_password']);
         });
     }
 };

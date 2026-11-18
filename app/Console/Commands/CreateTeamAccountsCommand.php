@@ -46,6 +46,7 @@ class CreateTeamAccountsCommand extends Command
                     'username' => $username,
                     'email' => $username.'@binome.local',
                     'password' => Hash::make(self::DEFAULT_PASSWORD),
+                    'must_change_password' => true,
                     'is_active' => true,
                     'team_id' => $team->id,
                     'health_zone_id' => $team->health_zone_id,
@@ -56,6 +57,7 @@ class CreateTeamAccountsCommand extends Command
                 $changes = $account->username ? [] : ['username' => $username];
                 if ($resetPassword) {
                     $changes['password'] = Hash::make(self::DEFAULT_PASSWORD);
+                    $changes['must_change_password'] = true;
                 }
                 $account->forceFill($changes)->save();
                 $status = $changes ? 'mis à jour' : 'existant';

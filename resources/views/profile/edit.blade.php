@@ -7,7 +7,9 @@
                 <div class="card-header">Changer de mot de passe</div>
                 <div class="card-body">
                     @if (session('status') === 'password-updated')
-                        <div class="alert alert-success small">Mot de passe mis à jour.</div>
+                        <div class="alert alert-success small">Mot de passe mis à jour. <a href="{{ auth()->user()->homeRoute() }}">Continuer</a></div>
+                    @elseif (auth()->user()->must_change_password)
+                        <div class="alert alert-warning small"><i class="bi bi-shield-lock me-1"></i>Première connexion : choisissez votre propre mot de passe (au moins 8 caractères, différent de l'actuel) pour accéder à la plateforme.</div>
                     @endif
                     <form method="POST" action="{{ route('user-password.update') }}">
                         @csrf

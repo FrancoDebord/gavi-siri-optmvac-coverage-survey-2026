@@ -26,7 +26,7 @@ class UserController extends Controller
 
     public function store(UserRequest $request): RedirectResponse
     {
-        $user = User::create($this->attributes($request) + ['password' => $request->validated('password')]);
+        $user = User::create($this->attributes($request) + ['password' => $request->validated('password'), 'must_change_password' => true]);
         $user->syncRoles([$request->validated('role')]);
         AuditLog::record('user.created', $user, ['email' => $user->email, 'role' => $request->validated('role')]);
 
@@ -46,6 +46,7 @@ class UserController extends Controller
         $attributes = $this->attributes($request);
         if ($request->filled('password')) {
             $attributes['password'] = $request->validated('password');
+            $attributes['must_change_password'] = ! $user->is($request->user());
         }
         $user->update($attributes);
         $user->syncRoles([$request->validated('role')]);
