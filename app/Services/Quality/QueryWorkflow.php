@@ -4,6 +4,7 @@ namespace App\Services\Quality;
 
 use App\Models\AppSetting;
 use App\Models\DataCorrection;
+use App\Models\DataLock;
 use App\Models\DataQuery;
 use App\Models\QueryEvent;
 use App\Models\User;
@@ -103,6 +104,10 @@ class QueryWorkflow
 
         $withCorrections = $query->status === DataQuery::STATUS_CORRECTED
             && DataCorrection::where('data_query_id', $query->id)->where('status', DataCorrection::STATUS_PROPOSED)->exists();
+        // Base gelée : aucune modification des données (proposition ou application de correction).
+        if (($status === DataQuery::STATUS_CORRECTED || ($status === DataQuery::STATUS_VALIDATED && $withCorrections)) && ($lock = DataLock::current())) {
+            throw new InvalidArgumentException("Base gelée (version {$lock->label()} depuis le {$lock->created_at->format('d/m/Y')}) : aucune correction possible avant le dégel par l'administrateur.");
+        }
         // Validation d'une correction : appliquée à la base nettoyée, la query est conclue par le moteur.
         if ($status === DataQuery::STATUS_VALIDATED && $withCorrections) {
             DB::transaction(function () use ($query, $comment, $user, $signed) {

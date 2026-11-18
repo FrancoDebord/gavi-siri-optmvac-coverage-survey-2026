@@ -9,6 +9,7 @@ use App\Models\Cluster;
 use App\Models\Collector;
 use App\Models\Commune;
 use App\Models\DataCorrection;
+use App\Models\DataLock;
 use App\Models\FormVersion;
 use App\Models\HealthZone;
 use App\Models\Household;
@@ -52,6 +53,8 @@ class SubmissionProcessor
 
     private CorrectionApplier $corrections;
 
+    private ?bool $frozen = null;
+
     public function __construct(?Dictionary $dictionary = null)
     {
         $this->dictionary = $dictionary ?? Dictionary::current();
@@ -79,6 +82,11 @@ class SubmissionProcessor
      */
     public function process(NormalizedSubmission $submission, array $origin = []): string
     {
+        // Base gelée : rien n'est écrit ; les changements d'ODK seront repris au dégel (empreinte de contenu).
+        if ($this->frozen ??= DataLock::isFrozen()) {
+            return self::UNCHANGED;
+        }
+
         // Base nettoyée : la source est conservée telle quelle, les tables de travail reçoivent la version corrigée.
         $source = $submission;
         [$submission, $corrections] = $this->corrections->apply($source);

@@ -3,6 +3,7 @@
 namespace App\Services\Cleaning;
 
 use App\Models\DataCorrection;
+use App\Models\DataLock;
 use App\Models\DataQuery;
 use App\Models\Household;
 use App\Models\QueryEvent;
@@ -198,6 +199,9 @@ class CleanDataService
     /** Reconstruit les ménages : source + corrections validées → tables de travail (base nettoyée). */
     public function rebuild(array $householdIds): void
     {
+        if (DataLock::isFrozen()) {
+            throw new InvalidArgumentException('Base gelée : reconstruction impossible avant le dégel.');
+        }
         $processor = new SubmissionProcessor;
         foreach (Household::withoutGlobalScope('included')->whereIn('id', $householdIds)->get() as $household) {
             $processor->process(SourceSnapshot::of($household), [

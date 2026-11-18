@@ -6,6 +6,7 @@ use App\Http\Controllers\ClusterMapController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataCorrectionController;
 use App\Http\Controllers\DataExportController;
+use App\Http\Controllers\DataLockController;
 use App\Http\Controllers\DataQueryController;
 use App\Http\Controllers\DataSourceController;
 use App\Http\Controllers\DictionaryController;
@@ -199,12 +200,15 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::put('/{user}', [UserController::class, 'update'])->name('update');
     });
     Route::get('/parametres/audit', [AuditLogController::class, 'index'])->middleware('permission:view audit')->name('audit.index');
+    Route::get('/parametres/audit/export', [AuditLogController::class, 'export'])->middleware(['permission:view audit', 'throttle:10,1'])->name('audit.export');
     Route::middleware('permission:export databases')->group(function () {
         Route::get('/parametres/exports', [DataExportController::class, 'index'])->name('exports.index');
         Route::post('/parametres/exports', [DataExportController::class, 'store'])->name('exports.store')->middleware('throttle:10,1');
         Route::get('/parametres/exports/{export}/telecharger', [DataExportController::class, 'download'])->name('exports.download')->middleware('throttle:30,1');
     });
     Route::middleware('permission:manage settings')->group(function () {
+        Route::get('/parametres/gel', [DataLockController::class, 'index'])->name('locks.index');
+        Route::post('/parametres/gel', [DataLockController::class, 'store'])->name('locks.store')->middleware('throttle:10,1');
         Route::get('/parametres/application', [SettingsController::class, 'edit'])->name('settings.edit');
         Route::put('/parametres/application', [SettingsController::class, 'update'])->name('settings.update');
     });

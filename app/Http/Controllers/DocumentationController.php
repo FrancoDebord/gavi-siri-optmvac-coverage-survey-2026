@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
@@ -30,6 +32,20 @@ class DocumentationController extends Controller
             'icon' => 'sliders',
             'permissions' => ['view dashboards', 'view pi dashboard', 'manage rules'],
         ],
+        'plan-gestion-donnees' => [
+            'file' => 'docs/plan-gestion-donnees.md',
+            'title' => 'Plan de gestion des données (PGD)',
+            'description' => 'Principes GCP, rôles, flux de données, contrôle qualité, corrections, gel et versions, exports, sécurité, ALCOA+.',
+            'icon' => 'shield-check',
+            'permissions' => ['view dashboards', 'view pi dashboard'],
+        ],
+        'sop-gestion-queries' => [
+            'file' => 'docs/sop-gestion-queries.md',
+            'title' => 'SOP-DM-01 – Gestion des queries',
+            'description' => 'Procédure : détection, affectation, réponse, validation, double validation, clôture, cas particuliers, délais.',
+            'icon' => 'list-check',
+            'permissions' => ['view dashboards', 'view pi dashboard', 'view team space'],
+        ],
         'deploiement' => [
             'file' => 'docs/deploiement.md',
             'title' => 'Déploiement (CI/CD)',
@@ -40,7 +56,7 @@ class DocumentationController extends Controller
     ];
 
     /** Pages accessibles à l'utilisateur, dans l'ordre du menu. */
-    public static function availablePages(?\App\Models\User $user): array
+    public static function availablePages(?User $user): array
     {
         if (! $user) {
             return [];
@@ -57,7 +73,7 @@ class DocumentationController extends Controller
         return view('documentation.index', [
             'pages' => collect($pages)->map(fn (array $page, string $slug) => $page + [
                 'slug' => $slug,
-                'updated_at' => File::exists(base_path($page['file'])) ? \Carbon\CarbonImmutable::createFromTimestamp(File::lastModified(base_path($page['file']))) : null,
+                'updated_at' => File::exists(base_path($page['file'])) ? CarbonImmutable::createFromTimestamp(File::lastModified(base_path($page['file']))) : null,
             ]),
         ]);
     }
@@ -80,7 +96,7 @@ class DocumentationController extends Controller
             'pages' => $pages,
             'html' => $rendered['html'],
             'toc' => $rendered['toc'],
-            'updatedAt' => \Carbon\CarbonImmutable::createFromTimestamp(File::lastModified($path)),
+            'updatedAt' => CarbonImmutable::createFromTimestamp(File::lastModified($path)),
         ]);
     }
 

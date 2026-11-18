@@ -45,6 +45,11 @@
         </header>
 
         <main class="app-content">
+            @auth
+                @if ($lock = \App\Models\DataLock::current())
+                    <div class="alert alert-primary py-2 small d-flex align-items-center gap-2"><i class="bi bi-lock-fill"></i><span><strong>Base gelée · version {{ $lock->label() }}</strong> depuis le {{ $lock->created_at->format('d/m/Y') }} : aucune correction possible, synchronisations suspendues.</span></div>
+                @endif
+            @endauth
             @include('layouts.partials.flash')
             {{ $slot }}
         </main>

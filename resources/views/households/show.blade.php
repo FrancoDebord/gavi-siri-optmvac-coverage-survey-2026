@@ -52,6 +52,19 @@
                 </div>
             </div>
 
+            <div class="card mt-3">
+                <div class="card-header"><i class="bi bi-clock-history me-1"></i>Historique de la soumission</div>
+                <div class="card-body" style="max-height: 420px; overflow:auto">
+                    <div class="timeline">
+                        @foreach ($trail as $entry)
+                            <div class="event small">
+                                <div class="text-muted">{{ $entry['at']?->format('d/m/Y H:i') }}{{ $entry['who'] ? ' · '.$entry['who'] : '' }}@if ($entry['ref']) · @if ($entry['url'])<a href="{{ $entry['url'] }}">{{ $entry['ref'] }}</a>@else{{ $entry['ref'] }}@endif @endif</div>
+                                <div>{{ $entry['what'] }}</div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
             @if ($household->excluded_at)
                 <div class="alert alert-danger small mt-3 mb-0"><i class="bi bi-slash-circle me-1"></i>Soumission <strong>exclue de la base nettoyée</strong> le {{ $household->excluded_at->format('d/m/Y') }} (doublon). Elle reste dans la base brute.</div>
             @endif
