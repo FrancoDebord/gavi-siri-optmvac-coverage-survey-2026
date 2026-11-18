@@ -173,6 +173,7 @@ class DataQueryController extends Controller
             'geoField' => $user->can('respond', $query) ? $geo : null,
             'reasons' => DataCorrection::REASONS,
             'members' => $user->can('respond', $query) ? $this->members($query) : [],
+            'memberValues' => $user->can('respond', $query) ? $this->memberValues($query) : [],
             'variableOptions' => $user->can('respond', $query) ? $this->variableOptions() : [],
             'assignees' => request()->user()->can('assign', $query) ? self::assignableUsers() : collect(),
             'doubleValidation' => AppSetting::requiresDoubleValidation($query->severity),
@@ -237,6 +238,43 @@ class DataQueryController extends Controller
         }
 
         return $members;
+    }
+
+    /**
+     * Valeurs de chaque membre de la soumission, pour les afficher et pré-remplir la correction :
+     * chemin => variable => [valeur actuelle (base nettoyée), valeur saisie dans ODK].
+     *
+     * @return array<string, array<string, array{0: ?string, 1: ?string}>>
+     */
+    private function memberValues(DataQuery $query): array
+    {
+        if (! $query->household) {
+            return [];
+        }
+        $exporter = new DatasetExporter;
+        $source = SourceSnapshot::of($query->household);
+        $flatten = function ($submission) use ($exporter) {
+            $values = [];
+            foreach ($exporter->flatten($submission) as $rows) {
+                foreach ($rows as $row) {
+                    foreach ($row['data'] as $variable => $value) {
+                        $values[$row['path'] ?? ''][$variable] = CorrectionApplier::normalize($value);
+                    }
+                }
+            }
+
+            return $values;
+        };
+        $clean = $flatten((new CorrectionApplier)->apply($source)[0]);
+        $raw = $flatten($source);
+        $result = [];
+        foreach ($clean + $raw as $path => $variables) {
+            foreach (($clean[$path] ?? []) + ($raw[$path] ?? []) as $variable => $unused) {
+                $result[$path][$variable] = [$clean[$path][$variable] ?? null, $raw[$path][$variable] ?? null];
+            }
+        }
+
+        return $result;
     }
 
     /**

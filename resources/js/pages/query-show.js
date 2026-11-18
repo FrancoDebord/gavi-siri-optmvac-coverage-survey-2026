@@ -68,9 +68,31 @@ export default function queryShowPage() {
         select.value = keep;
         fillValue(row);
     };
+    // Valeurs de la soumission (actuelle et saisie dans ODK) : affichées et reprises dans la saisie.
+    const memberValues = JSON.parse(document.getElementById('member-values')?.textContent || '{}');
     const fillValue = (row) => {
         const index = row.dataset.index;
         const variable = variableOptions.find((v) => v.name === row.querySelector('[data-variable]').value);
+        const path = row.querySelector('[data-member]').value;
+        const [current, raw] = (variable && memberValues[path]?.[variable.name]) || [null, null];
+        const label = (value) => {
+            if (value === null || value === undefined || value === '') return '(vide)';
+            const choice = variable?.choices?.find((c) => c.code === value);
+            return choice ? `${value} – ${choice.label}` : value;
+        };
+        const info = row.querySelector('[data-current-value]');
+        if (info) {
+            info.classList.toggle('d-none', !variable);
+            info.replaceChildren();
+            if (variable) {
+                info.append('Valeur saisie : ');
+                const badge = document.createElement('span');
+                badge.className = 'badge text-bg-danger-subtle text-danger-emphasis border';
+                badge.textContent = label(current);
+                info.append(badge);
+                if (raw !== current) info.append(` (dans ODK : ${label(raw)})`);
+            }
+        }
         const slot = row.querySelector('[data-value-slot]');
         const name = `corrections[${index}][new_value]`;
         if (variable?.choices?.length) {
@@ -79,6 +101,7 @@ export default function queryShowPage() {
             select.className = 'form-select form-select-sm mb-2';
             select.add(new Option('(vide)', ''));
             variable.choices.forEach((c) => select.add(new Option(`${c.code} – ${c.label}`, c.code)));
+            select.value = current ?? '';
             slot.replaceChildren(select);
         } else {
             const input = document.createElement('input');
@@ -86,6 +109,8 @@ export default function queryShowPage() {
             input.className = 'form-control form-control-sm mb-2';
             if (variable?.type === 'date') input.type = 'date';
             if (variable?.type === 'integer' || variable?.type === 'decimal') input.inputMode = 'decimal';
+            // Valeur actuelle pré-remplie, à modifier (pour une date : AAAA-MM-JJ).
+            input.value = variable?.type === 'date' ? (current ?? '').slice(0, 10) : (current ?? '');
             slot.replaceChildren(input);
         }
     };

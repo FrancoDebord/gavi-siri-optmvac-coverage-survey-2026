@@ -83,7 +83,9 @@ class TeamFieldWorkTest extends TestCase
             ->assertSee('Saisi :')->assertSee('1 – Visite 1')->assertSee('Photo :')->assertSee('2 – Visite 2');
         $this->actingAs($account)->get(route('queries.show', $query))->assertOk()
             ->assertSee('Valeur saisie (ODK)')->assertSee('Valeur suggérée')->assertSee('lue sur la photo')->assertSee('URI de la soumission')->assertSee('uuid:1')
-            ->assertSee('Pré-rempli avec la valeur lue sur la photo');
+            ->assertSee('Pré-rempli avec la valeur lue sur la photo')
+            // Valeurs de la soumission transmises pour « corriger une autre question » : [actuelle, ODK].
+            ->assertSee('"visit_num":["1","1"]', false);
 
         // Le binôme corrige directement : prise en compte immédiate, query levée.
         $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [

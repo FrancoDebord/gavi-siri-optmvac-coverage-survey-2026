@@ -288,6 +288,7 @@
                                                     </select>
                                                 </div>
                                             </div>
+                                            <div class="small mb-1 d-none" data-current-value></div>
                                             <label class="form-label small mb-0">Nouvelle valeur</label>
                                             <div data-value-slot><input name="corrections[__i__][new_value]" class="form-control form-control-sm mb-2"></div>
                                             @include('queries._correction-reason', ['i' => '__i__'])
@@ -295,6 +296,7 @@
                                         </div>
                                     </template>
                                     <script type="application/json" id="variable-options">@json($variableOptions)</script>
+                                    <script type="application/json" id="member-values">@json((object) $memberValues)</script>
                                 </div>
                                 <label class="form-label" for="comment">Justification / motif</label>
                                 <textarea id="comment" name="comment" rows="3" class="form-control mb-2" maxlength="2000">{{ old('comment') }}</textarea>
