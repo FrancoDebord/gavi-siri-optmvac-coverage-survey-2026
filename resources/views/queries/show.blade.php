@@ -85,6 +85,27 @@
                 </div>
             @endif
 
+            @if ($query->variable && $query->household && (auth()->user()->can('update', $query) || auth()->user()->can('validate', $query)) && ! $query->isResolved())
+                <form method="POST" action="{{ route('queries.suggest', $query) }}" class="card mb-3">
+                    @csrf
+                    <div class="card-header"><i class="bi bi-eye me-1"></i>Valeur lue sur la photo</div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-2">Si la vraie valeur de « {{ $focus['question'] ?? $query->variable }} » est lisible sur une photo, saisissez-la : elle sera proposée à l'agent, qui la confirmera en corrigeant.</p>
+                        <div class="row g-2">
+                            <div class="col-sm-5">
+                                <input name="suggested_value" class="form-control form-control-sm @error('suggested_value') is-invalid @enderror" value="{{ old('suggested_value', $query->suggested_value) }}" placeholder="{{ $correctionField && $correctionField['type'] === 'date' ? 'AAAA-MM-JJ' : 'valeur' }}" aria-label="Valeur lue">
+                                @error('suggested_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-sm-5">
+                                <input name="suggested_note" class="form-control form-control-sm" value="{{ old('suggested_note', $query->suggested_note) }}" maxlength="255" placeholder="Photo utilisée, précision…" aria-label="Précision">
+                            </div>
+                            <div class="col-sm-2"><button class="btn btn-sm btn-outline-primary w-100">Enregistrer</button></div>
+                        </div>
+                        <div class="form-text">Laisser vide puis enregistrer pour retirer la suggestion.</div>
+                    </div>
+                </form>
+            @endif
+
             <div class="card mb-3">
                 <div class="card-header">Contexte</div>
                 <div class="card-body">

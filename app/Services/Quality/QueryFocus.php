@@ -47,6 +47,10 @@ final class QueryFocus
 
         $definition = $query->variable ? $dictionary->variable($query->variable) : null;
         $label = fn (?string $value) => self::label($dictionary, $definition, $value);
+        $suggested = $query->suggested_source !== null ? (string) $query->suggested_value : $check?->expected;
+        $source = $query->suggested_source !== null
+            ? (DataQuery::SUGGESTION_SOURCES[$query->suggested_source] ?? $query->suggested_source).($query->suggester ? ' par '.$query->suggester->name : '')
+            : ($check ? 'lue sur la photo' : null);
 
         return [
             'question' => $query->variable_label,
@@ -56,9 +60,12 @@ final class QueryFocus
             'submission' => $query->submission_uuid,
             'raw' => $label($raw),
             'current' => $current !== $raw ? $label($current) : null,
-            'suggested' => $check ? ($check->expected === '' ? '(vide)' : $label($check->expected)) : null,
-            'has_suggestion' => (bool) $check,
-            'suggested_value' => $check?->expected,
+            'suggested' => $suggested !== null ? ($suggested === '' ? '(vide)' : $label($suggested)) : null,
+            'has_suggestion' => $suggested !== null,
+            'suggested_value' => $suggested,
+            'suggested_source' => $source,
+            'suggested_note' => $query->suggested_note,
+            'is_ai' => $query->suggested_source === 'ia',
             'problem' => $query->message,
         ];
     }

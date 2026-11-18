@@ -141,7 +141,7 @@ class CleanDataService
     }
 
     /** Type et liste de choix de la nouvelle valeur. */
-    private function checkValue(array $definition, Dictionary $dictionary, string $value, int $n): void
+    public function checkValue(array $definition, Dictionary $dictionary, string $value, int $n = 1): void
     {
         $type = $definition['base_type'];
         if (! TypeRule::valid($type, $value)) {

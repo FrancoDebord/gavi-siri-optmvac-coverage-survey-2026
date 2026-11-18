@@ -155,7 +155,7 @@ class DataQueryController extends Controller
     public function show(DataQuery $query, SubmissionPhotos $photos): View
     {
         $this->authorize('view', $query);
-        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator']);
+        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator', 'suggester']);
 
         $user = request()->user();
 
@@ -204,6 +204,36 @@ class DataQueryController extends Controller
             'choices' => $definition['list_name'] ? ($dictionary->choices($definition['list_name']) ?? []) : [],
             'suggested' => $suggested,
         ];
+    }
+
+    /**
+     * Valeur lue sur une photo de la soumission (data manager, superviseur) : devient la valeur suggérée à l'agent,
+     * contrôlée selon le dictionnaire. Vide = suggestion retirée. Jamais appliquée sans réponse de l'agent.
+     */
+    public function suggest(Request $request, DataQuery $query, CleanDataService $cleaning): RedirectResponse
+    {
+        abort_unless($request->user()->can('update', $query) || $request->user()->can('validate', $query), 403);
+        $data = $request->validate([
+            'suggested_value' => ['nullable', 'string', 'max:2000'],
+            'suggested_note' => ['nullable', 'string', 'max:255'],
+        ], [], ['suggested_value' => 'valeur lue', 'suggested_note' => 'précision']);
+        $value = CorrectionApplier::normalize($data['suggested_value'] ?? null);
+        $definition = $query->variable ? Dictionary::current()->variable($query->variable) : null;
+        if ($value !== null && $definition) {
+            try {
+                $cleaning->checkValue($definition, Dictionary::current(), $value);
+            } catch (InvalidArgumentException $e) {
+                return back()->withErrors(['suggested_value' => str_replace('Correction 1 : ', '', $e->getMessage())])->withInput();
+            }
+        }
+
+        $query->update($value === null
+            ? ['suggested_value' => null, 'suggested_source' => null, 'suggested_note' => null, 'suggested_by' => null, 'suggested_at' => null]
+            : ['suggested_value' => $value, 'suggested_source' => 'photo', 'suggested_note' => $data['suggested_note'] ?? null, 'suggested_by' => $request->user()->id, 'suggested_at' => now()]);
+        $workflow = app(QueryWorkflow::class);
+        $workflow->comment($query, $value === null ? 'Valeur suggérée retirée.' : 'Valeur lue sur la photo : '.$value.(($data['suggested_note'] ?? null) ? ' ('.$data['suggested_note'].')' : ''), $request->user());
+
+        return back()->with('success', $value === null ? 'Suggestion retirée.' : 'Valeur lue enregistrée : elle est proposée à l\'agent.');
     }
 
     public function updateStatus(QueryStatusRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse

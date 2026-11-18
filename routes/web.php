@@ -131,6 +131,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     // Traitement des queries : droits vérifiés par la politique (assigné, équipe de traitement, data manager).
     Route::post('/queries/{query}/statut', [DataQueryController::class, 'updateStatus'])->whereNumber('query')->name('queries.status')->middleware('throttle:60,1');
     Route::post('/queries/{query}/commentaire', [DataQueryController::class, 'comment'])->whereNumber('query')->name('queries.comment')->middleware('throttle:60,1');
+    Route::post('/queries/{query}/suggestion', [DataQueryController::class, 'suggest'])->whereNumber('query')->name('queries.suggest')->middleware('throttle:60,1');
     Route::post('/queries/{query}/affectation', [DataQueryController::class, 'assign'])->whereNumber('query')->name('queries.assign')->middleware('throttle:60,1');
     Route::post('/queries/lot', [DataQueryController::class, 'bulk'])->name('queries.bulk')->middleware('throttle:30,1');
     Route::post('/queries/lot/affectation', [DataQueryController::class, 'bulkAssign'])->name('queries.bulk-assign')->middleware(['permission:assign queries', 'throttle:30,1']);

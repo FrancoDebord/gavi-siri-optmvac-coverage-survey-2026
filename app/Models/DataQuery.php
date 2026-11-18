@@ -104,6 +104,7 @@ class DataQuery extends Model
         'cluster_id', 'collector_id', 'collection_date', 'variable', 'variable_label', 'instance_path', 'observed_value',
         'expected', 'message', 'suggestion', 'status', 'kind', 'assigned_to', 'assigned_by', 'assigned_at', 'due_on',
         'responded_by', 'responded_at', 'validated_by', 'detected_at', 'last_detected_at',
+        'suggested_value', 'suggested_source', 'suggested_note', 'suggested_by', 'suggested_at',
         'resolved_at', 'closed_at', 'auto_closed',
     ];
 
@@ -154,6 +155,7 @@ class DataQuery extends Model
             'resolved_at' => 'datetime',
             'closed_at' => 'datetime',
             'assigned_at' => 'datetime',
+            'suggested_at' => 'datetime',
             'responded_at' => 'datetime',
             'due_on' => 'date',
             'auto_closed' => 'boolean',
@@ -203,6 +205,14 @@ class DataQuery extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /** Sources de la valeur suggérée : lue sur la photo par une personne, ou par lecture automatique (IA). */
+    public const SUGGESTION_SOURCES = ['photo' => 'lue sur la photo', 'ia' => 'lue par l\'IA, à vérifier'];
+
+    public function suggester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'suggested_by');
     }
 
     public function responder(): BelongsTo

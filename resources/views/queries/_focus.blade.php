@@ -4,7 +4,7 @@
         @if ($focus['member'])<span class="text-muted"><i class="bi bi-person me-1"></i>{{ $focus['member'] }}@if ($focus['uri']) · <code class="small">{{ \Illuminate\Support\Str::limit($focus['uri'], 24) }}</code>@endif</span>@endif
         @if ($focus['variable'])
             <span>Saisi : <span class="badge text-bg-danger-subtle text-danger-emphasis border">{{ $focus['raw'] ?? '(vide)' }}</span></span>
-            @if ($focus['has_suggestion'])<span><i class="bi bi-arrow-right"></i> Photo : <span class="badge text-bg-success-subtle text-success-emphasis border">{{ $focus['suggested'] }}</span></span>@endif
+            @if ($focus['has_suggestion'])<span><i class="bi bi-arrow-right"></i> {{ $focus['is_ai'] ? 'IA' : 'Photo' }} : <span class="badge {{ $focus['is_ai'] ? 'text-bg-info-subtle text-info-emphasis' : 'text-bg-success-subtle text-success-emphasis' }} border">{{ $focus['suggested'] }}</span></span>@endif
             @if ($focus['current'])<span class="text-muted">(corrigé : {{ $focus['current'] }})</span>@endif
         @endif
     </div>
@@ -30,10 +30,11 @@
                         <dt class="col-sm-4">Valeur actuelle (corrigée)</dt>
                         <dd class="col-sm-8"><span class="badge fs-6 text-bg-light border">{{ $focus['current'] }}</span></dd>
                     @endif
-                    <dt class="col-sm-4">Valeur suggérée (photo)</dt>
+                    <dt class="col-sm-4">Valeur suggérée</dt>
                     <dd class="col-sm-8">
                         @if ($focus['has_suggestion'])
-                            <span class="badge fs-6 text-bg-success-subtle text-success-emphasis border">{{ $focus['suggested'] }}</span>
+                            <span class="badge fs-6 {{ $focus['is_ai'] ? 'text-bg-info-subtle text-info-emphasis' : 'text-bg-success-subtle text-success-emphasis' }} border">{{ $focus['suggested'] }}</span>
+                            <div class="small text-muted">{{ $focus['suggested_source'] }}{{ $focus['suggested_note'] ? ' · '.$focus['suggested_note'] : '' }}</div>
                         @else
                             <span class="text-muted">— à vérifier sur le document</span>
                         @endif
