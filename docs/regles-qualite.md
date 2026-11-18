@@ -183,6 +183,28 @@ Un rejet ou un « irrésoluble » rejette les corrections proposées, qui resten
 
 **Conflit.** Si la valeur reçue d'ODK change après une correction, la correction est suspendue (« En conflit avec la source ») et la valeur d'ODK s'applique. Le data manager revoit ces corrections depuis le registre.
 
+**Exclusion d'un doublon.** Sur une query `DUP_HOUSEHOLD` ou `DUP_SUBMISSION`, la réponse « Correction proposée » peut demander d'exclure la soumission de la base nettoyée, en indiquant la soumission conservée. L'exclusion suit le même circuit que toute correction : registre, validation par le data manager, signature selon la sévérité. Une fois validée :
+- la soumission disparaît de la base nettoyée, des tableaux de bord et du moteur, et ses queries sont fermées avec ce motif ;
+- le moteur repasse sur toutes les soumissions, ce qui lève aussi le doublon chez la soumission conservée ;
+- la soumission reste dans la base brute, et sa fiche reste consultable.
+
+## Exports des bases (administrateur)
+
+Menu **Exports des bases**. La génération se fait en arrière-plan. Chaque fichier est un ZIP qui contient :
+- `manifest.json` : pour chaque fichier, l'empreinte SHA-256, le nombre de lignes et la description, plus la version du formulaire, la révision de l'application, l'auteur et la date ;
+- `LISEZMOI.txt` : la notice.
+
+| Export | Contenu |
+|---|---|
+| Base brute | Chaque soumission telle que reçue d'ODK, y compris les exclues (`exclue_base_nettoyee`). Une table CSV par niveau : `menages.csv`, puis une table par repeat. Le membre est identifié par son chemin. |
+| Base nettoyée | Mêmes tables, avec les corrections validées appliquées et les doublons exclus, plus `registre_corrections.csv`. |
+| Paquet d'archivage | Bases brute et nettoyée, registre, `queries.csv`, `historique_queries.csv`, `observations_supervision.csv`, `dictionnaire.csv`. |
+| Copie SQL | Structure et données de toutes les tables (hors cache, sessions, file d'attente), dans un ZIP chiffré AES-256. Le mot de passe de chiffrement est saisi par l'administrateur, qui signe aussi avec son propre mot de passe. La plateforme ne conserve pas le mot de passe de chiffrement. |
+
+Les CSV sont en UTF-8 avec BOM, avec la virgule comme séparateur. Les deux bases ont les mêmes colonnes : toutes les variables du formulaire, dans l'ordre du formulaire.
+
+Chaque demande et chaque téléchargement sont tracés au journal d'audit. Les fichiers sont supprimés au bout de 7 jours ; la trace, l'empreinte et le manifeste sont conservés. Le registre des corrections s'exporte aussi en Excel depuis sa page.
+
 ## Statuts de résolution
 
 | Statut de résolution | Statuts détaillés | Date de résolution |

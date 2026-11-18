@@ -65,8 +65,10 @@ class QualityEngine
 
             $this->toInsert = $this->touched = [];
             $this->opened = 0;
+            // Les queries des soumissions exclues de la base nettoyée ne sont plus réévaluées (fermées à l'exclusion).
             $this->existing = DataQuery::withoutGlobalScope('kind')
-                ->when($householdIds !== null, fn ($q) => $q->whereIn('household_id', $householdIds ?: [0]))->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to'])
+                ->when($householdIds !== null, fn ($q) => $q->whereIn('household_id', $householdIds ?: [0]))
+                ->where(fn ($q) => $q->whereNull('household_id')->orWhereNotIn('household_id', Household::withoutGlobalScope('included')->whereNotNull('excluded_at')->select('id')))->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to'])
                 ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value, 'assigned_to' => $q->assigned_to]])
                 ->all();
             $this->prepareAutoAssignment();

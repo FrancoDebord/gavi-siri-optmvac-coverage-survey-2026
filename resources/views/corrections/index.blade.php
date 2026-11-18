@@ -1,5 +1,7 @@
 <x-layouts.app title="Registre des corrections" page="corrections">
-    <x-page-header title="Registre des corrections" subtitle="Piste d'audit de la base nettoyée : chaque valeur remplacée est conservée, avec l'auteur, le motif, la source et la décision. Les données ODK ne sont jamais modifiées." />
+    <x-page-header title="Registre des corrections" subtitle="Piste d'audit de la base nettoyée : chaque valeur remplacée est conservée, avec l'auteur, le motif, la source et la décision. Les données ODK ne sont jamais modifiées.">
+        <a href="{{ route('corrections.export', request()->query()) }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    </x-page-header>
 
     <div class="row g-2 mb-3">
         @foreach (\App\Models\DataCorrection::STATUSES as $key => $label)
@@ -62,7 +64,7 @@
                             @if ($correction->household)<a href="{{ route('households.show', $correction->household) }}">{{ $correction->household->household_code ?? $correction->submission_uuid }}</a>@else {{ $correction->submission_uuid }} @endif
                             <div class="text-muted">{{ $correction->household?->healthZone?->name }}@if ($correction->data_query_id) · <a href="{{ route('queries.show', $correction->data_query_id) }}">{{ \App\Models\DataQuery::codeFor($correction->data_query_id) }}</a>@endif</div>
                         </td>
-                        <td><code>{{ $correction->variable }}</code>@if ($correction->instance_path)<div class="text-muted">{{ \App\Exports\QueriesExport::memberLabel($correction->instance_path) }}</div>@endif</td>
+                        <td><code>{{ $correction->variableLabel() }}</code>@if ($correction->instance_path)<div class="text-muted">{{ \App\Exports\QueriesExport::memberLabel($correction->instance_path) }}</div>@endif</td>
                         <td>{{ \App\Models\DataCorrection::display($correction->source_value) }}</td>
                         <td>{{ \App\Models\DataCorrection::display($correction->old_value) }}</td>
                         <td class="fw-semibold">{{ \App\Models\DataCorrection::display($correction->new_value) }}</td>

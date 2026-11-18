@@ -18,7 +18,7 @@ class DuplicateChildRule extends BusinessRule implements PreparesDataset
     {
         $this->counts = [];
         $children = Child::query()
-            ->join('households', 'households.id', '=', 'children.household_id')
+            ->join('households', 'households.id', '=', 'children.household_id')->whereNull('households.excluded_at')
             ->leftJoin('caregivers', 'caregivers.id', '=', 'children.caregiver_id')
             ->whereNotNull('children.date_of_birth')
             ->get(['children.id', 'children.sex', 'children.date_of_birth', 'households.cluster_id', 'households.household_code', 'caregivers.initials']);

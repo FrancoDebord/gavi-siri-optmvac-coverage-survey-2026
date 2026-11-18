@@ -167,7 +167,7 @@ class DataQuery extends Model
 
     public function household(): BelongsTo
     {
-        return $this->belongsTo(Household::class);
+        return $this->belongsTo(Household::class)->withoutGlobalScope('included');
     }
 
     public function child(): BelongsTo

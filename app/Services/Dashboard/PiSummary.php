@@ -32,7 +32,7 @@ class PiSummary
 
     private function households()
     {
-        return DB::table('households')
+        return DB::table('households')->whereNull('households.excluded_at')
             ->leftJoin('collectors', 'collectors.id', '=', 'households.collector_id')
             ->leftJoin('clusters', 'clusters.id', '=', 'households.cluster_id')
             ->when($this->zoneId, fn ($q, $id) => $q->where('households.health_zone_id', $id))

@@ -35,7 +35,7 @@ class SupervisionStats
 
     private function households()
     {
-        return DB::table('households')->where("households.{$this->column}", $this->id);
+        return DB::table('households')->whereNull('households.excluded_at')->where("households.{$this->column}", $this->id);
     }
 
     /** Agrégats de statut communs à toutes les vues (visités, enquêtés, sans enfant, refus, absents). */
@@ -54,7 +54,7 @@ class SupervisionStats
     {
         $total = $this->households()->selectRaw($this->statusSums())->first();
         $today = $this->households()->whereDate('interview_date', $this->today)->selectRaw($this->statusSums())->first();
-        $children = DB::table('children')->join('households', 'households.id', '=', 'children.household_id')
+        $children = DB::table('children')->join('households', 'households.id', '=', 'children.household_id')->whereNull('households.excluded_at')
             ->where("households.{$this->column}", $this->id)->where('children.eligible', true);
 
         return [
@@ -192,7 +192,7 @@ class SupervisionStats
      */
     public function villages(): Collection
     {
-        $children = DB::table('children')->join('households', 'households.id', '=', 'children.household_id')
+        $children = DB::table('children')->join('households', 'households.id', '=', 'children.household_id')->whereNull('households.excluded_at')
             ->where("households.{$this->column}", $this->id)->where('children.eligible', true)
             ->selectRaw('households.cluster_id, count(*) as n')->groupBy('households.cluster_id')->pluck('n', 'cluster_id');
         $queries = DataQuery::where($this->column, $this->id)->whereIn('status', DataQuery::UNRESOLVED)

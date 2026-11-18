@@ -30,7 +30,7 @@ class ClusterSelection
 
     private function households()
     {
-        return DB::table('households')->when($this->zoneId, fn ($q, $zone) => $q->where('households.health_zone_id', $zone));
+        return DB::table('households')->whereNull('households.excluded_at')->when($this->zoneId, fn ($q, $zone) => $q->where('households.health_zone_id', $zone));
     }
 
     /** Clé d'une ligne : la grappe, ou le village pour les ménages sans grappe. */

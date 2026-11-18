@@ -17,13 +17,13 @@ class InvestigatorStats
 
     private function households()
     {
-        return DB::table('households')->when($this->zoneId, fn ($q, $id) => $q->where('households.health_zone_id', $id));
+        return DB::table('households')->whereNull('households.excluded_at')->when($this->zoneId, fn ($q, $id) => $q->where('households.health_zone_id', $id));
     }
 
     /** KPIs complémentaires : villages et grappes visités, activité du jour (ménages, enfants éligibles, binômes). */
     public function kpis(CarbonImmutable $today): array
     {
-        $children = fn () => DB::table('children')->join('households', 'households.id', '=', 'children.household_id')->where('children.eligible', true)
+        $children = fn () => DB::table('children')->join('households', 'households.id', '=', 'children.household_id')->whereNull('households.excluded_at')->where('children.eligible', true)
             ->when($this->zoneId, fn ($q, $id) => $q->where('households.health_zone_id', $id));
         $day = $this->households()->whereDate('households.interview_date', $today)
             ->selectRaw('count(*) as visited, sum(case when consented then 1 else 0 end) as surveyed')->first();

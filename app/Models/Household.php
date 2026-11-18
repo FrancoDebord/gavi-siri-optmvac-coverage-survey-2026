@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasGeographicScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,7 +19,7 @@ class Household extends Model
         'health_zone_id', 'commune_id', 'arrondissement_id', 'village_id', 'cluster_id', 'sub_cluster', 'collector_id',
         'household_code', 'visit_number', 'survey_status', 'consented', 'interview_date',
         'started_at', 'ended_at', 'submitted_at', 'duration_minutes', 'latitude', 'longitude',
-        'gps_accuracy', 'form_version', 'review_state', 'content_hash', 'data', 'raw_data', 'source_data',
+        'gps_accuracy', 'form_version', 'review_state', 'content_hash', 'data', 'raw_data', 'source_data', 'excluded_at',
     ];
 
     protected function casts(): array
@@ -35,7 +36,23 @@ class Household extends Model
             'data' => 'array',
             'raw_data' => 'array',
             'source_data' => 'array',
+            'excluded_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Base nettoyée : les soumissions exclues (doublons, par correction validée) sont écartées partout
+     * (tableaux de bord, moteur, exports nettoyés) ; elles restent dans la base brute.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope('included', fn (Builder $query) => $query->whereNull($query->qualifyColumn('excluded_at')));
+    }
+
+    /** Les fiches restent consultables, même exclues (piste d'audit). */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return static::withoutGlobalScope('included')->where($field ?? $this->getRouteKeyName(), $value)->firstOrFail();
     }
 
     public function caregivers(): HasMany

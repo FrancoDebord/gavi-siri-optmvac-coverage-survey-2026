@@ -56,14 +56,14 @@ class TeamProgress
 
     private function households()
     {
-        return $this->scoped(DB::table('households'), 'households')
+        return $this->scoped(DB::table('households')->whereNull('households.excluded_at'), 'households')
             ->when($this->from, fn ($q, $d) => $q->whereDate('households.interview_date', '>=', $d))
             ->when($this->to, fn ($q, $d) => $q->whereDate('households.interview_date', '<=', $d));
     }
 
     private function eligibleChildren()
     {
-        return $this->scoped(DB::table('children')->join('households', 'households.id', '=', 'children.household_id'), 'households')->where('children.eligible', true)
+        return $this->scoped(DB::table('children')->join('households', 'households.id', '=', 'children.household_id')->whereNull('households.excluded_at'), 'households')->where('children.eligible', true)
             ->when($this->from, fn ($q, $d) => $q->whereDate('households.interview_date', '>=', $d))
             ->when($this->to, fn ($q, $d) => $q->whereDate('households.interview_date', '<=', $d));
     }

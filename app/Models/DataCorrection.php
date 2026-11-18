@@ -24,6 +24,9 @@ class DataCorrection extends Model
     /** La valeur reçue d'ODK a changé depuis la proposition : correction suspendue, à revoir. */
     public const STATUS_CONFLICT = 'conflit';
 
+    /** Pseudo-variable : exclusion de la soumission de la base nettoyée (doublon). */
+    public const EXCLUSION = '__exclusion';
+
     public const STATUSES = [
         self::STATUS_PROPOSED => 'Proposée',
         self::STATUS_VALIDATED => 'Validée (appliquée)',
@@ -68,7 +71,7 @@ class DataCorrection extends Model
 
     public function household(): BelongsTo
     {
-        return $this->belongsTo(Household::class);
+        return $this->belongsTo(Household::class)->withoutGlobalScope('included');
     }
 
     public function dataQuery(): BelongsTo
@@ -106,6 +109,11 @@ class DataCorrection extends Model
     public function reasonLabel(): string
     {
         return self::REASONS[$this->reason] ?? $this->reason;
+    }
+
+    public function variableLabel(): string
+    {
+        return $this->variable === self::EXCLUSION ? 'Exclusion de la soumission' : $this->variable;
     }
 
     public static function display(?string $value): string

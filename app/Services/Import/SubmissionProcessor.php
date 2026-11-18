@@ -8,6 +8,7 @@ use App\Models\Child;
 use App\Models\Cluster;
 use App\Models\Collector;
 use App\Models\Commune;
+use App\Models\DataCorrection;
 use App\Models\FormVersion;
 use App\Models\HealthZone;
 use App\Models\Household;
@@ -82,13 +83,15 @@ class SubmissionProcessor
         $source = $submission;
         [$submission, $corrections] = $this->corrections->apply($source);
         $hash = $corrections === '' ? $source->hash() : hash('sha256', $source->hash().'|'.$corrections);
-        $existing = Household::where('submission_uuid', $submission->uuid)->first(['id', 'content_hash']);
+        $existing = Household::withoutGlobalScope('included')->where('submission_uuid', $submission->uuid)->first(['id', 'content_hash', 'excluded_at']);
         if ($existing && $existing->content_hash === $hash) {
             return self::UNCHANGED;
         }
 
         $attributes = $this->householdAttributes($submission) + [
             'source_data' => SourceSnapshot::serialize($source),
+            // Exclusion de la base nettoyée (correction validée « exclure la soumission »).
+            'excluded_at' => isset($submission->data[DataCorrection::EXCLUSION]) ? ($existing?->excluded_at ?? now()) : null,
             'content_hash' => $hash,
             'data_source_id' => $origin['data_source_id'] ?? null,
             'import_batch_id' => $origin['import_batch_id'] ?? null,

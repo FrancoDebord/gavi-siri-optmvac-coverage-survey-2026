@@ -13,5 +13,8 @@ Schedule::job(new RunQualityChecksJob('schedule'))->dailyAt('02:00');
 // Contours GPS des grappes : nouveaux fichiers du dossier settings/points_gps et compilation des points.
 Schedule::command('gavi:import-boundaries')->everyTenMinutes()->withoutOverlapping();
 
+// Fichiers d'export expirés (les traces restent).
+Schedule::command('gavi:purge-exports')->dailyAt('03:00');
+
 // Nettoyage des jobs échoués anciens.
 Schedule::command('queue:prune-failed --hours=168')->daily();

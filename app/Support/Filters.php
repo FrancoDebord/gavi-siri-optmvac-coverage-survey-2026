@@ -57,6 +57,10 @@ final class Filters
     /** Applique les filtres à une requête sur une table qui porte les colonnes géographiques. */
     public function apply(Builder|QueryBuilder $query, string $table, string $dateColumn, bool $withSource = true): Builder|QueryBuilder
     {
+        // Base nettoyée : soumissions exclues (doublons) écartées.
+        if ($table === 'households') {
+            $query->whereNull('households.excluded_at');
+        }
         foreach (self::GEO as $column) {
             if (isset($this->values[$column])) {
                 $query->where("{$table}.{$column}", $this->values[$column]);

@@ -52,6 +52,9 @@
                 </div>
             </div>
 
+            @if ($household->excluded_at)
+                <div class="alert alert-danger small mt-3 mb-0"><i class="bi bi-slash-circle me-1"></i>Soumission <strong>exclue de la base nettoyée</strong> le {{ $household->excluded_at->format('d/m/Y') }} (doublon). Elle reste dans la base brute.</div>
+            @endif
             @if ($corrections->isNotEmpty())
                 <div class="card mt-3">
                     <div class="card-header"><i class="bi bi-pencil-square me-1"></i>Corrections ({{ $corrections->count() }})</div>
@@ -59,7 +62,7 @@
                         @foreach ($corrections as $correction)
                             <li class="list-group-item">
                                 <div class="d-flex justify-content-between gap-2">
-                                    <code>{{ $correction->variable }}</code>
+                                    <code>{{ $correction->variableLabel() }}</code>
                                     <span class="badge text-bg-{{ \App\Models\DataCorrection::STATUS_COLORS[$correction->status] ?? 'secondary' }} {{ $correction->status === 'remplacee' ? 'border' : '' }}">{{ $correction->statusLabel() }}</span>
                                 </div>
                                 @if ($correction->instance_path)<div class="text-muted">{{ \App\Exports\QueriesExport::memberLabel($correction->instance_path) }}</div>@endif

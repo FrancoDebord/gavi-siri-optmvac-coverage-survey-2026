@@ -55,6 +55,27 @@ class CleanDataService
             $newValue = CorrectionApplier::normalize($row['new_value'] ?? null);
             $comment = trim((string) ($row['comment'] ?? '')) ?: null;
 
+            // Exclusion de la soumission (doublon) : pseudo-variable au niveau du ménage.
+            if ($variable === DataCorrection::EXCLUSION) {
+                if ($path !== null || ! array_key_exists($reason, DataCorrection::REASONS)) {
+                    throw new InvalidArgumentException("Correction {$n} : l'exclusion porte sur toute la soumission ; indiquez le motif.");
+                }
+                if (isset($clean->data[DataCorrection::EXCLUSION])) {
+                    throw new InvalidArgumentException('Cette soumission est déjà exclue de la base nettoyée.');
+                }
+                if (! $comment) {
+                    throw new InvalidArgumentException('Exclusion : indiquez dans le commentaire la soumission conservée et pourquoi celle-ci est écartée.');
+                }
+                $created->push(new DataCorrection([
+                    'submission_uuid' => $household->submission_uuid, 'household_id' => $household->id, 'data_query_id' => $query->id,
+                    'variable' => DataCorrection::EXCLUSION, 'instance_path' => null, 'source_value' => null, 'old_value' => null, 'new_value' => '1',
+                    'reason' => $reason, 'source_reference' => trim((string) ($row['source_reference'] ?? '')) ?: null, 'comment' => $comment,
+                    'status' => DataCorrection::STATUS_PROPOSED, 'proposed_by' => $user?->id, 'proposed_at' => now(),
+                ]));
+
+                continue;
+            }
+
             $definition = $dictionary->variable($variable);
             if (! $definition || ! $dictionary->isInput($definition)) {
                 throw new InvalidArgumentException("Correction {$n} : « {$variable} » n'est pas une question saisissable du formulaire.");
@@ -160,11 +181,25 @@ class CleanDataService
         return $pending->count();
     }
 
+    /** Ferme les queries ouvertes des soumissions exclues de la base nettoyée. */
+    private function closeExcluded(array $householdIds, ?User $user): void
+    {
+        $open = DataQuery::whereIn('household_id', $householdIds)->whereNotIn('status', [DataQuery::STATUS_VALIDATED, DataQuery::STATUS_UNRESOLVABLE])->get();
+        DB::transaction(function () use ($open, $user) {
+            foreach ($open as $query) {
+                $from = $query->status;
+                $query->update(['status' => DataQuery::STATUS_VALIDATED, 'validated_by' => $user?->id, 'resolved_at' => now(), 'closed_at' => now(), 'auto_closed' => false]);
+                QueryEvent::create(['data_query_id' => $query->id, 'user_id' => $user?->id, 'type' => 'system', 'from_status' => $from, 'to_status' => DataQuery::STATUS_VALIDATED,
+                    'comment' => 'Soumission exclue de la base nettoyée (correction validée) : query fermée. La soumission reste dans la base brute.']);
+            }
+        });
+    }
+
     /** Reconstruit les ménages : source + corrections validées → tables de travail (base nettoyée). */
     public function rebuild(array $householdIds): void
     {
         $processor = new SubmissionProcessor;
-        foreach (Household::whereIn('id', $householdIds)->get() as $household) {
+        foreach (Household::withoutGlobalScope('included')->whereIn('id', $householdIds)->get() as $household) {
             $processor->process(SourceSnapshot::of($household), [
                 'data_source_id' => $household->data_source_id,
                 'import_batch_id' => $household->import_batch_id,
@@ -188,7 +223,14 @@ class CleanDataService
         }
         $households = $queries->pluck('household_id')->filter()->unique()->values()->all();
         $this->rebuild($households);
-        $run = $this->engine->run('correction', $user?->id, $households);
+
+        // Soumissions exclues : leurs queries sont fermées (motif tracé) ; le moteur repasse sur tout
+        // (les doublons disparaissent aussi chez la soumission conservée).
+        $excluded = Household::withoutGlobalScope('included')->whereIn('id', $households)->whereNotNull('excluded_at')->pluck('id')->all();
+        if ($excluded) {
+            $this->closeExcluded($excluded, $user);
+        }
+        $run = $this->engine->run('correction', $user?->id, $excluded ? null : $households);
         if ($run->status !== 'success') {
             // Vérification impossible : les queries restent « correction proposée », corrections déjà appliquées.
             foreach ($queries as $query) {

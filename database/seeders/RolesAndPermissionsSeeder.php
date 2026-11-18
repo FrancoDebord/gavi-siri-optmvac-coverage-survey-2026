@@ -30,6 +30,8 @@ class RolesAndPermissionsSeeder extends Seeder
         'manage users' => [User::ROLE_ADMIN],
         'view audit' => [User::ROLE_ADMIN],
         'manage settings' => [User::ROLE_ADMIN],
+        // Exports des bases (brute, nettoyée, archive) et copie SQL complète : administrateur seul.
+        'export databases' => [User::ROLE_ADMIN],
     ];
 
     public function run(): void

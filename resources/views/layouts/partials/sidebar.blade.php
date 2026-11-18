@@ -85,7 +85,7 @@
         @endcan
     @endcanany
 
-    @canany(['manage rules', 'manage sources', 'manage users', 'view audit'])
+    @canany(['manage rules', 'manage sources', 'manage users', 'view audit', 'export databases', 'manage settings'])
         <div class="nav-section">Paramètres</div>
         @can('manage rules')
             <a class="{{ $link('rules.*') }}" href="{{ route('rules.index') }}"><i class="bi bi-sliders"></i><span class="label">Règles qualité</span></a>
@@ -98,6 +98,9 @@
         @endcan
         @can('view audit')
             <a class="{{ $link('audit.*') }}" href="{{ route('audit.index') }}"><i class="bi bi-shield-check"></i><span class="label">Journal d'audit</span></a>
+        @endcan
+        @can('export databases')
+            <a class="{{ $link('exports.*') }}" href="{{ route('exports.index') }}"><i class="bi bi-database-down"></i><span class="label">Exports des bases</span></a>
         @endcan
         @can('manage settings')
             <a class="{{ $link('settings.*') }}" href="{{ route('settings.edit') }}"><i class="bi bi-gear"></i><span class="label">Paramètres de l'application</span></a>

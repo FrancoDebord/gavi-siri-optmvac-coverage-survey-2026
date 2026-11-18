@@ -38,9 +38,22 @@ export default function queryShowPage() {
             corrections.querySelectorAll('[data-correction-rows] input, [data-correction-rows] select').forEach((el) => {
                 el.disabled = !active;
             });
+            syncExclusion();
         }
     };
     const corrections = document.getElementById('corrections-block');
+    // Exclusion d'un doublon : champs envoyés seulement si la case est cochée.
+    const excludeToggle = corrections?.querySelector('[data-exclude-toggle]');
+    function syncExclusion() {
+        if (!excludeToggle) return;
+        const fields = corrections.querySelector('[data-exclude-fields]');
+        const on = excludeToggle.checked && select.value === 'corrigee';
+        fields.classList.toggle('d-none', !excludeToggle.checked);
+        fields.querySelectorAll('input, select').forEach((el) => {
+            el.disabled = !on;
+        });
+    }
+    excludeToggle?.addEventListener('change', syncExclusion);
     corrections?.querySelector('[data-add-correction]')?.addEventListener('click', () => {
         const index = Number(corrections.dataset.nextIndex);
         corrections.dataset.nextIndex = index + 1;

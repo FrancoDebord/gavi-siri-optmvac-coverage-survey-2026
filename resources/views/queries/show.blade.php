@@ -199,6 +199,20 @@
                                             </div>
                                         @endif
                                     </div>
+                                    @if (in_array($query->rule_code, ['DUP_HOUSEHOLD', 'DUP_SUBMISSION'], true) && $query->household && ! $query->household->excluded_at)
+                                        <div class="border border-danger-subtle rounded p-2 mb-2" data-correction-row>
+                                            <div class="form-check mb-1">
+                                                <input class="form-check-input" type="checkbox" id="exclude-toggle" data-exclude-toggle>
+                                                <label class="form-check-label small fw-semibold" for="exclude-toggle">Exclure cette soumission ({{ $query->household_code }}) de la base nettoyée : doublon</label>
+                                            </div>
+                                            <div data-exclude-fields class="d-none">
+                                                <input type="hidden" name="corrections[99][variable]" value="{{ \App\Models\DataCorrection::EXCLUSION }}" disabled>
+                                                <input type="hidden" name="corrections[99][new_value]" value="1" disabled>
+                                                @include('queries._correction-reason', ['i' => 99])
+                                                <div class="form-text">Indiquez dans le commentaire la soumission conservée. La soumission exclue reste dans la base brute et au registre.</div>
+                                            </div>
+                                        </div>
+                                    @endif
                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-add-correction><i class="bi bi-plus-lg me-1"></i>Corriger une autre variable de la soumission</button>
                                     <template id="correction-template">
                                         <div class="border rounded p-2 mb-2" data-correction-row>
@@ -247,7 +261,7 @@
                         @foreach ($corrections as $correction)
                             <li class="list-group-item">
                                 <div class="d-flex justify-content-between gap-2">
-                                    <span><code>{{ $correction->variable }}</code>{{ $correction->instance_path ? ' · '.\App\Exports\QueriesExport::memberLabel($correction->instance_path) : '' }}</span>
+                                    <span><code>{{ $correction->variableLabel() }}</code>{{ $correction->instance_path ? ' · '.\App\Exports\QueriesExport::memberLabel($correction->instance_path) : '' }}</span>
                                     <span class="badge text-bg-{{ \App\Models\DataCorrection::STATUS_COLORS[$correction->status] ?? 'secondary' }} {{ $correction->status === 'remplacee' ? 'border' : '' }}">{{ $correction->statusLabel() }}</span>
                                 </div>
                                 <div>{{ \App\Models\DataCorrection::display($correction->old_value) }} <i class="bi bi-arrow-right"></i> <strong>{{ \App\Models\DataCorrection::display($correction->new_value) }}</strong> <span class="text-muted">(ODK : {{ \App\Models\DataCorrection::display($correction->source_value) }})</span></div>

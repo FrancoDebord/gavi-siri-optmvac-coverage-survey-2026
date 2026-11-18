@@ -5,6 +5,7 @@ use App\Http\Controllers\ClusterController;
 use App\Http\Controllers\ClusterMapController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataCorrectionController;
+use App\Http\Controllers\DataExportController;
 use App\Http\Controllers\DataQueryController;
 use App\Http\Controllers\DataSourceController;
 use App\Http\Controllers\DictionaryController;
@@ -50,6 +51,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/queries/tableau', [DataQueryController::class, 'datatable'])->name('queries.datatable');
         Route::get('/observations', [SupervisionObservationController::class, 'index'])->name('observations.index');
         Route::get('/corrections', [DataCorrectionController::class, 'index'])->middleware('permission:validate queries|view pi dashboard')->name('corrections.index');
+        Route::get('/corrections/export', [DataCorrectionController::class, 'export'])->middleware(['permission:validate queries|view pi dashboard', 'throttle:20,1'])->name('corrections.export');
 
         // Espace superviseur et incidents de terrain
         Route::get('/superviseur', [SupervisionController::class, 'index'])->name('supervision.index');
@@ -197,6 +199,11 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::put('/{user}', [UserController::class, 'update'])->name('update');
     });
     Route::get('/parametres/audit', [AuditLogController::class, 'index'])->middleware('permission:view audit')->name('audit.index');
+    Route::middleware('permission:export databases')->group(function () {
+        Route::get('/parametres/exports', [DataExportController::class, 'index'])->name('exports.index');
+        Route::post('/parametres/exports', [DataExportController::class, 'store'])->name('exports.store')->middleware('throttle:10,1');
+        Route::get('/parametres/exports/{export}/telecharger', [DataExportController::class, 'download'])->name('exports.download')->middleware('throttle:30,1');
+    });
     Route::middleware('permission:manage settings')->group(function () {
         Route::get('/parametres/application', [SettingsController::class, 'edit'])->name('settings.edit');
         Route::put('/parametres/application', [SettingsController::class, 'update'])->name('settings.update');
