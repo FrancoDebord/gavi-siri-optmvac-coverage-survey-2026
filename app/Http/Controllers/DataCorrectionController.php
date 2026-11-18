@@ -7,9 +7,12 @@ use App\Models\AuditLog;
 use App\Models\DataCorrection;
 use App\Models\DataQuery;
 use App\Models\HealthZone;
+use App\Services\Cleaning\CleanDataService;
 use App\Support\DateInput;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use InvalidArgumentException;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -27,9 +30,43 @@ class DataCorrectionController extends Controller
             'filters' => $filters,
             'zones' => HealthZone::whereHas('communes')->orderBy('name')->get(['id', 'name']),
             'counts' => (clone $base)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status'),
+            'toReview' => DataCorrection::where('auto_applied', true)->whereNull('reviewed_at')->where('status', DataCorrection::STATUS_VALIDATED)->count(),
             'corrections' => $base->with(['household:id,household_code,health_zone_id', 'household.healthZone:id,name', 'proposer:id,name', 'decider:id,name'])
                 ->latest('id')->paginate(50)->withQueryString(),
         ]);
+    }
+
+    /** Revue a posteriori : la correction appliquée immédiatement est acceptée. */
+    public function accept(DataCorrection $correction, CleanDataService $cleaning): RedirectResponse
+    {
+        $cleaning->markReviewed([$correction], request()->user());
+        AuditLog::record('correction.acceptee', $correction);
+
+        return back()->with('success', 'Correction acceptée.');
+    }
+
+    /** Toutes les corrections « à revoir » affichées (filtres) sont acceptées. */
+    public function acceptAll(Request $request, CleanDataService $cleaning): RedirectResponse
+    {
+        [, $base] = $this->filtered($request);
+        $count = $cleaning->markReviewed($base->where('auto_applied', true)->whereNull('reviewed_at')->get(), $request->user());
+        AuditLog::record('correction.acceptees_en_bloc', null, ['nombre' => $count]);
+
+        return back()->with('success', "{$count} correction(s) acceptée(s).");
+    }
+
+    /** Refus : la valeur précédente est rétablie et la query rouvre si l'erreur revient. */
+    public function refuse(Request $request, DataCorrection $correction, CleanDataService $cleaning): RedirectResponse
+    {
+        $reason = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:2000']], [], ['reason' => 'motif'])['reason'];
+        try {
+            $cleaning->revoke($correction, $request->user(), $reason);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['reason' => $e->getMessage()]);
+        }
+        AuditLog::record('correction.refusee', $correction, ['motif' => $reason]);
+
+        return back()->with('success', 'Correction refusée : la valeur précédente est rétablie.');
     }
 
     /** Registre en Excel, avec les filtres affichés. */
@@ -55,9 +92,12 @@ class DataCorrectionController extends Controller
             'variable' => trim((string) $request->input('variable')) ?: null,
             'du' => DateInput::parse($request->input('du')),
             'au' => DateInput::parse($request->input('au')),
+            // Corrections appliquées immédiatement, pas encore revues par le data manager.
+            'a_revoir' => $request->boolean('a_revoir'),
         ];
         $base = DataCorrection::query()
             ->when($filters['status'], fn ($q, $status) => $q->where('status', $status))
+            ->when($filters['a_revoir'], fn ($q) => $q->where('auto_applied', true)->whereNull('reviewed_at')->where('status', DataCorrection::STATUS_VALIDATED))
             ->when($filters['health_zone_id'], fn ($q, $zone) => $q->whereHas('household', fn ($h) => $h->where('health_zone_id', $zone)))
             ->when($filters['variable'], fn ($q, $variable) => $q->where('variable', 'like', str_replace(['%', '_'], ['\%', '\_'], $variable).'%'))
             ->when($filters['du'], fn ($q, $date) => $q->whereDate('proposed_at', '>=', $date))

@@ -62,6 +62,7 @@ class QueryWorkflow
      */
     public function transition(DataQuery $query, string $status, ?string $comment, ?User $user, ?string $password = null, array $corrections = []): DataQuery
     {
+        $this->lastAutoApply = null;
         $comment = trim((string) $comment) ?: null;
         if ($status === $query->status) {
             if ($comment) {
@@ -163,8 +164,24 @@ class QueryWorkflow
         });
         DashboardCache::bump();
 
+        // Correction proposée : appliquée tout de suite si elle lève l'erreur sans en créer (paramètre, revue a posteriori).
+        if ($status === DataQuery::STATUS_CORRECTED && AppSetting::get(AppSetting::AUTO_APPLY)
+            && ! collect($corrections)->contains(fn ($row) => ($row['variable'] ?? null) === DataCorrection::EXCLUSION)) {
+            $result = $this->cleaning->tryAutoApply($query, $user);
+            QueryEvent::create([
+                'data_query_id' => $query->id, 'user_id' => null, 'type' => $result['applied'] ? 'correction' : 'system',
+                'comment' => $result['applied']
+                    ? 'Correction prise en compte immédiatement : l\'erreur est levée et aucune nouvelle query n\'apparaît. Le data manager peut la refuser.'
+                    : 'Correction enregistrée, en attente du data manager : '.$result['reason'].'.',
+            ]);
+            $this->lastAutoApply = $result;
+        }
+
         return $query;
     }
+
+    /** Résultat de la dernière application immédiate (pour le message à l'utilisateur). */
+    public ?array $lastAutoApply = null;
 
     /**
      * Affecte (ou désaffecte) la query : l'assigné doit pouvoir la consulter. Ouverte ↔ Assignée selon le cas ;

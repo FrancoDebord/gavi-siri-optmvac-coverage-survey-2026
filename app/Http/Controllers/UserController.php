@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Console\Commands\CreateTeamAccountsCommand;
 use App\Http\Requests\UserRequest;
 use App\Models\AuditLog;
 use App\Models\Commune;
@@ -63,6 +64,16 @@ class UserController extends Controller
         ]);
     }
 
+    /** Comptes de connexion des binômes qui n'en ont pas (identifiant : noms des deux agents, mot de passe : password). */
+    public function teamAccounts(): RedirectResponse
+    {
+        $rows = collect(CreateTeamAccountsCommand::sync());
+        $created = $rows->where('status', 'créé');
+        AuditLog::record('user.comptes_binomes', null, ['crees' => $created->pluck('username')->all()]);
+
+        return back()->with('success', $created->count().' compte(s) binôme créé(s)'.($created->isNotEmpty() ? ' : '.$created->pluck('username')->implode(', ') : '').'. Mot de passe des nouveaux comptes : '.CreateTeamAccountsCommand::DEFAULT_PASSWORD.'.');
+    }
+
     private function attributes(UserRequest $request): array
     {
         $data = $request->validated();
@@ -72,6 +83,7 @@ class UserController extends Controller
         return [
             'name' => $data['name'],
             'email' => $data['email'],
+            'username' => isset($data['username']) && $data['username'] !== '' ? mb_strtolower($data['username']) : null,
             'is_active' => $request->boolean('is_active'),
             // La zone d'un superviseur de commune est déduite de la commune.
             'health_zone_id' => $supervisor ? ($communeId ? Commune::find($communeId)?->health_zone_id : ($data['health_zone_id'] ?? null)) : null,

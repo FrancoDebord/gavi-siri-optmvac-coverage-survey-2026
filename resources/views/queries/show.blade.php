@@ -8,6 +8,7 @@
 
     <div class="row g-3">
         <div class="col-lg-7">
+            @include('queries._focus', ['focus' => $focus])
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>{{ $query->code }} · {{ $query->label ?? $query->rule_code }}</span>
@@ -189,12 +190,13 @@
                                                     <select id="c0-value" name="corrections[0][new_value]" class="form-select form-select-sm mb-2">
                                                         <option value="">(vide)</option>
                                                         @foreach ($correctionField['choices'] as $code => $label)
-                                                            <option value="{{ $code }}" @selected((string) $code === $correctionField['current'])>{{ $code }} – {{ strip_tags((string) $label) }}</option>
+                                                            <option value="{{ $code }}" @selected((string) $code === ($correctionField['suggested'] ?? $correctionField['current']))>{{ $code }} – {{ strip_tags((string) $label) }}</option>
                                                         @endforeach
                                                     </select>
                                                 @else
-                                                    <input id="c0-value" name="corrections[0][new_value]" class="form-control form-control-sm mb-2" value="{{ $correctionField['current'] }}" @if ($correctionField['type'] === 'date') type="date" @endif>
+                                                    <input id="c0-value" name="corrections[0][new_value]" class="form-control form-control-sm mb-2" value="{{ $correctionField['suggested'] ?? $correctionField['current'] }}" @if ($correctionField['type'] === 'date') type="date" @endif>
                                                 @endif
+                                                @if ($correctionField['suggested'] !== null)<div class="form-text mt-n1 mb-2">Pré-rempli avec la valeur lue sur la photo.</div>@endif
                                                 @include('queries._correction-reason', ['i' => 0])
                                             </div>
                                         @endif

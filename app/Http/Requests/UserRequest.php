@@ -21,6 +21,7 @@ class UserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
+            'username' => ['nullable', 'string', 'max:100', 'regex:/^[a-z0-9._-]+$/', Rule::unique('users', 'username')->ignore($user?->id)],
             'role' => ['required', Rule::in(array_keys(User::ROLES))],
             'health_zone_id' => ['nullable', 'exists:health_zones,id', Rule::requiredIf(fn () => $this->input('role') === User::ROLE_SUPERVISOR && ! $this->input('commune_id'))],
             'commune_id' => ['nullable', 'exists:communes,id'],

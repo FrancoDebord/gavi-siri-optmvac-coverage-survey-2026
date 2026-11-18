@@ -3,9 +3,9 @@
 
     <div class="alert alert-info small d-flex gap-2">
         <i class="bi bi-lightbulb"></i>
-        <div>Ouvrez une query pour voir l'erreur détectée, la question concernée, la valeur saisie, la suggestion de correction et les photos.
-            Corrigez la soumission dans <strong>ODK Collect / ODK Central</strong> : la query se fermera automatiquement à la prochaine synchronisation.
-            Si la valeur est juste, expliquez-le à votre superviseur, qui pourra la justifier.</div>
+        <div>Pour chaque query : vérifiez la valeur saisie sur le document (photo, carnet), puis ouvrez-la et cliquez <strong>Corriger</strong>.
+            Saisissez la bonne valeur (la valeur lue sur la photo est proposée) ; si elle lève l'erreur, elle est prise en compte tout de suite.
+            Si la valeur saisie est juste, choisissez <strong>Valeur confirmée</strong> et expliquez pourquoi. Ne modifiez rien dans ODK.</div>
     </div>
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -43,11 +43,8 @@
                         </span>
                         <span class="small text-nowrap"><x-status-badge :status="$query->status" /> <span class="text-muted ms-1">{{ $query->collection_date?->format('d/m/Y') }}</span></span>
                     </div>
-                    <div class="mt-1">{{ $query->label ?? $query->rule_code }}</div>
-                    <div class="small text-muted">{{ $query->message }}</div>
-                    @if ($query->suggestion && ! $query->isResolved())
-                        <div class="small mt-1"><i class="bi bi-wrench-adjustable me-1 text-primary"></i>{{ $query->suggestion }}</div>
-                    @endif
+                    <div class="mt-1 fw-semibold">{{ $query->message }}</div>
+                    @include('queries._focus', ['focus' => $focus[$query->id], 'compact' => true])
                 </a>
             @empty
                 <div class="list-group-item text-muted py-4 text-center">

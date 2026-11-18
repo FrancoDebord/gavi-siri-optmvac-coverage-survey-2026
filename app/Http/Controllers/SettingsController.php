@@ -19,6 +19,7 @@ class SettingsController extends Controller
             'autoAssign' => AppSetting::get(AppSetting::AUTO_ASSIGN),
             'dueDays' => (int) AppSetting::get(AppSetting::DUE_DAYS),
             'doubleValidation' => (array) AppSetting::get(AppSetting::DOUBLE_VALIDATION),
+            'autoApply' => (bool) AppSetting::get(AppSetting::AUTO_APPLY),
         ]);
     }
 
@@ -35,6 +36,7 @@ class SettingsController extends Controller
             AppSetting::AUTO_ASSIGN => $data['auto_assign'],
             AppSetting::DUE_DAYS => (int) $data['due_days'],
             AppSetting::DOUBLE_VALIDATION => array_values($data['double_validation'] ?? []),
+            AppSetting::AUTO_APPLY => $request->boolean('auto_apply'),
         ];
         $changes = [];
         foreach ($values as $key => $value) {

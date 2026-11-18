@@ -22,10 +22,14 @@ class DataQueryPolicy
         return $user->can('process queries') && $this->inScope($user, $query);
     }
 
-    /** Répondre (correction proposée, valeur confirmée) : l'assigné, ou l'équipe de traitement de la zone. */
+    /**
+     * Répondre (correction, valeur confirmée) : l'assigné, le compte du binôme qui a collecté le ménage (sans attendre
+     * d'affectation), ou l'équipe de traitement de la zone.
+     */
     public function respond(User $user, DataQuery $query): bool
     {
         return ($query->assigned_to !== null && (int) $query->assigned_to === (int) $user->id && $this->view($user, $query))
+            || ($user->hasRole(User::ROLE_TEAM) && $this->view($user, $query))
             || $this->update($user, $query);
     }
 

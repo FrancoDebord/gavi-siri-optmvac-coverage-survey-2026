@@ -54,6 +54,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'username',
         'password',
         'is_active',
         'health_zone_id',
@@ -96,7 +97,8 @@ class User extends Authenticatable
     public function homeRoute(): string
     {
         return match (true) {
-            $this->hasRole(self::ROLE_TEAM) => route('team.space'),
+            // Compte binôme : directement sur ses queries à corriger.
+            $this->hasRole(self::ROLE_TEAM) => route('team.queries'),
             $this->hasRole(self::ROLE_SUPERVISOR) => route('supervision.index'),
             $this->hasRole(self::ROLE_PI) => route('investigator.index'),
             default => route('dashboard'),

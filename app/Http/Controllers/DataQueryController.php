@@ -21,6 +21,7 @@ use App\Services\Cleaning\SourceSnapshot;
 use App\Services\Cleaning\SubmissionPaths;
 use App\Services\Dashboard\QueryStats;
 use App\Services\Dictionary\Dictionary;
+use App\Services\Quality\QueryFocus;
 use App\Services\Quality\QueryWorkflow;
 use App\Support\Filters;
 use Illuminate\Http\JsonResponse;
@@ -158,10 +159,13 @@ class DataQueryController extends Controller
 
         $user = request()->user();
 
+        $focus = QueryFocus::for($query);
+
         return view('queries.show', [
             'query' => $query,
+            'focus' => $focus,
             'corrections' => DataCorrection::where('data_query_id', $query->id)->with(['proposer:id,name', 'decider:id,name'])->latest('id')->get(),
-            'correctionField' => $user->can('respond', $query) ? $this->correctionField($query) : null,
+            'correctionField' => $user->can('respond', $query) ? $this->correctionField($query, $focus['suggested_value']) : null,
             'reasons' => DataCorrection::REASONS,
             'inputVariables' => $user->can('respond', $query) ? collect(Dictionary::current()->variables())->filter(fn ($v) => Dictionary::current()->isInput($v))->keys()->sort()->values() : collect(),
             'assignees' => request()->user()->can('assign', $query) ? self::assignableUsers() : collect(),
@@ -174,7 +178,7 @@ class DataQueryController extends Controller
     /**
      * Champ de la query à corriger : valeur actuelle (base nettoyée), valeur reçue d'ODK, type et choix du dictionnaire.
      */
-    private function correctionField(DataQuery $query): ?array
+    private function correctionField(DataQuery $query, ?string $suggested = null): ?array
     {
         $dictionary = Dictionary::current();
         $definition = $query->variable ? $dictionary->variable($query->variable) : null;
@@ -198,6 +202,7 @@ class DataQueryController extends Controller
             'source' => CorrectionApplier::normalize($original),
             'type' => $definition['base_type'],
             'choices' => $definition['list_name'] ? ($dictionary->choices($definition['list_name']) ?? []) : [],
+            'suggested' => $suggested,
         ];
     }
 
@@ -212,7 +217,13 @@ class DataQueryController extends Controller
             return back()->withErrors(['status' => $e->getMessage()])->withInput();
         }
 
-        return back()->with('success', 'Statut mis à jour : '.$query->statusLabel().'.');
+        $auto = $workflow->lastAutoApply;
+
+        return back()->with('success', match (true) {
+            $auto !== null && $auto['applied'] => 'Correction prise en compte : l\'erreur est levée.',
+            $auto !== null => 'Correction enregistrée ; elle sera examinée par le data manager ('.$auto['reason'].').',
+            default => 'Statut mis à jour : '.$query->fresh()->statusLabel().'.',
+        });
     }
 
     public function comment(QueryCommentRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse

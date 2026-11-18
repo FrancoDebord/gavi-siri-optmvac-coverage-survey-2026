@@ -129,7 +129,7 @@ class FieldDecisionTest extends TestCase
         $this->actingAs($supTch)->get(route('decisions.create'))->assertRedirect(route('supervision.index'));
 
         $team = $this->user(User::ROLE_TEAM, ['team_id' => Team::where('code', '46-47')->value('id')]);
-        $this->actingAs($team)->get(route('decisions.index'))->assertRedirect(route('team.space'));
+        $this->actingAs($team)->get(route('decisions.index'))->assertRedirect(route('team.queries'));
 
         $pi = $this->user(User::ROLE_PI);
         $this->actingAs($pi)->get(route('decisions.export', ['health_zone_id' => 'global']))->assertOk()->assertDownload('decisions-terrain-'.now()->format('Ymd').'.xlsx');

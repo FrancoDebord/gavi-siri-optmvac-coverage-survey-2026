@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Cluster;
 use App\Models\DataQuery;
 use App\Models\Household;
@@ -12,10 +13,15 @@ use App\Models\User;
 use App\Services\Dashboard\TeamProgress;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Dictionary\VariableMap as Map;
+use App\Services\Maps\ClusterMapRenderer;
+use App\Services\Quality\QueryFocus;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Espace binôme, en onglets : progression (jour, cumul, enfants éligibles), soumissions, queries et grappes.
@@ -90,8 +96,12 @@ class TeamSpaceController extends Controller
 
         $counts = (clone $base)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
 
+        $dictionary = Dictionary::current();
+        $queries->getCollection()->load(['household', 'child']);
+
         return view('team.queries', $this->shared($request, $team, $teams, 'queries') + [
             'queries' => $queries,
+            'focus' => $queries->getCollection()->mapWithKeys(fn (DataQuery $q) => [$q->id => QueryFocus::for($q, $dictionary)]),
             'resolution' => $resolution,
             'resolutionCounts' => collect(DataQuery::RESOLUTIONS)->map(fn ($r) => collect($r['statuses'])->sum(fn ($s) => $counts[$s] ?? 0)),
             'severities' => QualityRule::SEVERITIES,
@@ -122,6 +132,50 @@ class TeamSpaceController extends Controller
                     ])->values()->all(),
             ],
         ]);
+    }
+
+    /**
+     * PDF des grappes du binôme : pour chaque village d'intervention, la carte de chaque grappe (contours, ménages
+     * géolocalisés numérotés, hors contour signalés) et la liste de ses ménages, pour une vérification rapide.
+     */
+    public function clustersPdf(Request $request, ClusterMapRenderer $renderer): Response
+    {
+        [$team] = $this->team($request);
+        $statusLabel = $this->statusLabeler();
+        $households = Household::whereIn('collector_id', $team->collectors->pluck('id'))
+            ->get(['id', 'household_code', 'cluster_id', 'village_id', 'sub_cluster', 'latitude', 'longitude', 'consented', 'survey_status', 'interview_date']);
+        $clusters = Cluster::whereIn('id', $households->pluck('cluster_id')->filter()->unique())->with(['village:id,name', 'subClusters'])->get()
+            ->sortBy([fn ($a, $b) => strnatcasecmp((string) $a->village?->name, (string) $b->village?->name), fn ($a, $b) => strnatcmp($a->code, $b->code)]);
+
+        $sections = $clusters->groupBy(fn ($c) => $c->village?->name ?? 'Village non renseigné')->map(fn ($villageClusters) => $villageClusters->map(function (Cluster $cluster) use ($households, $renderer, $statusLabel) {
+            $own = $households->where('cluster_id', $cluster->id)->sortBy('household_code', SORT_NATURAL)->values();
+            $map = $renderer->render($cluster, $own);
+
+            return [
+                'cluster' => $cluster,
+                'map' => 'data:image/png;base64,'.base64_encode($map['png']),
+                'households' => $own->map(fn ($h) => [
+                    'code' => $h->household_code,
+                    'status' => $statusLabel($h->survey_status),
+                    'consented' => $h->consented,
+                    'date' => $h->interview_date?->format('d/m/Y'),
+                    'sub' => $h->sub_cluster,
+                    'gps' => $h->latitude !== null ? number_format($h->latitude, 5, '.', '').', '.number_format($h->longitude, 5, '.', '') : null,
+                    'outside' => $map['outside'][$h->id] ?? null,
+                ])->all(),
+            ];
+        })->values());
+
+        AuditLog::record('export.cartes_binome', $team, ['grappes' => $clusters->count()]);
+
+        return Pdf::loadView('pdf.team-clusters', [
+            'team' => $team,
+            'sections' => $sections,
+            'unclustered' => $households->whereNull('cluster_id')->values(),
+            'totals' => ['households' => $households->count(), 'surveyed' => $households->where('consented', true)->count(),
+                'gps' => $households->whereNotNull('latitude')->count(), 'clusters' => $clusters->count(), 'villages' => $sections->count()],
+            'generatedAt' => CarbonImmutable::now(config('app.timezone')),
+        ])->setPaper('a4', 'portrait')->download('grappes-binome-'.Str::slug($team->code).'-'.now()->format('Ymd-Hi').'.pdf');
     }
 
     /**

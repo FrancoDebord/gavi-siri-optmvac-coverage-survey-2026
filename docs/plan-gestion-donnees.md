@@ -22,7 +22,7 @@ Ce plan décrit comment les données de l'enquête sont collectées, contrôlée
 
 1. **La source n'est jamais modifiée.** Les données d'ODK sont conservées telles que reçues. Aucune correction n'est faite dans ODK.
 2. **Toute correction est tracée.** Pour chaque correction, on enregistre la valeur reçue, la valeur remplacée, la nouvelle valeur, le motif, la pièce source, l'auteur, la date, le validateur et la signature. Le registre ne se modifie pas.
-3. **Revue indépendante.** Toute réponse à une query est validée par un data manager. Pour les queries critiques (paramétrable), le validateur n'est pas l'auteur de la réponse et il signe électroniquement.
+3. **Revue indépendante.** Une correction qui lève l'erreur sans en créer d'autre est prise en compte immédiatement (paramètre). Le data manager la revoit ensuite et peut la refuser, ce qui rétablit la valeur précédente. Toute autre réponse est validée par un data manager avant d'être appliquée. Pour les queries critiques (paramétrable), le validateur n'est pas l'auteur de la réponse et il signe électroniquement.
 4. **Résolution constatée, non déclarée.** Une query corrigée est résolue seulement si le moteur ne retrouve plus l'anomalie dans la base nettoyée.
 5. **Versions gelées.** L'analyse porte sur une version gelée, numérotée et identifiée par une empreinte SHA-256.
 
@@ -34,7 +34,7 @@ Ce plan décrit comment les données de l'enquête sont collectées, contrôlée
 | Investigateur principal | Suivi de la collecte et de la qualité, rapports, décisions de terrain, consultation du registre des corrections. |
 | Data manager | Exécution du moteur de queries, affectation, validation et rejet des réponses (à l'unité ou en bloc), décision « irrésoluble », règles qualité, imports. |
 | Superviseur | Suivi de sa zone, affectation et réponse aux queries de sa zone, signalement des incidents. Ne valide pas. |
-| Compte binôme | Consultation des données de ses agents, réponse aux queries qui lui sont affectées. Ne valide pas. |
+| Compte binôme | Un compte par binôme (identifiant : noms des deux agents). Consultation des données de ses agents, réponse à leurs queries. Ne valide pas. |
 | Lecteur | Consultation des tableaux de bord. |
 
 Les noms des titulaires de chaque rôle figurent en annexe A *[à compléter]*.

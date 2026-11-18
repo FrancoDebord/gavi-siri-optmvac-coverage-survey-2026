@@ -17,11 +17,15 @@ class AppSetting extends Model
 
     public const DOUBLE_VALIDATION = 'queries.double_validation';
 
+    /** Corrections appliquées immédiatement si elles lèvent l'erreur sans en créer (revue a posteriori). */
+    public const AUTO_APPLY = 'queries.auto_apply';
+
     /** Valeurs par défaut : pas d'affectation automatique, échéance 3 jours, double validation des seules queries critiques. */
     public const DEFAULTS = [
         self::AUTO_ASSIGN => 'none',
         self::DUE_DAYS => 3,
         self::DOUBLE_VALIDATION => ['critique'],
+        self::AUTO_APPLY => true,
     ];
 
     /** Affectation automatique des nouvelles queries. */

@@ -1,17 +1,21 @@
 <x-layouts.app title="Utilisateurs">
     <x-page-header title="Utilisateurs" subtitle="Rôles et périmètres géographiques">
+        <form method="POST" action="{{ route('users.team-accounts') }}" data-confirm="Créer le compte des binômes qui n'en ont pas (identifiant : noms des deux agents, mot de passe : password) ?">
+            @csrf
+            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-people me-1"></i>Créer les comptes binômes</button>
+        </form>
         <a href="{{ route('users.create') }}" class="btn btn-sm btn-primary"><i class="bi bi-person-plus me-1"></i>Nouvel utilisateur</a>
     </x-page-header>
 
     <div class="card">
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0">
-                <thead class="table-light"><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Périmètre</th><th>Dernière connexion</th><th>Statut</th><th></th></tr></thead>
+                <thead class="table-light"><tr><th>Nom</th><th>Identifiant / e-mail</th><th>Rôle</th><th>Périmètre</th><th>Dernière connexion</th><th>Statut</th><th></th></tr></thead>
                 <tbody>
                 @foreach ($users as $user)
                     <tr>
                         <td>{{ $user->name }}</td>
-                        <td>{{ $user->email }}</td>
+                        <td>@if ($user->username)<code>{{ $user->username }}</code><div class="small text-muted">{{ $user->email }}</div>@else{{ $user->email }}@endif</td>
                         <td>{{ $user->roleLabel() }}</td>
                         <td class="small">{{ $user->team ? $user->team->label() : ($user->commune ? 'Commune '.$user->commune->name : ($user->healthZone ? 'Zone '.$user->healthZone->name : 'Toutes les zones')) }}</td>
                         <td class="small">{{ $user->last_login_at?->format('d/m/Y H:i') ?? '—' }}</td>

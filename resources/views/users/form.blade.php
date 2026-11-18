@@ -18,6 +18,12 @@
                     <input id="email" type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email', $user->email) }}" required>
                     @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="username">Identifiant de connexion (facultatif)</label>
+                    <input id="username" name="username" class="form-control @error('username') is-invalid @enderror" value="{{ old('username', $user->username) }}" maxlength="100" placeholder="ex. dossou.kpade">
+                    <div class="form-text">Utilisable à la place de l'e-mail pour se connecter.</div>
+                    @error('username')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
                 <div class="col-md-4">
                     <label class="form-label" for="role">Rôle</label>
                     <select id="role" name="role" class="form-select @error('role') is-invalid @enderror">

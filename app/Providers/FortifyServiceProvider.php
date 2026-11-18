@@ -33,7 +33,9 @@ class FortifyServiceProvider extends ServiceProvider
 
         // Les comptes désactivés ne peuvent pas se connecter.
         Fortify::authenticateUsing(function (Request $request) {
-            $user = User::where('email', $request->input(Fortify::username()))->first();
+            // Connexion par e-mail ou par identifiant (comptes binômes : « nom1.nom2 »).
+            $login = mb_strtolower(trim((string) $request->input(Fortify::username())));
+            $user = User::where('email', $login)->orWhere('username', $login)->first();
             if ($user && $user->is_active && Hash::check($request->input('password'), $user->password)) {
                 $user->forceFill(['last_login_at' => now()])->save();
                 AuditLog::create(['user_id' => $user->id, 'action' => 'auth.login', 'ip_address' => $request->ip()]);

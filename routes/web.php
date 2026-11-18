@@ -52,6 +52,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/queries/tableau', [DataQueryController::class, 'datatable'])->name('queries.datatable');
         Route::get('/observations', [SupervisionObservationController::class, 'index'])->name('observations.index');
         Route::get('/corrections', [DataCorrectionController::class, 'index'])->middleware('permission:validate queries|view pi dashboard')->name('corrections.index');
+        Route::post('/corrections/accepter', [DataCorrectionController::class, 'acceptAll'])->middleware('permission:validate queries')->name('corrections.accept-all');
+        Route::post('/corrections/{correction}/accepter', [DataCorrectionController::class, 'accept'])->middleware('permission:validate queries')->name('corrections.accept');
+        Route::post('/corrections/{correction}/refuser', [DataCorrectionController::class, 'refuse'])->middleware(['permission:validate queries', 'throttle:60,1'])->name('corrections.refuse');
         Route::get('/corrections/export', [DataCorrectionController::class, 'export'])->middleware(['permission:validate queries|view pi dashboard', 'throttle:20,1'])->name('corrections.export');
 
         // Espace superviseur et incidents de terrain
@@ -90,6 +93,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/mon-binome/soumissions', [TeamSpaceController::class, 'submissions'])->name('team.submissions');
     Route::get('/mon-binome/queries', [TeamSpaceController::class, 'queries'])->name('team.queries');
     Route::get('/mon-binome/grappes', [TeamSpaceController::class, 'clusters'])->name('team.clusters');
+    Route::get('/mon-binome/grappes.pdf', [TeamSpaceController::class, 'clustersPdf'])->name('team.clusters.pdf')->middleware('throttle:10,1');
 
     // Investigateur principal
     Route::middleware('permission:view pi dashboard')->group(function () {
@@ -198,6 +202,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/', [UserController::class, 'store'])->name('store');
         Route::get('/{user}/modifier', [UserController::class, 'edit'])->name('edit');
         Route::put('/{user}', [UserController::class, 'update'])->name('update');
+        Route::post('/comptes-binomes', [UserController::class, 'teamAccounts'])->name('team-accounts');
     });
     Route::get('/parametres/audit', [AuditLogController::class, 'index'])->middleware('permission:view audit')->name('audit.index');
     Route::get('/parametres/audit/export', [AuditLogController::class, 'export'])->middleware(['permission:view audit', 'throttle:10,1'])->name('audit.export');

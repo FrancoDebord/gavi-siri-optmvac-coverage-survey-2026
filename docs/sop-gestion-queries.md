@@ -21,7 +21,7 @@ Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont e
 |---|---|
 | Data manager | Lance le moteur, trie, affecte, valide ou rejette les réponses, décide « irrésoluble », rouvre, revoit les conflits. |
 | Superviseur | Affecte et répond aux queries de sa zone ; vérifie sur le terrain. |
-| Compte binôme | Répond aux queries qui lui sont affectées, d'après la pièce source. |
+| Compte binôme | Se connecte avec l'identifiant `nom1.nom2` (noms des deux agents) et arrive sur ses queries. Il répond à toutes les queries de ses agents d'après la pièce source, sans attendre d'affectation. |
 | Investigateur principal | Suit les indicateurs ; approuve les écarts avant le gel final. |
 | Administrateur | Paramètres (affectation automatique, échéance, double validation), gel et dégel. |
 
@@ -53,7 +53,13 @@ Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont e
 
 ### 5.3 Réponse (assigné)
 
-1. Consulter la query : message, valeur observée et attendue, suggestion de résolution, photos.
+1. Consulter la query, présentée en clair :
+   - l'erreur ;
+   - la question ;
+   - le membre concerné et son URI ODK ;
+   - la **valeur saisie** (données brutes ODK) ;
+   - la **valeur suggérée** lue sur la photo du document (quand elle a été vérifiée) ;
+   - les photos.
 2. Vérifier sur la pièce source, puis choisir une réponse :
 
 | Situation | Réponse | Exigences |
@@ -63,6 +69,18 @@ Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont e
 | Soumission en double | **Correction proposée → exclusion** | Sur une query de doublon uniquement ; indiquer la soumission conservée. |
 
 3. Si on ne peut ni corriger ni confirmer, l'assigné l'explique en commentaire. Seul le data manager peut alors déclarer la query « irrésoluble ».
+
+### 5.3 bis Prise en compte immédiate (paramètre, activé par défaut)
+
+Une correction proposée est appliquée tout de suite si :
+- elle lève l'erreur ;
+- elle ne fait apparaître aucune autre query sur la soumission.
+
+La plateforme le vérifie en relançant les règles. Si ces deux conditions sont réunies, la query est résolue sans attendre et la correction est marquée « à revoir ». Sinon, rien n'est appliqué et la correction attend la validation du data manager (5.4), avec le motif affiché.
+
+Le data manager revoit ces corrections dans le registre (« À revoir »). Il peut :
+- **les accepter**, à l'unité ou toutes à la fois ;
+- **les refuser**, avec un motif : la valeur précédente est rétablie et, si l'erreur revient, la query est rouverte et rendue à l'assigné.
 
 ### 5.4 Validation (data manager)
 

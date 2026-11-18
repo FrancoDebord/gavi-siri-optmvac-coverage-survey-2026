@@ -23,6 +23,15 @@
                 @error('due_days')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
 
+            <div class="mb-4">
+                <input type="hidden" name="auto_apply" value="0">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" name="auto_apply" value="1" id="auto_apply" @checked(old('auto_apply', $autoApply))>
+                    <label class="form-check-label fw-semibold" for="auto_apply">Prendre en compte immédiatement les corrections</label>
+                </div>
+                <div class="form-text">Une correction est appliquée sans attendre si elle lève l'erreur et ne crée aucune autre query. Le data manager la revoit ensuite dans le registre (« À revoir ») et peut la refuser : la valeur précédente est alors rétablie. Sinon, la correction attend sa validation.</div>
+            </div>
+
             <fieldset>
                 <legend class="form-label fw-semibold fs-6">Double validation (revue indépendante et signature électronique)</legend>
                 @foreach (\App\Models\QualityRule::SEVERITIES as $key => $label)

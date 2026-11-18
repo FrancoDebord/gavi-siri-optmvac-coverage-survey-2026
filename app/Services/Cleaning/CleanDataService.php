@@ -17,6 +17,7 @@ use App\Support\DashboardCache;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * Base nettoyée : propositions de correction (contrôlées selon le dictionnaire), décision du data manager,
@@ -161,13 +162,12 @@ class CleanDataService
      * Décision du data manager sur les corrections proposées d'une query : validées (et appliquées) ou rejetées.
      * Une correction validée remplace la correction validée précédente du même champ.
      */
-    public function decide(DataQuery $query, bool $accept, ?User $user, bool $signed = false, ?string $comment = null): int
+    public function decide(DataQuery $query, bool $accept, ?User $user, bool $signed = false, ?string $comment = null, bool $auto = false): int
     {
         $pending = DataCorrection::where('data_query_id', $query->id)->where('status', DataCorrection::STATUS_PROPOSED)->get();
         foreach ($pending as $correction) {
             if ($accept) {
-                DataCorrection::where('submission_uuid', $correction->submission_uuid)->where('variable', $correction->variable)
-                    ->where('instance_path', $correction->instance_path)->where('status', DataCorrection::STATUS_VALIDATED)
+                self::sameField($correction)->where('status', DataCorrection::STATUS_VALIDATED)
                     ->update(['status' => DataCorrection::STATUS_SUPERSEDED, 'superseded_by' => $correction->id]);
             }
             $correction->update([
@@ -176,10 +176,108 @@ class CleanDataService
                 'decided_at' => now(),
                 'signed' => $signed,
                 'decision_comment' => $comment,
+                'auto_applied' => $accept && $auto,
             ]);
         }
 
         return $pending->count();
+    }
+
+    /** Autres corrections du même champ (même soumission, variable et membre). */
+    private static function sameField(DataCorrection $correction)
+    {
+        return DataCorrection::where('submission_uuid', $correction->submission_uuid)->where('variable', $correction->variable)
+            ->whereKeyNot($correction->id)
+            ->where(fn ($q) => $correction->instance_path === null ? $q->whereNull('instance_path') : $q->where('instance_path', $correction->instance_path));
+    }
+
+    /**
+     * Application immédiate d'une correction proposée : appliquée à la base nettoyée et vérifiée par le moteur,
+     * elle est conservée si la query est levée et qu'aucune autre anomalie n'apparaît sur la soumission ;
+     * sinon tout est annulé et la correction attend la décision du data manager. Revue a posteriori possible.
+     *
+     * @return array{applied: bool, reason: ?string}
+     */
+    public function tryAutoApply(DataQuery $query, ?User $user): array
+    {
+        $household = $query->household_id;
+        if (! $household || DataLock::isFrozen()) {
+            return ['applied' => false, 'reason' => 'base gelée ou soumission introuvable'];
+        }
+        $openBefore = DataQuery::where('household_id', $household)->whereNotIn('status', [DataQuery::STATUS_VALIDATED, DataQuery::STATUS_UNRESOLVABLE])->pluck('id')->all();
+        $lastId = (int) DataQuery::withoutGlobalScope('kind')->max('id');
+
+        DB::beginTransaction();
+        try {
+            $this->decide($query, true, null, false, 'Appliquée immédiatement : anomalie levée, aucune nouvelle query.', true);
+            $this->rebuild([$household]);
+            $run = $this->engine->run('correction', $user?->id, [$household]);
+            $query->refresh();
+            $new = DataQuery::where('household_id', $household)->where('id', '>', $lastId)->pluck('label');
+            $reopened = DataQuery::where('household_id', $household)->whereIn('status', DataQuery::UNRESOLVED)->whereNotIn('id', $openBefore)->count();
+
+            $reason = match (true) {
+                $run->status !== 'success' => 'vérification par le moteur impossible',
+                $query->status !== DataQuery::STATUS_VALIDATED => 'l\'erreur est toujours détectée avec la nouvelle valeur',
+                $new->isNotEmpty() => 'la nouvelle valeur crée une autre erreur ('.$new->take(3)->implode(' ; ').')',
+                $reopened > 0 => 'la nouvelle valeur fait réapparaître une autre erreur',
+                default => null,
+            };
+            if ($reason) {
+                DB::rollBack();
+                $query->refresh();
+
+                return ['applied' => false, 'reason' => $reason];
+            }
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            report($e);
+            $query->refresh();
+
+            return ['applied' => false, 'reason' => 'erreur pendant la vérification'];
+        }
+        DashboardCache::bump();
+
+        return ['applied' => true, 'reason' => null];
+    }
+
+    /**
+     * Refus a posteriori d'une correction validée (data manager) : la valeur précédente est rétablie (correction
+     * remplacée remise en vigueur, sinon valeur ODK), le moteur repasse et la query rouvre si l'erreur revient.
+     */
+    public function revoke(DataCorrection $correction, User $user, string $reason): void
+    {
+        if (DataLock::isFrozen()) {
+            throw new InvalidArgumentException('Base gelée : aucune modification avant le dégel.');
+        }
+        if ($correction->status !== DataCorrection::STATUS_VALIDATED) {
+            throw new InvalidArgumentException('Seule une correction en vigueur peut être refusée.');
+        }
+        DB::transaction(function () use ($correction, $user, $reason) {
+            $correction->update(['status' => DataCorrection::STATUS_REJECTED, 'decided_by' => $user->id, 'decided_at' => now(),
+                'decision_comment' => trim('Refusée après application : '.$reason), 'reviewed_by' => $user->id, 'reviewed_at' => now()]);
+            DataCorrection::where('superseded_by', $correction->id)->where('status', DataCorrection::STATUS_SUPERSEDED)->latest('id')->limit(1)
+                ->update(['status' => DataCorrection::STATUS_VALIDATED, 'superseded_by' => null]);
+            if ($correction->data_query_id) {
+                QueryEvent::create(['data_query_id' => $correction->data_query_id, 'user_id' => $user->id, 'type' => 'correction',
+                    'comment' => 'Correction C-'.str_pad((string) $correction->id, 6, '0', STR_PAD_LEFT).' refusée par le data manager : '.$reason]);
+            }
+        });
+        if ($correction->household_id) {
+            $this->rebuild([$correction->household_id]);
+            $this->engine->run('correction', $user->id, [$correction->household_id]);
+        }
+        DashboardCache::bump();
+    }
+
+    /** Revue a posteriori : corrections appliquées immédiatement acceptées par le data manager. */
+    public function markReviewed(iterable $corrections, User $user): int
+    {
+        $ids = collect($corrections)->filter(fn (DataCorrection $c) => $c->auto_applied && ! $c->reviewed_at && $c->status === DataCorrection::STATUS_VALIDATED)->pluck('id');
+        DataCorrection::whereIn('id', $ids)->update(['reviewed_by' => $user->id, 'reviewed_at' => now()]);
+
+        return $ids->count();
     }
 
     /** Ferme les queries ouvertes des soumissions exclues de la base nettoyée. */

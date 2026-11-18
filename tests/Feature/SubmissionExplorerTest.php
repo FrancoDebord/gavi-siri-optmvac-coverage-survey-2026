@@ -106,6 +106,6 @@ class SubmissionExplorerTest extends TestCase
         $this->assertSame([], $page->viewData('mapData')['boundaries']);
 
         $team = $this->user(User::ROLE_TEAM, ['team_id' => Team::where('code', '46-47')->value('id')]);
-        $this->actingAs($team)->get(route('submissions.index'))->assertRedirect(route('team.space'));
+        $this->actingAs($team)->get(route('submissions.index'))->assertRedirect(route('team.queries'));
     }
 }

@@ -56,7 +56,7 @@ class DataCorrection extends Model
     protected $fillable = [
         'submission_uuid', 'household_id', 'data_query_id', 'variable', 'instance_path', 'source_value', 'old_value',
         'new_value', 'reason', 'source_reference', 'comment', 'status', 'proposed_by', 'proposed_at', 'decided_by',
-        'decided_at', 'signed', 'decision_comment', 'superseded_by', 'applied_at',
+        'decided_at', 'signed', 'decision_comment', 'superseded_by', 'applied_at', 'auto_applied', 'reviewed_by', 'reviewed_at',
     ];
 
     protected function casts(): array
@@ -66,6 +66,8 @@ class DataCorrection extends Model
             'decided_at' => 'datetime',
             'applied_at' => 'datetime',
             'signed' => 'boolean',
+            'auto_applied' => 'boolean',
+            'reviewed_at' => 'datetime',
         ];
     }
 

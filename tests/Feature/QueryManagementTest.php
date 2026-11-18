@@ -85,6 +85,7 @@ class QueryManagementTest extends TestCase
 
     public function test_assigned_team_account_responds_and_data_manager_validates(): void
     {
+        AppSetting::put(AppSetting::AUTO_APPLY, false);
         $manager = $this->user(User::ROLE_DATA_MANAGER);
         $account = $this->user(User::ROLE_TEAM, ['team_id' => $this->team->id]);
         $query = $this->teamQuery();

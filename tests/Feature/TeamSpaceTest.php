@@ -62,7 +62,7 @@ class TeamSpaceTest extends TestCase
         $account = $this->user(User::ROLE_TEAM, ['team_id' => $this->team->id]);
 
         // Connexion : « / » renvoie vers l'espace du binôme, sans message d'erreur.
-        $this->actingAs($account)->get('/')->assertRedirect(route('team.space'))->assertSessionMissing('danger');
+        $this->actingAs($account)->get('/')->assertRedirect(route('team.queries'))->assertSessionMissing('danger');
 
         $response = $this->actingAs($account)->get(route('team.space', ['team_id' => Team::where('code', '33-43')->value('id')]))->assertOk()
             ->assertSee('Binôme 46-47')->assertSee('Enfants éligibles (12 à 35 mois)')->assertDontSee('Boton');
@@ -78,7 +78,7 @@ class TeamSpaceTest extends TestCase
 
         // Aucun accès aux dashboards de l'équipe centrale.
         foreach (['dashboard.data', 'queries.index', 'supervision.index', 'investigator.index', 'messages.index'] as $route) {
-            $this->actingAs($account)->get(route($route))->assertRedirect(route('team.space'));
+            $this->actingAs($account)->get(route($route))->assertRedirect(route('team.queries'));
         }
     }
 
@@ -101,8 +101,8 @@ class TeamSpaceTest extends TestCase
         $this->assertGreaterThan(0, $queries->total());
         $this->assertTrue(collect($queries->items())->every(fn ($q) => in_array($q->household_code, ['TCH-SEB-01-001', 'TCH-SEB-01-002', 'TCH-SEB-02-001'], true)));
         $query = $queries->items()[0];
-        $this->actingAs($account)->get(route('queries.show', $query))->assertOk()->assertSee($query->code)->assertSee('Mes queries')->assertDontSee('query-status-form');
-        // Sans affectation, le compte binôme ne peut pas répondre.
+        $this->actingAs($account)->get(route('queries.show', $query))->assertOk()->assertSee($query->code)->assertSee('Mes queries')->assertSee('query-status-form', false)->assertSee('Valeur saisie (ODK)');
+        // Le compte binôme répond sans attendre d'affectation ; une correction exige une valeur.
         $this->actingAs($account)->post(route('queries.status', $query), ['status' => 'corrigee', 'comment' => 'x'])->assertSessionHasErrors('status');
         $this->assertSame(DataQuery::STATUS_OPEN, $query->fresh()->status);
         $foreign = DataQuery::where('household_code', 'DAG-ASS-01-001')->firstOrFail();

@@ -15,6 +15,7 @@
             </select>
         </form>
     @endunless
+    <a href="{{ route('team.clusters.pdf', $teamParam) }}" class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1"></i>Cartes des grappes (PDF)</a>
 </x-page-header>
 
 <ul class="nav nav-tabs mb-3">

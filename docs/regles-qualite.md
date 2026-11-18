@@ -175,6 +175,8 @@ Les données d'ODK ne sont jamais modifiées. La plateforme conserve :
 - on saisit la nouvelle valeur, le motif et la source, et on peut corriger d'autres variables de la même soumission (membre au format `cg[1]/smc_cov_hh_cg_child_2023[2]`) ;
 - la valeur est contrôlée selon le dictionnaire (question saisissable, type, liste de choix, membre existant, valeur différente de l'actuelle).
 
+**Prise en compte immédiate** (paramètre, activé par défaut). Une correction qui lève l'erreur sans faire apparaître d'autre query est appliquée tout de suite, et la query est résolue. Le data manager la revoit dans le registre (« À revoir ») : il l'accepte, ou il la refuse avec un motif, ce qui rétablit la valeur précédente et rouvre la query si l'erreur revient. Les autres corrections attendent la validation ci-dessous.
+
 **Validation.** Quand le data manager valide, les corrections s'appliquent à la base nettoyée et le moteur relance les règles sur la soumission :
 - si l'anomalie a disparu, la query est **résolue** ;
 - sinon, elle **revient à l'assigné**, et les corrections restent appliquées et tracées.
