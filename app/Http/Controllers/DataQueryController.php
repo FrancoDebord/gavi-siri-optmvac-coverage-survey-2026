@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\QueriesExport;
 use App\Http\Requests\BulkQueryRequest;
 use App\Http\Requests\QueryAssignRequest;
 use App\Http\Requests\QueryCommentRequest;
@@ -21,6 +22,8 @@ use App\Services\Cleaning\SourceSnapshot;
 use App\Services\Cleaning\SubmissionPaths;
 use App\Services\Dashboard\QueryStats;
 use App\Services\Dictionary\Dictionary;
+use App\Services\Dictionary\VariableMap as Map;
+use App\Services\Export\DatasetExporter;
 use App\Services\Quality\QueryFocus;
 use App\Services\Quality\QueryWorkflow;
 use App\Support\Filters;
@@ -160,19 +163,104 @@ class DataQueryController extends Controller
         $user = request()->user();
 
         $focus = QueryFocus::for($query);
+        $geo = $this->geoField($query);
 
         return view('queries.show', [
             'query' => $query,
             'focus' => $focus,
             'corrections' => DataCorrection::where('data_query_id', $query->id)->with(['proposer:id,name', 'decider:id,name'])->latest('id')->get(),
-            'correctionField' => $user->can('respond', $query) ? $this->correctionField($query, $focus['suggested_value']) : null,
+            'correctionField' => $user->can('respond', $query) && ! $geo ? $this->correctionField($query, $focus['suggested_value']) : null,
+            'geoField' => $user->can('respond', $query) ? $geo : null,
             'reasons' => DataCorrection::REASONS,
-            'inputVariables' => $user->can('respond', $query) ? collect(Dictionary::current()->variables())->filter(fn ($v) => Dictionary::current()->isInput($v))->keys()->sort()->values() : collect(),
+            'members' => $user->can('respond', $query) ? $this->members($query) : [],
+            'variableOptions' => $user->can('respond', $query) ? $this->variableOptions() : [],
             'assignees' => request()->user()->can('assign', $query) ? self::assignableUsers() : collect(),
             'doubleValidation' => AppSetting::requiresDoubleValidation($query->severity),
             'photos' => $photos->forQuery($query),
             'related' => DataQuery::where('household_id', $query->household_id)->whereKeyNot($query->id)->latest('id')->limit(20)->get(),
         ]);
+    }
+
+    /** Règles portant sur la localisation (village, arrondissement, grappe) : correction par listes à cocher. */
+    public const GEO_RULES = ['GEO_HIERARCHY', 'HH_CODE', 'GPS_CLUSTER_DISTANCE'];
+
+    /**
+     * Arrondissement et village à cocher (listes du dictionnaire) : arrondissements de la commune déclarée, villages
+     * de chacun (filtre « parent » du formulaire), valeurs actuelles cochées.
+     */
+    private function geoField(DataQuery $query): ?array
+    {
+        $dictionary = Dictionary::current();
+        [$arrVar, $villageVar, $communeVar] = [Map::var('arrondissement'), Map::var('village'), Map::var('commune')];
+        $arrDef = $arrVar ? $dictionary->variable($arrVar) : null;
+        $villageDef = $villageVar ? $dictionary->variable($villageVar) : null;
+        if (! $query->household || ! $arrDef || ! $villageDef || ! (in_array($query->rule_code, self::GEO_RULES, true) || in_array($query->variable, [$arrVar, $villageVar], true))) {
+            return null;
+        }
+        $clean = app(CleanDataService::class)->cleanSubmission($query->household);
+        $commune = (string) ($clean->data[$communeVar] ?? '');
+        $arrondissements = collect($dictionary->choiceRows($arrDef['list_name']));
+        $inCommune = $arrondissements->filter(fn ($r) => (string) ($r['extra']['l2'] ?? $r['extra'][$communeVar] ?? '') === $commune);
+        $arrondissements = $inCommune->isNotEmpty() ? $inCommune : $arrondissements;
+        $codes = $arrondissements->pluck('name')->all();
+        $villages = collect($dictionary->choiceRows($villageDef['list_name']))
+            ->filter(fn ($r) => in_array((string) ($r['extra']['parent'] ?? ''), $codes, true))
+            ->sortBy(fn ($r) => mb_strtolower((string) $r['label']));
+        $label = fn ($r) => trim(strip_tags((string) $r['label'])) ?: $r['name'];
+
+        return [
+            'arr_var' => $arrVar,
+            'village_var' => $villageVar,
+            'arr_label' => trim(strip_tags((string) $arrDef['label'])),
+            'village_label' => trim(strip_tags((string) $villageDef['label'])),
+            'arr_current' => (string) ($clean->data[$arrVar] ?? ''),
+            'village_current' => (string) ($clean->data[$villageVar] ?? ''),
+            'arrondissements' => $arrondissements->sortBy(fn ($r) => mb_strtolower((string) $r['label']))->map(fn ($r) => ['code' => $r['name'], 'label' => $label($r)])->values()->all(),
+            'villages' => $villages->map(fn ($r) => ['code' => $r['name'], 'label' => $label($r), 'parent' => (string) $r['extra']['parent']])->values()->all(),
+        ];
+    }
+
+    /** Membres de la soumission (ménage, caregivers, enfants…) : chemin => libellé lisible. */
+    private function members(DataQuery $query): array
+    {
+        if (! $query->household) {
+            return [];
+        }
+        $clean = app(CleanDataService::class)->cleanSubmission($query->household);
+        $members = ['' => 'Ménage'];
+        foreach ((new DatasetExporter)->flatten($clean) as $table => $rows) {
+            foreach ($rows as $row) {
+                if ($row['path']) {
+                    $members[$row['path']] = QueriesExport::memberLabel($row['path']);
+                }
+            }
+        }
+
+        return $members;
+    }
+
+    /**
+     * Questions saisissables du formulaire, dans l'ordre : libellé, nom de variable, repeat, type et choix
+     * (listes courtes) pour adapter la saisie de la nouvelle valeur.
+     *
+     * @return list<array{name: string, label: string, repeat: string, type: string, choices: array}>
+     */
+    private function variableOptions(): array
+    {
+        $dictionary = Dictionary::current();
+
+        return collect($dictionary->variables())->filter(fn ($v) => $dictionary->isInput($v))->sortBy('position')
+            ->map(function ($v, $name) use ($dictionary) {
+                $choices = $v['list_name'] ? ($dictionary->choices($v['list_name']) ?? []) : [];
+
+                return [
+                    'name' => $name,
+                    'label' => trim(preg_replace('/\s+/', ' ', strip_tags((string) $v['label']))) ?: $name,
+                    'repeat' => (string) ($v['repeat_name'] ?? ''),
+                    'type' => $v['base_type'],
+                    'choices' => count($choices) <= 40 ? collect($choices)->map(fn ($l, $c) => ['code' => (string) $c, 'label' => trim(strip_tags((string) $l))])->values()->all() : [],
+                ];
+            })->values()->all();
     }
 
     /**
@@ -242,6 +330,15 @@ class DataQueryController extends Controller
         try {
             // Lignes de correction vides (formulaire) ignorées.
             $corrections = array_values(array_filter($request->validated('corrections') ?? [], fn ($row) => trim((string) ($row['variable'] ?? '')) !== ''));
+            // Lignes groupées (arrondissement + village) : un seul motif, saisi sur la première.
+            $shared = collect($corrections)->filter(fn ($row) => ! empty($row['group']) && ! empty($row['reason']))->keyBy('group');
+            foreach ($corrections as &$row) {
+                if (! empty($row['group']) && empty($row['reason']) && isset($shared[$row['group']])) {
+                    $row += array_intersect_key($shared[$row['group']], array_flip(['source_reference', 'comment']));
+                    $row['reason'] = $shared[$row['group']]['reason'];
+                }
+            }
+            unset($row);
             $workflow->transition($query, $request->validated('status'), $request->validated('comment'), $request->user(), $request->validated('password'), $corrections);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['status' => $e->getMessage()])->withInput();

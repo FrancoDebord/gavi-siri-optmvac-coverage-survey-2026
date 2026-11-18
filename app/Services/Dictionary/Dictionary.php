@@ -94,6 +94,26 @@ class Dictionary
         return $this->choices[$listName] ?? null;
     }
 
+    /**
+     * Choix d'une liste avec leurs colonnes supplémentaires (filtres en cascade des listes « from_file » :
+     * l2 pour un arrondissement, parent pour un village…).
+     *
+     * @return list<array{name: string, label: ?string, extra: array}>
+     */
+    public function choiceRows(string $listName): array
+    {
+        if (! $this->formVersion) {
+            return [];
+        }
+
+        return $this->choiceRows[$listName] ??= FormChoice::where('form_version_id', $this->formVersion->id)->where('list_name', $listName)
+            ->orderBy('id')->get(['name', 'label', 'extra'])
+            ->map(fn ($c) => ['name' => (string) $c->name, 'label' => $c->label, 'extra' => (array) ($c->extra ?? [])])->all();
+    }
+
+    /** @var array<string, list<array>> */
+    private array $choiceRows = [];
+
     public function choiceLabel(string $listName, string $value): ?string
     {
         return $this->choices[$listName][$value] ?? null;

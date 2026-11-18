@@ -54,12 +54,72 @@ export default function queryShowPage() {
         });
     }
     excludeToggle?.addEventListener('change', syncExclusion);
+    // Questions du formulaire : libellé (nom de variable), filtrées selon le membre choisi ; saisie adaptée au type.
+    const variableOptions = JSON.parse(document.getElementById('variable-options')?.textContent || '[]');
+    const fillVariables = (row) => {
+        const repeat = row.querySelector('[data-member]').selectedOptions[0]?.dataset.repeat ?? '';
+        const select = row.querySelector('[data-variable]');
+        const keep = select.value;
+        select.innerHTML = '<option value="">— Choisir la question —</option>';
+        variableOptions.filter((v) => v.repeat === repeat).forEach((v) => {
+            const option = new Option(`${v.label} (${v.name})`, v.name);
+            select.add(option);
+        });
+        select.value = keep;
+        fillValue(row);
+    };
+    const fillValue = (row) => {
+        const index = row.dataset.index;
+        const variable = variableOptions.find((v) => v.name === row.querySelector('[data-variable]').value);
+        const slot = row.querySelector('[data-value-slot]');
+        const name = `corrections[${index}][new_value]`;
+        if (variable?.choices?.length) {
+            const select = document.createElement('select');
+            select.name = name;
+            select.className = 'form-select form-select-sm mb-2';
+            select.add(new Option('(vide)', ''));
+            variable.choices.forEach((c) => select.add(new Option(`${c.code} – ${c.label}`, c.code)));
+            slot.replaceChildren(select);
+        } else {
+            const input = document.createElement('input');
+            input.name = name;
+            input.className = 'form-control form-control-sm mb-2';
+            if (variable?.type === 'date') input.type = 'date';
+            if (variable?.type === 'integer' || variable?.type === 'decimal') input.inputMode = 'decimal';
+            slot.replaceChildren(input);
+        }
+    };
     corrections?.querySelector('[data-add-correction]')?.addEventListener('click', () => {
         const index = Number(corrections.dataset.nextIndex);
         corrections.dataset.nextIndex = index + 1;
         const html = document.getElementById('correction-template').innerHTML.replaceAll('__i__', index);
         corrections.querySelector('[data-correction-rows]').insertAdjacentHTML('beforeend', html);
+        const row = corrections.querySelector('[data-correction-rows]').lastElementChild;
+        row.dataset.index = index;
+        fillVariables(row);
+        row.querySelector('[data-member]').addEventListener('change', () => fillVariables(row));
+        row.querySelector('[data-variable]').addEventListener('change', () => fillValue(row));
     });
+
+    // Arrondissement / village à cocher : villages de l'arrondissement coché, recherche par nom.
+    const geo = corrections?.querySelector('[data-geo]');
+    if (geo) {
+        const filterVillages = () => {
+            const arr = geo.querySelector('[data-geo-arr]:checked')?.value ?? '';
+            const term = (geo.querySelector('[data-geo-search]').value || '').trim().toLowerCase();
+            geo.querySelectorAll('[data-parent]').forEach((item) => {
+                item.classList.toggle('d-none', item.dataset.parent !== arr || (term !== '' && !item.dataset.name.includes(term)));
+            });
+        };
+        geo.querySelectorAll('[data-geo-arr]').forEach((radio) => radio.addEventListener('change', () => {
+            geo.querySelectorAll('[data-parent] input:checked').forEach((r) => {
+                if (r.closest('[data-parent]').dataset.parent !== radio.value) r.checked = false;
+            });
+            filterVillages();
+        }));
+        geo.querySelector('[data-geo-search]').addEventListener('input', filterVillages);
+        filterVillages();
+    }
     corrections?.addEventListener('click', (event) => {
         event.target.closest('[data-remove-correction]')?.closest('[data-correction-row]')?.remove();
     });

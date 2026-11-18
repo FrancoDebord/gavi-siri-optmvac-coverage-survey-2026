@@ -9,6 +9,7 @@ use App\Models\Household;
 use App\Models\QueryEvent;
 use App\Models\User;
 use App\Services\Dictionary\Dictionary;
+use App\Services\Dictionary\VariableMap as Map;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QualityEngine;
@@ -100,6 +101,10 @@ class CleanDataService
                 $this->checkValue($definition, $dictionary, $newValue, $n);
             }
             $oldValue = CorrectionApplier::normalize(SubmissionPaths::get($clean, $variable, $path));
+            // Ligne facultative (listes à cocher arrondissement / village) : ignorée si la valeur ne change pas.
+            if (! empty($row['optional']) && ($oldValue === $newValue || $newValue === null)) {
+                continue;
+            }
             if ($oldValue === $newValue) {
                 throw new InvalidArgumentException("Correction {$n} : la nouvelle valeur de « {$variable} » est identique à la valeur actuelle.");
             }
@@ -126,8 +131,22 @@ class CleanDataService
                 'proposed_at' => now(),
             ]));
         }
+        // Arrondissement corrigé : la variable calculée qui filtre les villages (village_parent) le suit.
+        $arrondissement = $created->first(fn (DataCorrection $c) => $c->variable === Map::var('arrondissement') && $c->instance_path === null);
+        $parent = 'village_parent';
+        if ($arrondissement && $dictionary->variable($parent) && ! isset($seen[$parent.'@'])
+            && CorrectionApplier::normalize($clean->data[$parent] ?? null) === $arrondissement->old_value && $arrondissement->old_value !== null) {
+            $created->push(new DataCorrection([
+                'submission_uuid' => $household->submission_uuid, 'household_id' => $household->id, 'data_query_id' => $query->id,
+                'variable' => $parent, 'instance_path' => null,
+                'source_value' => CorrectionApplier::normalize($source->data[$parent] ?? null), 'old_value' => $arrondissement->old_value,
+                'new_value' => $arrondissement->new_value, 'reason' => $arrondissement->reason, 'source_reference' => $arrondissement->source_reference,
+                'comment' => 'Mise à jour automatique : suit l\'arrondissement corrigé.',
+                'status' => DataCorrection::STATUS_PROPOSED, 'proposed_by' => $user?->id, 'proposed_at' => now(),
+            ]));
+        }
         if ($created->isEmpty()) {
-            throw new InvalidArgumentException('Saisissez au moins une correction (variable, nouvelle valeur, motif).');
+            throw new InvalidArgumentException('Aucune valeur modifiée : saisissez ou cochez au moins une nouvelle valeur.');
         }
 
         // Une nouvelle réponse remplace les propositions encore en attente sur cette query.
@@ -147,9 +166,9 @@ class CleanDataService
         if (! TypeRule::valid($type, $value)) {
             throw new InvalidArgumentException("Correction {$n} : valeur « {$value} » incompatible avec le type « {$type} » de « {$definition['name']} ».");
         }
-        if (in_array($type, ['select_one', 'select_multiple'], true) && $definition['list_name']) {
+        if (in_array($type, ['select_one', 'select_multiple', 'select_one_from_file', 'select_multiple_from_file'], true) && $definition['list_name']) {
             $choices = array_map('strval', array_keys($dictionary->choices($definition['list_name']) ?? []));
-            $values = $type === 'select_multiple' ? preg_split('/\s+/', $value) : [$value];
+            $values = str_starts_with($type, 'select_multiple') ? preg_split('/\s+/', $value) : [$value];
             foreach ($values as $item) {
                 if (! in_array($item, $choices, true)) {
                     throw new InvalidArgumentException("Correction {$n} : « {$item} » n'est pas un choix de « {$definition['name']} » (".implode(', ', $choices).').');

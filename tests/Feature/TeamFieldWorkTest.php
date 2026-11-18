@@ -115,6 +115,37 @@ class TeamFieldWorkTest extends TestCase
             ->assertSee('lue sur la photo par '.$manager->name)->assertSee('fiche de visite, photo 2')->assertSee('Pré-rempli avec la valeur lue sur la photo');
     }
 
+    public function test_village_is_corrected_by_ticking_it_in_the_dictionary_list(): void
+    {
+        app(QualityEngine::class)->run('test');
+        CreateTeamAccountsCommand::sync();
+        $account = User::where('team_id', $this->team->id)->firstOrFail();
+        $account->update(['must_change_password' => false]);
+        $query = DataQuery::where('submission_uuid', 'uuid:1')->firstOrFail();
+        $query->update(['rule_code' => 'GEO_HIERARCHY', 'variable' => 'village']);
+
+        $dictionary = \App\Services\Dictionary\Dictionary::current();
+        $other = collect($dictionary->choiceRows('village.csv'))->first(fn ($r) => ($r['extra']['parent'] ?? null) === '5' && $r['name'] !== '66');
+        $this->assertNotNull($other, "Un autre village de l'arrondissement 5 dans le dictionnaire");
+
+        $this->actingAs($account)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('Cochez le bon arrondissement puis le bon village')->assertSee('corrections[61][new_value]', false)
+            ->assertSee(trim(strip_tags((string) $other['label'])))
+            // « Corriger une autre question » : libellés et noms de variables.
+            ->assertSee('variable-options', false);
+
+        $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
+            60 => ['variable' => 'l3', 'new_value' => '5', 'optional' => '1', 'group' => 'geo', 'reason' => 'superviseur', 'source_reference' => 'chef de village'],
+            61 => ['variable' => 'village', 'new_value' => $other['name'], 'optional' => '1', 'group' => 'geo'],
+        ]])->assertSessionHasNoErrors();
+
+        // Arrondissement inchangé : ignoré ; village corrigé avec le motif partagé.
+        $corrections = \App\Models\DataCorrection::where('data_query_id', $query->id)->get();
+        $this->assertSame(['village'], $corrections->pluck('variable')->all());
+        $this->assertSame('superviseur', $corrections->first()->reason);
+        $this->assertSame('chef de village', $corrections->first()->source_reference);
+    }
+
     public function test_team_cluster_maps_pdf(): void
     {
         $cluster = Cluster::where('code', 'like', '%01%')->firstOrFail();

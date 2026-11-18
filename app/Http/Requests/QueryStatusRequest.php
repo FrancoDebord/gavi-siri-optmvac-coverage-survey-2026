@@ -27,6 +27,8 @@ class QueryStatusRequest extends FormRequest
             'corrections.*.reason' => ['nullable', 'string', 'max:30'],
             'corrections.*.source_reference' => ['nullable', 'string', 'max:255'],
             'corrections.*.comment' => ['nullable', 'string', 'max:2000'],
+            'corrections.*.optional' => ['nullable', 'boolean'],
+            'corrections.*.group' => ['nullable', 'string', 'max:20'],
         ];
     }
 

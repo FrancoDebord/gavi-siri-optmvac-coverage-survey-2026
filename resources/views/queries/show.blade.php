@@ -200,6 +200,39 @@
                                 <div id="corrections-block" class="d-none mb-2" data-next-index="{{ $correctionField ? 1 : 0 }}">
                                     <div class="small text-muted mb-1"><i class="bi bi-shield-lock me-1"></i>La correction s'applique à la base nettoyée ; la donnée ODK reste intacte et la valeur remplacée est conservée au registre.</div>
                                     <div data-correction-rows>
+                                        @if ($geoField)
+                                            <div class="border rounded p-2 mb-2 bg-light-subtle" data-correction-row data-geo>
+                                                <div class="small fw-semibold mb-1">Cochez le bon arrondissement puis le bon village</div>
+                                                <input type="hidden" name="corrections[60][variable]" value="{{ $geoField['arr_var'] }}">
+                                                <input type="hidden" name="corrections[60][optional]" value="1">
+                                                <input type="hidden" name="corrections[60][group]" value="geo">
+                                                <div class="small text-muted">{{ $geoField['arr_label'] }}</div>
+                                                <div class="geo-choices border rounded bg-body p-2 mb-2" style="max-height: 180px; overflow:auto">
+                                                    @foreach ($geoField['arrondissements'] as $choice)
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="radio" name="corrections[60][new_value]" id="arr-{{ $choice['code'] }}" value="{{ $choice['code'] }}" data-geo-arr @checked($choice['code'] === $geoField['arr_current'])>
+                                                            <label class="form-check-label" for="arr-{{ $choice['code'] }}">{{ $choice['label'] }} @if ($choice['code'] === $geoField['arr_current'])<span class="badge text-bg-light border">saisi</span>@endif</label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                                <input type="hidden" name="corrections[61][variable]" value="{{ $geoField['village_var'] }}">
+                                                <input type="hidden" name="corrections[61][optional]" value="1">
+                                                <input type="hidden" name="corrections[61][group]" value="geo">
+                                                <div class="d-flex justify-content-between align-items-center gap-2">
+                                                    <span class="small text-muted">{{ $geoField['village_label'] }}</span>
+                                                    <input type="search" class="form-control form-control-sm w-50" placeholder="Rechercher un village…" data-geo-search aria-label="Rechercher un village">
+                                                </div>
+                                                <div class="geo-choices border rounded bg-body p-2 mb-2" style="max-height: 240px; overflow:auto">
+                                                    @foreach ($geoField['villages'] as $choice)
+                                                        <div class="form-check" data-parent="{{ $choice['parent'] }}" data-name="{{ mb_strtolower($choice['label']) }}">
+                                                            <input class="form-check-input" type="radio" name="corrections[61][new_value]" id="vil-{{ $choice['code'] }}" value="{{ $choice['code'] }}" @checked($choice['code'] === $geoField['village_current'])>
+                                                            <label class="form-check-label" for="vil-{{ $choice['code'] }}">{{ $choice['label'] }} @if ($choice['code'] === $geoField['village_current'])<span class="badge text-bg-light border">saisi</span>@endif</label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                                @include('queries._correction-reason', ['i' => 60])
+                                            </div>
+                                        @endif
                                         @if ($correctionField)
                                             <div class="border rounded p-2 mb-2 bg-light-subtle" data-correction-row>
                                                 <input type="hidden" name="corrections[0][variable]" value="{{ $correctionField['variable'] }}">
@@ -236,20 +269,32 @@
                                             </div>
                                         </div>
                                     @endif
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-add-correction><i class="bi bi-plus-lg me-1"></i>Corriger une autre variable de la soumission</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-add-correction><i class="bi bi-plus-lg me-1"></i>Corriger une autre question de la soumission</button>
                                     <template id="correction-template">
-                                        <div class="border rounded p-2 mb-2" data-correction-row>
+                                        <div class="border rounded p-2 mb-2" data-correction-row data-free-row>
                                             <div class="row g-2 mb-2">
-                                                <div class="col-7"><label class="form-label small mb-0">Variable</label><input name="corrections[__i__][variable]" class="form-control form-control-sm" list="input-variables" placeholder="ex. Penta2date"></div>
-                                                <div class="col-5"><label class="form-label small mb-0">Membre</label><input name="corrections[__i__][instance_path]" class="form-control form-control-sm" value="{{ $query->instance_path }}" placeholder="ménage : vide"></div>
+                                                <div class="col-sm-4">
+                                                    <label class="form-label small mb-0">Membre</label>
+                                                    <select name="corrections[__i__][instance_path]" class="form-select form-select-sm" data-member>
+                                                        @foreach ($members as $path => $memberLabel)
+                                                            <option value="{{ $path }}" data-repeat="{{ $path === '' ? '' : preg_replace('/\\[\\d+\\]$/', '', \Illuminate\Support\Str::afterLast($path, '/')) }}" @selected($path === (string) $query->instance_path)>{{ $memberLabel }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div class="col-sm-8">
+                                                    <label class="form-label small mb-0">Question</label>
+                                                    <select name="corrections[__i__][variable]" class="form-select form-select-sm" data-variable>
+                                                        <option value="">— Choisir la question —</option>
+                                                    </select>
+                                                </div>
                                             </div>
                                             <label class="form-label small mb-0">Nouvelle valeur</label>
-                                            <input name="corrections[__i__][new_value]" class="form-control form-control-sm mb-2" placeholder="code du choix, AAAA-MM-JJ pour une date">
+                                            <div data-value-slot><input name="corrections[__i__][new_value]" class="form-control form-control-sm mb-2"></div>
                                             @include('queries._correction-reason', ['i' => '__i__'])
                                             <button type="button" class="btn btn-sm btn-link text-danger p-0" data-remove-correction>Retirer</button>
                                         </div>
                                     </template>
-                                    <datalist id="input-variables">@foreach ($inputVariables as $name)<option value="{{ $name }}">@endforeach</datalist>
+                                    <script type="application/json" id="variable-options">@json($variableOptions)</script>
                                 </div>
                                 <label class="form-label" for="comment">Justification / motif</label>
                                 <textarea id="comment" name="comment" rows="3" class="form-control mb-2" maxlength="2000">{{ old('comment') }}</textarea>
