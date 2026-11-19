@@ -73,7 +73,7 @@ class DatasetExporter
                 : ['submission_uuid', 'date_envoi', 'version_formulaire', 'statut_revue_odk', 'exclue_base_nettoyee'])
             : ['submission_uuid', 'membre'];
         foreach ($columns as $table => $keys) {
-            $handles[$table] = $this->open("{$dir}/".$this->fileName($table), [...$meta($table), ...$keys]);
+            $handles[$table] = $this->open("{$dir}/".$this->fileName($table, $kind), [...$meta($table), ...$keys]);
             $counts[$table] = 0;
         }
         $corrections = $clean ? DataCorrection::where('status', DataCorrection::STATUS_VALIDATED)->selectRaw('submission_uuid, count(*) as n')->groupBy('submission_uuid')->pluck('n', 'submission_uuid') : collect();
@@ -101,21 +101,25 @@ class DatasetExporter
 
         $label = $clean ? 'base nettoyée' : 'base brute (telle que reçue d\'ODK)';
 
-        return collect($counts)->mapWithKeys(fn ($n, $table) => [$this->fileName($table) => [
+        return collect($counts)->mapWithKeys(fn ($n, $table) => [$this->fileName($table, $kind) => [
             'rows' => $n,
             'description' => $table === 'menages' ? "Ménages – {$label} : une ligne par soumission" : "Repeat « {$table} » – {$label} : une ligne par membre",
         ]])->all();
     }
 
     /**
-     * Nom du fichier d'une table : celui de l'export CSV d'ODK Central, préfixé de « app_ » —
-     * app_<id du formulaire>.csv pour les ménages, app_<id du formulaire>-<nom du repeat>.csv pour chaque repeat.
+     * Nom du fichier d'une table : celui de l'export CSV d'ODK Central, préfixé de « app_ » et de la base —
+     * app_brute_<id du formulaire>.csv / app_nettoyee_<id du formulaire>.csv pour les ménages,
+     * app_brute_<id du formulaire>-<nom du repeat>.csv / app_nettoyee_… pour chaque repeat.
+     *
+     * @param  string  $kind  « brute » ou « nettoyee »
      */
-    public function fileName(string $table): string
+    public function fileName(string $table, string $kind): string
     {
         $form = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($this->dictionary->formVersion?->form_id ?: 'formulaire'));
+        $base = $kind === 'nettoyee' ? 'nettoyee' : 'brute';
 
-        return 'app_'.$form.($table === 'menages' ? '' : '-'.preg_replace('/[^A-Za-z0-9._-]/', '_', $table)).'.csv';
+        return "app_{$base}_".$form.($table === 'menages' ? '' : '-'.preg_replace('/[^A-Za-z0-9._-]/', '_', $table)).'.csv';
     }
 
     /**

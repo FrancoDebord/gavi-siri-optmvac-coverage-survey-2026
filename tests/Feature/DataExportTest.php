@@ -59,10 +59,10 @@ class DataExportTest extends TestCase
         return $query->fresh();
     }
 
-    /** Table des ménages : nom de l'export ODK Central préfixé de « app_ ». */
-    private function main(): string
+    /** Table des ménages : nom de l'export ODK Central préfixé de « app_brute_ » ou « app_nettoyee_ ». */
+    private function main(string $kind = 'brute'): string
     {
-        return (new DatasetExporter)->fileName('menages');
+        return (new DatasetExporter)->fileName('menages', $kind);
     }
 
     private function zip(DataExport $export, ?string $password = null): ZipArchive
@@ -131,7 +131,7 @@ class DataExportTest extends TestCase
 
         // Base nettoyée : correction appliquée, doublon écarté, registre joint.
         $zip = $this->zip($clean);
-        $rows = collect($this->csv($zip, $this->main()))->keyBy('submission_uuid');
+        $rows = collect($this->csv($zip, $this->main('nettoyee')))->keyBy('submission_uuid');
         $this->assertSame(['uuid:1', 'uuid:2'], $rows->keys()->sort()->values()->all());
         $this->assertSame('9.31 2.49 0 5', $rows['uuid:1']['current_location']);
         $this->assertSame('1', $rows['uuid:1']['nb_corrections']);
@@ -149,15 +149,17 @@ class DataExportTest extends TestCase
         $export = DataExport::firstOrFail();
         $this->assertSame(DataExport::STATUS_DONE, $export->status, (string) $export->error);
         $zip = $this->zip($export);
-        foreach (['base_brute/'.$this->main(), 'base_nettoyee/'.$this->main(), 'registre_corrections.csv', 'queries.csv', 'historique_queries.csv',
+        foreach (['base_brute/'.$this->main(), 'base_nettoyee/'.$this->main('nettoyee'), 'registre_corrections.csv', 'queries.csv', 'historique_queries.csv',
             'observations_supervision.csv', 'dictionnaire.csv', 'manifest.json', 'LISEZMOI.txt'] as $name) {
             $this->assertNotFalse($zip->getFromName($name), $name);
         }
         $this->assertNotEmpty($this->csv($zip, 'queries.csv'));
         // Noms ODK Central préfixés : app_<formulaire>.csv et app_<formulaire>-<repeat>.csv.
         $form = Dictionary::current()->formVersion->form_id;
-        $this->assertSame("app_{$form}.csv", $this->main());
-        $this->assertNotFalse($zip->getFromName("base_brute/app_{$form}-cg.csv"));
+        $this->assertSame("app_brute_{$form}.csv", $this->main());
+        $this->assertSame("app_nettoyee_{$form}.csv", $this->main('nettoyee'));
+        $this->assertNotFalse($zip->getFromName("base_brute/app_brute_{$form}-cg.csv"));
+        $this->assertNotFalse($zip->getFromName("base_nettoyee/app_nettoyee_{$form}-cg.csv"));
     }
 
     public function test_download_survives_deleted_release_and_reports_missing_files(): void
