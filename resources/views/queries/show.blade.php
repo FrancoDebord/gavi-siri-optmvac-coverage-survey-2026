@@ -4,6 +4,9 @@
         @if ($query->household)
             <a href="{{ route('households.show', $query->household) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-house-door me-1"></i>Soumission</a>
         @endif
+        {{-- Partage : le lien ouvre la query après connexion, selon les droits de la personne. --}}
+        <a href="{{ $query->whatsappUrl() }}" target="_blank" rel="noopener" class="btn btn-sm btn-success" title="Envoyer la query par WhatsApp (l'ouverture demande la connexion)"><i class="bi bi-whatsapp me-1"></i>WhatsApp</a>
+        <button type="button" class="btn btn-sm btn-light" data-copy-link="{{ $query->shareUrl() }}" title="Copier le lien de la query"><i class="bi bi-link-45deg me-1"></i><span>Copier le lien</span></button>
     </x-page-header>
 
     <div class="row g-3">
@@ -227,7 +230,7 @@
                                 </select>
                                 <div id="status-help" class="form-text mb-2"></div>
                                 @error('status')<div class="alert alert-danger py-2 small">{{ $message }}</div>@enderror
-                                <div id="corrections-block" class="d-none mb-2" data-next-index="{{ $correctionField ? 1 : 0 }}">
+                                <div id="corrections-block" class="d-none mb-2" data-next-index="{{ $correctionField ? 1 + count($correctionField['related']) : 0 }}">
                                     <div class="small text-muted mb-1"><i class="bi bi-shield-lock me-1"></i>La correction s'applique à la base nettoyée ; la donnée ODK reste intacte et la valeur remplacée est conservée au registre.</div>
                                     <div data-correction-rows>
                                         @if ($geoField)
@@ -263,26 +266,26 @@
                                                 @include('queries._correction-reason', ['i' => 60])
                                             </div>
                                         @endif
-                                        @if ($correctionField)
-                                            <div class="border rounded p-2 mb-2 bg-light-subtle" data-correction-row>
-                                                <input type="hidden" name="corrections[0][variable]" value="{{ $correctionField['variable'] }}">
-                                                <input type="hidden" name="corrections[0][instance_path]" value="{{ $correctionField['path'] }}">
-                                                <div class="small mb-1"><code>{{ $correctionField['variable'] }}</code>{{ $correctionField['path'] ? ' · '.\App\Exports\QueriesExport::memberLabel($correctionField['path']) : '' }}</div>
-                                                <div class="small text-muted mb-2">Valeur actuelle : <strong>{{ \App\Models\DataCorrection::display($correctionField['current']) }}</strong>@if ($correctionField['source'] !== $correctionField['current']) · reçue d'ODK : {{ \App\Models\DataCorrection::display($correctionField['source']) }}@endif</div>
-                                                <label class="form-label small mb-0" for="c0-value">Nouvelle valeur</label>
-                                                @if ($correctionField['choices'] && $correctionField['type'] === 'select_one')
-                                                    <select id="c0-value" name="corrections[0][new_value]" class="form-select form-select-sm mb-2">
-                                                        <option value="">(vide)</option>
-                                                        @foreach ($correctionField['choices'] as $code => $label)
-                                                            <option value="{{ $code }}" @selected((string) $code === ($correctionField['suggested'] ?? $correctionField['current']))>{{ $code }} – {{ strip_tags((string) $label) }}</option>
-                                                        @endforeach
-                                                    </select>
-                                                @else
-                                                    <input id="c0-value" name="corrections[0][new_value]" class="form-control form-control-sm mb-2" value="{{ $correctionField['suggested'] ?? $correctionField['current'] }}" @if ($correctionField['type'] === 'date') type="date" @endif>
-                                                @endif
-                                                @if ($correctionField['suggested'] !== null)<div class="form-text mt-n1 mb-2">Pré-rempli avec la valeur lue sur la photo.</div>@endif
-                                                @include('queries._correction-reason', ['i' => 0])
-                                            </div>
+                                        @if ($correctionField && $correctionField['related'])
+                                            <fieldset class="border border-warning-subtle rounded p-2 mb-2" data-pair-choice>
+                                                <legend class="float-none w-auto small fw-semibold px-1 mb-1">Quelle valeur est fausse ?</legend>
+                                                <div class="small text-muted mb-1">L'erreur peut venir de l'une ou de l'autre : vérifiez sur le carnet ou la photo, puis corrigez celle qui est fausse.</div>
+                                                @foreach ($correctionField['pair'] as $k => $f)
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="pair_choice" id="pair-{{ $k }}" value="{{ $k }}" required>
+                                                        <label class="form-check-label" for="pair-{{ $k }}"><strong>{{ $f['short_label'] ?? $f['label'] }}</strong> ({{ $f['display'] }})</label>
+                                                    </div>
+                                                @endforeach
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="pair_choice" id="pair-all" value="all" required>
+                                                    <label class="form-check-label" for="pair-all">{{ count($correctionField['pair']) > 2 ? 'Plusieurs' : 'Les deux' }}</label>
+                                                </div>
+                                            </fieldset>
+                                            @foreach ($correctionField['pair'] as $k => $f)
+                                                @include('queries._correction-field', ['field' => $f, 'i' => $k, 'path' => $correctionField['path'], 'suggested' => $k === 0 ? $correctionField['suggested'] : null, 'paired' => true])
+                                            @endforeach
+                                        @elseif ($correctionField)
+                                            @include('queries._correction-field', ['field' => $correctionField, 'i' => 0, 'path' => $correctionField['path'], 'suggested' => $correctionField['suggested'], 'paired' => false])
                                         @endif
                                     </div>
                                     @if (in_array($query->rule_code, ['DUP_HOUSEHOLD', 'DUP_SUBMISSION'], true) && $query->household && ! $query->household->excluded_at)

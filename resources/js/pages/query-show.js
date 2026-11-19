@@ -16,8 +16,26 @@ function initPhotos() {
 }
 
 // Fiche d'une query : photos et aperçu des transitions autorisées.
+// Lien court de la query copié dans le presse-papiers (repli : sélection manuelle via une invite).
+function initShareLink() {
+    document.querySelectorAll('[data-copy-link]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const url = button.dataset.copyLink;
+            const label = button.querySelector('span');
+            try {
+                await navigator.clipboard.writeText(url);
+                label.textContent = 'Lien copié';
+                setTimeout(() => { label.textContent = 'Copier le lien'; }, 2000);
+            } catch {
+                window.prompt('Copiez le lien de la query :', url);
+            }
+        });
+    });
+}
+
 export default function queryShowPage() {
     initPhotos();
+    initShareLink();
     const select = document.querySelector('#query-status-form [name="status"]');
     const help = document.getElementById('status-help');
     if (!select || !help) return;
@@ -39,6 +57,7 @@ export default function queryShowPage() {
                 el.disabled = !active;
             });
             syncExclusion();
+            syncPair();
         }
     };
     const corrections = document.getElementById('corrections-block');
@@ -54,6 +73,21 @@ export default function queryShowPage() {
         });
     }
     excludeToggle?.addEventListener('change', syncExclusion);
+    // Deux valeurs comparées (ex. VPO 3 avant VPO 2) : seule(s) la ou les valeurs déclarées fausses sont saisies et envoyées.
+    const pairChoice = corrections?.querySelector('[data-pair-choice]');
+    function syncPair() {
+        if (!pairChoice) return;
+        const choice = pairChoice.querySelector('input[name="pair_choice"]:checked')?.value ?? null;
+        const active = select.value === 'corrigee';
+        corrections.querySelectorAll('[data-pair-row]').forEach((row) => {
+            const shown = choice === 'all' || choice === row.dataset.pairRow;
+            row.classList.toggle('d-none', !shown);
+            row.querySelectorAll('input, select').forEach((el) => {
+                el.disabled = !(active && shown);
+            });
+        });
+    }
+    pairChoice?.addEventListener('change', syncPair);
     // Questions du formulaire : libellé (nom de variable), filtrées selon le membre choisi ; saisie adaptée au type.
     const variableOptions = JSON.parse(document.getElementById('variable-options')?.textContent || '[]');
     const fillVariables = (row) => {

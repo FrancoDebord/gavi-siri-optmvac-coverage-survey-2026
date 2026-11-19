@@ -28,6 +28,7 @@ use App\Http\Controllers\SupervisionObservationController;
 use App\Http\Controllers\TeamMessageController;
 use App\Http\Controllers\TeamSpaceController;
 use App\Http\Controllers\UserController;
+use App\Models\DataQuery;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
@@ -84,6 +85,9 @@ Route::middleware(['auth', 'active'])->group(function () {
     // Fiches détaillées : équipe centrale et superviseurs (périmètre), comptes binômes (leurs propres données).
     Route::middleware('permission:view dashboards|view team space')->group(function () {
         Route::get('/queries/{query}', [DataQueryController::class, 'show'])->whereNumber('query')->name('queries.show');
+        // Lien court à partager (WhatsApp) : /q/Q-000123 → fiche de la query, après connexion et selon les droits.
+        Route::get('/q/{code}', fn (string $code) => redirect()->route('queries.show', DataQuery::idFromCode($code) ?? abort(404)))
+            ->where('code', '[Qq]?-?\d+')->name('queries.short');
         Route::get('/menages/{household}', [HouseholdController::class, 'show'])->name('households.show');
         Route::get('/menages/{household}/photos/{filename}', [HouseholdController::class, 'photo'])
             ->where('filename', '[A-Za-z0-9_.\-]+')->middleware('throttle:120,1')->name('households.photo');

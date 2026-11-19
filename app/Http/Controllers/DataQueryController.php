@@ -25,8 +25,10 @@ use App\Services\Dashboard\QueryStats;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Dictionary\VariableMap as Map;
 use App\Services\Export\DatasetExporter;
+use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QueryFocus;
 use App\Services\Quality\QueryWorkflow;
+use App\Services\Quality\RelatedFields;
 use App\Support\Filters;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -333,7 +335,7 @@ class DataQueryController extends Controller
             return null;
         }
 
-        return [
+        $field = [
             'variable' => $query->variable,
             'path' => $query->instance_path,
             'label' => $query->variable_label,
@@ -342,7 +344,25 @@ class DataQueryController extends Controller
             'type' => $definition['base_type'],
             'choices' => $definition['list_name'] ? ($dictionary->choices($definition['list_name']) ?? []) : [],
             'suggested' => $suggested,
+            'short_label' => RelatedFields::label($query->variable),
+            // Autres questions en cause (ex. VPO 2 pour « VPO 3 avant VPO 2 ») : l'agent choisit celle qui est fausse.
+            'related' => collect(RelatedFields::for($query, $clean))->map(function (array $field) use ($dictionary, $clean, $source, $query) {
+                $definition = $dictionary->variable($field['variable']);
+
+                return $field + [
+                    'current' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $field['variable'], $query->instance_path)),
+                    'source' => CorrectionApplier::normalize(SubmissionPaths::get($source, $field['variable'], $query->instance_path)),
+                    'type' => $definition['base_type'],
+                    'choices' => $definition['list_name'] ? ($dictionary->choices($definition['list_name']) ?? []) : [],
+                ];
+            })->all(),
         ];
+        // Choix « quelle valeur est fausse » : la question de la query puis les autres, valeur lisible (date jj/mm/aaaa).
+        $field['pair'] = $field['related'] ? array_map(fn (array $f) => $f + [
+            'display' => ($f['type'] === 'date' ? SubmissionProcessor::date($f['current'])?->format('d/m/Y') : null) ?? DataCorrection::display($f['current']),
+        ], array_merge([$field], $field['related'])) : [];
+
+        return $field;
     }
 
     /**

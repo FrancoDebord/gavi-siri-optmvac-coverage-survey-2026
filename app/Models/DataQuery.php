@@ -115,6 +115,25 @@ class DataQuery extends Model
         return 'Q-'.str_pad((string) $id, 6, '0', STR_PAD_LEFT);
     }
 
+    /** Lien court à partager (ex. par WhatsApp) : ouverture soumise à la connexion et aux droits. */
+    public function shareUrl(): string
+    {
+        return route('queries.short', $this->code);
+    }
+
+    /** Message WhatsApp prêt à envoyer : code, libellé, ménage, problème et lien. */
+    public function whatsappUrl(): string
+    {
+        $text = implode("\n", array_filter([
+            '*Query '.$this->code.'* · '.($this->label ?? $this->rule_code),
+            $this->household_code ? 'Ménage '.$this->household_code : null,
+            $this->message,
+            $this->shareUrl(),
+        ]));
+
+        return 'https://wa.me/?text='.rawurlencode($text);
+    }
+
     /** Identifiant à partir d'un code saisi (« Q-000123 », « q123 », « 123 »). */
     public static function idFromCode(string $code): ?int
     {

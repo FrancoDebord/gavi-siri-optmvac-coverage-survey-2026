@@ -28,11 +28,17 @@ final class QueryFocus
         $dictionary ??= Dictionary::current();
         $household = $query->household;
         $raw = $current = null;
+        $related = [];
         if ($household && $query->variable) {
             try {
                 $source = SourceSnapshot::of($household);
+                $clean = (new CorrectionApplier)->apply($source)[0];
                 $raw = CorrectionApplier::normalize(SubmissionPaths::get($source, $query->variable, $query->instance_path));
-                $current = CorrectionApplier::normalize(SubmissionPaths::get((new CorrectionApplier)->apply($source)[0], $query->variable, $query->instance_path));
+                $current = CorrectionApplier::normalize(SubmissionPaths::get($clean, $query->variable, $query->instance_path));
+                // Autres valeurs comparées par la règle (ex. VPO 2 pour « VPO 3 avant VPO 2 ») : l'erreur peut venir d'elles.
+                foreach (RelatedFields::for($query, $clean) as $field) {
+                    $related[] = $field + ['value' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $field['variable'], $query->instance_path))];
+                }
             } catch (Throwable) {
                 $raw = $current = CorrectionApplier::normalize($query->observed_value);
             }
@@ -67,6 +73,8 @@ final class QueryFocus
             'suggested_note' => $query->suggested_note,
             'is_ai' => $query->suggested_source === 'ia',
             'problem' => $query->message,
+            'short_label' => $query->variable ? RelatedFields::label($query->variable) : null,
+            'related' => $related,
         ];
     }
 
