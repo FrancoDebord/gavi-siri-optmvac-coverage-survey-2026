@@ -134,6 +134,13 @@ class TeamVillageRuleTest extends TestCase
         $this->actingAs($declared)->get(route('team.submissions', ['q' => $query->code]))->assertSee('TCH-WAR-04-S1-050');
         $this->actingAs($kora)->get(route('team.queries', ['q' => 'Q-999999']))->assertDontSee('TCH-WAR-04-S1-050');
 
+        // Onglet « Villages et agents » du binôme : ses villages et ces queries seulement.
+        $this->actingAs($kora)->get(route('team.village-queries'))->assertOk()
+            ->assertSee('Villages du binôme 46-47')->assertSee('Wari-Maro')->assertSee('TCH-WAR-04-S1-050')->assertSee('Villages et agents');
+        // Page admin : villages attribués à chaque binôme, avec son compte ODK.
+        $this->actingAs($admin)->get(route('team-villages.index'))
+            ->assertSee('Villages de chaque binôme')->assertSee('Kpassatona')->assertSee('Gouroubara');
+
         // Correction : binômes de Tchaourou à cocher (pas ceux de Dagla), agents avec leur code, agent saisi coché.
         $page = $this->actingAs($admin)->get(route('queries.show', $query))->assertOk()
             ->assertSee('Cochez le bon agent')->assertSee('binôme du compte ODK')

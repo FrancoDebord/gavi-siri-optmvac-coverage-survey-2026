@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DataQuery;
 use App\Models\HealthZone;
+use App\Models\Team;
 use App\Services\Import\TeamVillageImporter;
 use App\Services\Quality\TeamVillageCheck;
 use Illuminate\Http\Request;
@@ -39,7 +40,18 @@ class TeamVillageController extends Controller
 
         $accounts = collect(TeamVillageCheck::accountTeams())->map(fn ($a, $name) => $a + ['name' => $name, 'team' => $check->team($a['team_id'])]);
 
+        // Villages attribués à chaque binôme (binomes_villages.csv), avec ses comptes ODK.
+        $teams = Team::with(['villages:villages.id,villages.name', 'collectors:id,team_id,name', 'healthZone:id,name'])
+            ->when($zoneId, fn ($q, $zone) => $q->where('health_zone_id', $zone))->orderBy('code')->get()
+            ->map(fn (Team $team) => [
+                'label' => TeamVillageCheck::teamLabel($team),
+                'zone' => $team->healthZone?->name ?? '—',
+                'villages' => $team->villages->pluck('name')->all(),
+                'accounts' => $accounts->filter(fn ($a) => $a['team_id'] === $team->id)->keys()->all(),
+            ])->groupBy('zone');
+
         return view('team-villages.index', [
+            'teamLists' => $teams,
             'rows' => $rows,
             'counts' => $counts,
             'accounts' => $accounts,

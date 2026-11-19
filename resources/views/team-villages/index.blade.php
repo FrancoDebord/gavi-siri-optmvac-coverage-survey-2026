@@ -91,6 +91,31 @@
         </div>
     </div>
 
+    <div class="card mb-3">
+        <div class="card-header">Villages de chaque binôme</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 small">
+                <thead class="table-light"><tr><th>Binôme</th><th>Compte(s) ODK</th><th>Villages attribués</th></tr></thead>
+                <tbody>
+                @forelse ($teamLists as $zoneName => $items)
+                    <tr class="table-light"><th colspan="3">{{ $zoneName }}</th></tr>
+                    @foreach ($items as $item)
+                        <tr>
+                            <td class="text-nowrap fw-semibold">{{ $item['label'] }}</td>
+                            <td class="text-nowrap">{{ $item['accounts'] ? implode(', ', $item['accounts']) : '—' }}</td>
+                            <td>
+                                @forelse ($item['villages'] as $name)<span class="badge text-bg-light border fw-normal me-1 mb-1">{{ $name }}</span>@empty<span class="text-muted">Aucun village attribué</span>@endforelse
+                            </td>
+                        </tr>
+                    @endforeach
+                @empty
+                    <tr><td colspan="3" class="text-center text-muted py-3">Aucun binôme.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-header">Comptes ODK et binômes</div>
         <div class="card-body small text-muted pb-0">Un compte est rattaché au binôme sélectionné dans au moins 80 % de ses soumissions (10 au moins). Liste des villages : <code>{{ basename($file) }}</code>.</div>

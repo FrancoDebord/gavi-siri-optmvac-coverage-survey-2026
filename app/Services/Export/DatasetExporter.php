@@ -11,6 +11,7 @@ use App\Services\Cleaning\CorrectionApplier;
 use App\Services\Cleaning\SourceSnapshot;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Import\NormalizedSubmission;
+use Carbon\CarbonInterface;
 
 /**
  * Écrit les jeux de données en CSV (UTF-8 avec BOM, séparateur virgule, une ligne d'en-tête) :
@@ -24,9 +25,21 @@ class DatasetExporter
 {
     private Dictionary $dictionary;
 
+    /** Date de l'export, reprise dans le nom des fichiers (aujourd'hui par défaut). */
+    private CarbonInterface $date;
+
     public function __construct(?Dictionary $dictionary = null)
     {
         $this->dictionary = $dictionary ?? Dictionary::current();
+        $this->date = now();
+    }
+
+    /** Date de l'export utilisée dans le nom des fichiers. */
+    public function on(CarbonInterface $date): self
+    {
+        $this->date = $date;
+
+        return $this;
     }
 
     /**
@@ -108,9 +121,9 @@ class DatasetExporter
     }
 
     /**
-     * Nom du fichier d'une table : celui de l'export CSV d'ODK Central, préfixé de « app_ » et de la base —
-     * app_brute_<id du formulaire>.csv / app_nettoyee_<id du formulaire>.csv pour les ménages,
-     * app_brute_<id du formulaire>-<nom du repeat>.csv / app_nettoyee_… pour chaque repeat.
+     * Nom du fichier d'une table : celui de l'export CSV d'ODK Central, préfixé de « app_ », de la base et de la date
+     * de l'export — app_brute_AAAAMMJJ_<id du formulaire>.csv / app_nettoyee_AAAAMMJJ_<id du formulaire>.csv pour les
+     * ménages, app_brute_AAAAMMJJ_<id du formulaire>-<nom du repeat>.csv / app_nettoyee_… pour chaque repeat.
      *
      * @param  string  $kind  « brute » ou « nettoyee »
      */
@@ -119,7 +132,7 @@ class DatasetExporter
         $form = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($this->dictionary->formVersion?->form_id ?: 'formulaire'));
         $base = $kind === 'nettoyee' ? 'nettoyee' : 'brute';
 
-        return "app_{$base}_".$form.($table === 'menages' ? '' : '-'.preg_replace('/[^A-Za-z0-9._-]/', '_', $table)).'.csv';
+        return "app_{$base}_".$this->date->format('Ymd').'_'.$form.($table === 'menages' ? '' : '-'.preg_replace('/[^A-Za-z0-9._-]/', '_', $table)).'.csv';
     }
 
     /**

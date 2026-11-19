@@ -62,7 +62,7 @@ class DataExportTest extends TestCase
     /** Table des ménages : nom de l'export ODK Central préfixé de « app_brute_ » ou « app_nettoyee_ ». */
     private function main(string $kind = 'brute'): string
     {
-        return (new DatasetExporter)->fileName('menages', $kind);
+        return (new DatasetExporter)->on(now())->fileName('menages', $kind);
     }
 
     private function zip(DataExport $export, ?string $password = null): ZipArchive
@@ -156,10 +156,11 @@ class DataExportTest extends TestCase
         $this->assertNotEmpty($this->csv($zip, 'queries.csv'));
         // Noms ODK Central préfixés : app_<formulaire>.csv et app_<formulaire>-<repeat>.csv.
         $form = Dictionary::current()->formVersion->form_id;
-        $this->assertSame("app_brute_{$form}.csv", $this->main());
-        $this->assertSame("app_nettoyee_{$form}.csv", $this->main('nettoyee'));
-        $this->assertNotFalse($zip->getFromName("base_brute/app_brute_{$form}-cg.csv"));
-        $this->assertNotFalse($zip->getFromName("base_nettoyee/app_nettoyee_{$form}-cg.csv"));
+        $date = now()->format('Ymd');
+        $this->assertSame("app_brute_{$date}_{$form}.csv", $this->main());
+        $this->assertSame("app_nettoyee_{$date}_{$form}.csv", $this->main('nettoyee'));
+        $this->assertNotFalse($zip->getFromName("base_brute/app_brute_{$date}_{$form}-cg.csv"));
+        $this->assertNotFalse($zip->getFromName("base_nettoyee/app_nettoyee_{$date}_{$form}-cg.csv"));
     }
 
     public function test_download_survives_deleted_release_and_reports_missing_files(): void

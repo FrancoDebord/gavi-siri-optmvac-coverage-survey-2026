@@ -1,6 +1,24 @@
 <x-layouts.app :title="'Queries · binôme '.$team->code" page="team">
     @include('team._header')
 
+    @if ($tab === 'villages')
+        <div class="card mb-3 border-warning-subtle">
+            <div class="card-body">
+                <h2 class="h6 mb-2"><i class="bi bi-signpost-split me-1"></i>Villages du binôme {{ $team->code }}</h2>
+                @if ($teamVillages->isEmpty())
+                    <p class="text-muted small mb-0">Aucune liste de villages n'est attribuée à ce binôme.</p>
+                @else
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                        @foreach ($teamVillages as $village)<span class="badge text-bg-light border fs-6 fw-normal">{{ $village->name }}</span>@endforeach
+                    </div>
+                @endif
+                <p class="small text-muted mb-0">Ces queries signalent un ménage dont le <strong>village coché</strong> n'est pas l'un de ces villages, ou dont
+                    l'<strong>agent sélectionné</strong> n'est pas du binôme qui a envoyé la soumission (compte ODK). Ouvrez chaque query : le bon village
+                    ou le bon agent est à cocher dans la correction.</p>
+            </div>
+        </div>
+    @endif
+
     <div class="alert alert-info small d-flex gap-2">
         <i class="bi bi-lightbulb"></i>
         <div>Pour chaque query : vérifiez la valeur saisie sur le document (photo, carnet), puis ouvrez-la et cliquez <strong>Corriger</strong>.

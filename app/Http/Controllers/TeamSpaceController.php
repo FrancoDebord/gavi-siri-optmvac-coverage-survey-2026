@@ -87,8 +87,23 @@ class TeamSpaceController extends Controller
     /** Queries du binôme : non résolues par défaut, avec accès à la fiche détaillée de chaque query. */
     public function queries(Request $request): View
     {
+        return $this->queryList($request, 'queries');
+    }
+
+    /**
+     * Onglet « Villages et agents » : queries village coché hors des villages du binôme, agent d'un autre binôme
+     * (règle TEAM_VILLAGE), avec la liste des villages attribués au binôme.
+     */
+    public function villageQueries(Request $request): View
+    {
+        return $this->queryList($request, 'villages');
+    }
+
+    private function queryList(Request $request, string $tab): View
+    {
         [$team, $teams] = $this->team($request);
-        $base = DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id));
+        $base = DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id))
+            ->when($tab === 'villages', fn ($q) => $q->where('rule_code', 'TEAM_VILLAGE'));
         $resolution = $request->input('resolution', DataQuery::RESOLUTION_UNRESOLVED);
 
         $queries = (clone $base)->with(['collector:id,name', 'cluster:id,code'])
@@ -104,7 +119,8 @@ class TeamSpaceController extends Controller
         $dictionary = Dictionary::current();
         $queries->getCollection()->load(['household', 'child']);
 
-        return view('team.queries', $this->shared($request, $team, $teams, 'queries') + [
+        return view('team.queries', $this->shared($request, $team, $teams, $tab) + [
+            'teamVillages' => $tab === 'villages' ? $team->villages()->get(['villages.id', 'villages.name']) : collect(),
             'queries' => $queries,
             'focus' => $queries->getCollection()->mapWithKeys(fn (DataQuery $q) => [$q->id => QueryFocus::for($q, $dictionary)]),
             'resolution' => $resolution,
@@ -216,6 +232,8 @@ class TeamSpaceController extends Controller
             // Le binôme choisi suit l'utilisateur d'un onglet à l'autre (équipe centrale, superviseurs).
             'teamParam' => $isTeam ? [] : ['team_id' => $team->id],
             'openQueries' => DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id))->whereIn('status', DataQuery::UNRESOLVED)->count(),
+            'openVillageQueries' => DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id))
+                ->where('rule_code', 'TEAM_VILLAGE')->whereIn('status', DataQuery::UNRESOLVED)->count(),
         ];
     }
 

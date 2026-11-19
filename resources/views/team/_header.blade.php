@@ -23,12 +23,14 @@
         'progression' => ['team.space', 'graph-up', 'Progression'],
         'soumissions' => ['team.submissions', 'house-door', 'Soumissions'],
         'queries' => ['team.queries', 'flag', 'Queries'],
+        'villages' => ['team.village-queries', 'signpost-split', 'Villages et agents'],
         'grappes' => ['team.clusters', 'bounding-box', 'Grappes'],
     ] as $key => [$route, $icon, $label])
         <li class="nav-item">
             <a class="nav-link {{ $tab === $key ? 'active' : '' }}" href="{{ route($route, $teamParam) }}" @if ($tab === $key) aria-current="page" @endif>
                 <i class="bi bi-{{ $icon }} me-1"></i>{{ $label }}
                 @if ($key === 'queries' && $openQueries)<span class="badge rounded-pill text-bg-danger ms-1">{{ $openQueries }}</span>@endif
+                @if ($key === 'villages' && $openVillageQueries)<span class="badge rounded-pill text-bg-warning ms-1">{{ $openVillageQueries }}</span>@endif
             </a>
         </li>
     @endforeach

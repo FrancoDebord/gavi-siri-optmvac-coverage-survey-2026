@@ -26,7 +26,8 @@ class ExportPackager
     {
         $work = self::directory().'/tmp-'.$export->id.'-'.Str::random(8);
         File::ensureDirectoryExists($work);
-        $stamp = now()->format('Ymd-His');
+        $now = now();
+        $stamp = $now->format('Ymd-His');
         $name = match ($export->type) {
             DataExport::TYPE_RAW => "base-brute-{$stamp}",
             DataExport::TYPE_CLEAN => "base-nettoyee-{$stamp}",
@@ -35,7 +36,7 @@ class ExportPackager
         };
 
         try {
-            $exporter = new DatasetExporter;
+            $exporter = (new DatasetExporter)->on($now);
             $files = match ($export->type) {
                 DataExport::TYPE_RAW => self::prefix('', $exporter->writeBase($work, 'brute')),
                 DataExport::TYPE_CLEAN => self::prefix('', $exporter->writeBase($work, 'nettoyee')) + $exporter->writeRegistry($work),
@@ -135,8 +136,8 @@ class ExportPackager
             'Intégrité : manifest.json donne l\'empreinte SHA-256 et le nombre de lignes de chaque fichier ;',
             'vérification, par exemple : sha256sum <fichier>.csv (Linux) ou certutil -hashfile <fichier>.csv SHA256 (Windows).',
             'Noms des tables : ceux de l\'export CSV d\'ODK Central préfixés de « app_brute_ » (base brute) ou',
-            '« app_nettoyee_ » (base nettoyée) : app_brute_<formulaire>.csv pour les ménages, app_brute_<formulaire>-<repeat>.csv',
-            'pour chaque repeat (de même avec app_nettoyee_).',
+            '« app_nettoyee_ » (base nettoyée) et de la date de l\'export : app_brute_AAAAMMJJ_<formulaire>.csv pour les ménages,',
+            'app_brute_AAAAMMJJ_<formulaire>-<repeat>.csv pour chaque repeat (de même avec app_nettoyee_).',
             '',
             'Fichiers :',
         ];

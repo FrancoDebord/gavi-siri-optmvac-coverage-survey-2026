@@ -200,7 +200,7 @@ Menu **Exports des bases**. La génération se fait en arrière-plan. Chaque fic
 
 | Export | Contenu |
 |---|---|
-| Base brute | Chaque soumission telle que reçue d'ODK, y compris les exclues (`exclue_base_nettoyee`). Une table CSV par niveau, nommée comme dans l'export CSV d'ODK Central et préfixée de `app_brute_` : `app_brute_<formulaire>.csv` pour les ménages, `app_brute_<formulaire>-<repeat>.csv` pour chaque repeat (base nettoyée : préfixe `app_nettoyee_`). Le membre est identifié par son chemin. |
+| Base brute | Chaque soumission telle que reçue d'ODK, y compris les exclues (`exclue_base_nettoyee`). Une table CSV par niveau, nommée comme dans l'export CSV d'ODK Central et préfixée de `app_brute_` et de la date de l'export : `app_brute_AAAAMMJJ_<formulaire>.csv` pour les ménages, `app_brute_AAAAMMJJ_<formulaire>-<repeat>.csv` pour chaque repeat (base nettoyée : préfixe `app_nettoyee_`). Le membre est identifié par son chemin. |
 | Base nettoyée | Mêmes tables, avec les corrections validées appliquées et les doublons exclus, plus `registre_corrections.csv`. |
 | Paquet d'archivage | Bases brute et nettoyée, registre, `queries.csv`, `historique_queries.csv`, `observations_supervision.csv`, `dictionnaire.csv`. |
 | Copie SQL | Structure et données de toutes les tables (hors cache, sessions, file d'attente), dans un ZIP chiffré AES-256. Le mot de passe de chiffrement est saisi par l'administrateur, qui signe aussi avec son propre mot de passe. La plateforme ne conserve pas le mot de passe de chiffrement. |

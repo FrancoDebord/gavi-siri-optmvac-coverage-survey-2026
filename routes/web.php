@@ -110,6 +110,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/mon-binome', [TeamSpaceController::class, 'show'])->name('team.space');
     Route::get('/mon-binome/soumissions', [TeamSpaceController::class, 'submissions'])->name('team.submissions');
     Route::get('/mon-binome/queries', [TeamSpaceController::class, 'queries'])->name('team.queries');
+    Route::get('/mon-binome/villages-agents', [TeamSpaceController::class, 'villageQueries'])->name('team.village-queries');
     Route::get('/mon-binome/grappes', [TeamSpaceController::class, 'clusters'])->name('team.clusters');
     Route::get('/mon-binome/grappes.pdf', [TeamSpaceController::class, 'clustersPdf'])->name('team.clusters.pdf')->middleware('throttle:10,1');
 
