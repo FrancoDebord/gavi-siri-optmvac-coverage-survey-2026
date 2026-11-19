@@ -18,6 +18,7 @@ use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InvestigatorController;
 use App\Http\Controllers\MappingController;
+use App\Http\Controllers\MicrosoftLoginController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QualityRuleController;
 use App\Http\Controllers\QueryDashboardController;
@@ -35,6 +36,12 @@ use Illuminate\Support\Facades\Route;
 // Jeton CSRF à jour (pages restées ouvertes longtemps) : évite l'erreur « page expirée ».
 Route::get('/session/jeton', fn () => response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store'))
     ->name('session.token')->middleware('throttle:30,1');
+
+// Connexion par Microsoft 365 : comptes existants et actifs du tenant de l'organisation.
+Route::middleware(['guest', 'throttle:20,1'])->group(function () {
+    Route::get('/auth/microsoft', [MicrosoftLoginController::class, 'redirect'])->name('auth.microsoft');
+    Route::get('/auth/microsoft/callback', [MicrosoftLoginController::class, 'callback'])->name('auth.microsoft.callback');
+});
 
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/profil', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -162,6 +162,29 @@ Conseillé : **Settings › Branches**, protéger `main` et exiger que « Tests 
   La release suivante publiée sur GitHub sera installée normalement.
 - Journaux de l'application : `shared/storage/logs/laravel-*.log`.
 
+## 4. Connexion par Microsoft 365 (facultatif)
+
+Le bouton « Se connecter avec Microsoft 365 » apparaît sur la page de connexion une fois les trois variables
+renseignées. Seuls les comptes du tenant de l'organisation peuvent l'utiliser, et seulement si un compte actif
+existe déjà sur la plateforme avec la même adresse e-mail (adresse de messagerie ou identifiant Microsoft) :
+aucun compte n'est créé automatiquement, rôles et périmètres restent attribués dans **Utilisateurs**.
+
+1. Portail Azure › **Microsoft Entra ID › Inscriptions d'applications › Nouvelle inscription** :
+   - comptes pris en charge : « Comptes dans cet annuaire d'organisation uniquement » ;
+   - URI de redirection (Web) : `https://<APP_URL>/auth/microsoft/callback`.
+2. **Certificats et secrets › Nouveau secret client** : copier la *valeur* (affichée une seule fois).
+3. **Autorisations d'API** : `Microsoft Graph › User.Read` (déléguée, présente par défaut).
+4. Dans `shared/.env` :
+   ```dotenv
+   MICROSOFT_CLIENT_ID=<ID d'application (client)>
+   MICROSOFT_CLIENT_SECRET=<valeur du secret>
+   MICROSOFT_TENANT_ID=<ID de l'annuaire (locataire)>
+   ```
+   puis `php artisan config:cache` dans `current/`.
+
+Le secret expire (24 mois au plus) : en créer un nouveau avant l'échéance et mettre `.env` à jour. Une personne
+connectée par Microsoft n'est pas obligée de changer le mot de passe initial de son compte.
+
 ## Dépannage
 
 | Symptôme | Cause probable |

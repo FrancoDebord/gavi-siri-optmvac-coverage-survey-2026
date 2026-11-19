@@ -11,8 +11,10 @@
         "barryvdh/laravel-dompdf": "^3.1",
         "laravel/fortify": "^1.41",
         "laravel/framework": "^12.0",
+        "laravel/socialite": "^5.33",
         "laravel/tinker": "^2.10.1",
         "maatwebsite/excel": "^3.1",
+        "socialiteproviders/microsoft": "^4.10",
         "spatie/laravel-permission": "^6.25"
     },
     "require-dev": {

@@ -20,6 +20,15 @@ return [
         'model' => env('ANTHROPIC_MODEL', 'claude-opus-5-5'),
     ],
 
+    // Connexion par Microsoft 365 (Entra ID) : désactivée tant que l'identifiant, le secret et le tenant ne sont pas renseignés.
+    'microsoft' => [
+        'client_id' => env('MICROSOFT_CLIENT_ID'),
+        'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
+        'redirect' => env('MICROSOFT_REDIRECT_URI', '/auth/microsoft/callback'),
+        // Tenant de l'organisation (ID ou domaine) : seuls ses comptes peuvent se connecter.
+        'tenant' => env('MICROSOFT_TENANT_ID'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

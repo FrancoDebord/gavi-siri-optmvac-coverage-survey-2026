@@ -26,4 +26,10 @@
         </div>
         <button class="btn btn-primary w-100"><i class="bi bi-box-arrow-in-right me-1"></i>Se connecter</button>
     </form>
+
+    @if (\App\Http\Controllers\MicrosoftLoginController::enabled())
+        <div class="d-flex align-items-center my-3 text-muted small"><hr class="flex-grow-1"><span class="px-2">ou</span><hr class="flex-grow-1"></div>
+        <a href="{{ route('auth.microsoft') }}" class="btn btn-outline-secondary w-100"><i class="bi bi-microsoft me-1"></i>Se connecter avec Microsoft 365</a>
+        <div class="form-text text-center">Avec l'adresse e-mail de votre compte sur la plateforme.</div>
+    @endif
 </x-layouts.guest>

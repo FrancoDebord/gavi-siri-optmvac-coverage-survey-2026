@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\MicrosoftLoginController;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,7 +16,9 @@ class EnsurePasswordChanged
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        if ($user?->must_change_password && ! $request->routeIs('profile.edit', 'user-password.update', 'logout', 'login', 'session.token')) {
+        // Connexion par Microsoft 365 : le mot de passe local n'est pas utilisé.
+        $viaMicrosoft = $request->hasSession() && $request->session()->get(MicrosoftLoginController::SESSION_KEY);
+        if ($user?->must_change_password && ! $viaMicrosoft && ! $request->routeIs('profile.edit', 'user-password.update', 'logout', 'login', 'session.token')) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Changez votre mot de passe avant de continuer.'], 403);
             }
