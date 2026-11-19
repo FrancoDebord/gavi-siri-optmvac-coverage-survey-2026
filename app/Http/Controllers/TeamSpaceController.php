@@ -86,7 +86,7 @@ class TeamSpaceController extends Controller
     public function queries(Request $request): View
     {
         [$team, $teams] = $this->team($request);
-        $base = DataQuery::whereIn('collector_id', $team->collectors->pluck('id'));
+        $base = DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id));
         $resolution = $request->input('resolution', DataQuery::RESOLUTION_UNRESOLVED);
 
         $queries = (clone $base)->with(['collector:id,name', 'cluster:id,code'])
@@ -213,7 +213,7 @@ class TeamSpaceController extends Controller
             'today' => CarbonImmutable::today(),
             // Le binôme choisi suit l'utilisateur d'un onglet à l'autre (équipe centrale, superviseurs).
             'teamParam' => $isTeam ? [] : ['team_id' => $team->id],
-            'openQueries' => DataQuery::whereIn('collector_id', $team->collectors->pluck('id'))->whereIn('status', DataQuery::UNRESOLVED)->count(),
+            'openQueries' => DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id))->whereIn('status', DataQuery::UNRESOLVED)->count(),
         ];
     }
 

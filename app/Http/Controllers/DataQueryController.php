@@ -198,7 +198,7 @@ class DataQueryController extends Controller
     }
 
     /** Règles portant sur la localisation (village, arrondissement, grappe) : correction par listes à cocher. */
-    public const GEO_RULES = ['GEO_HIERARCHY', 'HH_CODE', 'GPS_CLUSTER_DISTANCE'];
+    public const GEO_RULES = ['GEO_HIERARCHY', 'HH_CODE', 'GPS_CLUSTER_DISTANCE', 'TEAM_VILLAGE'];
 
     /**
      * Arrondissement et village à cocher (listes du dictionnaire) : arrondissements de la commune déclarée, villages
@@ -210,7 +210,8 @@ class DataQueryController extends Controller
         [$arrVar, $villageVar, $communeVar] = [Map::var('arrondissement'), Map::var('village'), Map::var('commune')];
         $arrDef = $arrVar ? $dictionary->variable($arrVar) : null;
         $villageDef = $villageVar ? $dictionary->variable($villageVar) : null;
-        if (! $query->household || ! $arrDef || ! $villageDef || ! (in_array($query->rule_code, self::GEO_RULES, true) || in_array($query->variable, [$arrVar, $villageVar], true))) {
+        $geoRule = in_array($query->rule_code, self::GEO_RULES, true) && ($query->rule_code !== 'TEAM_VILLAGE' || $query->variable === $villageVar);
+        if (! $query->household || ! $arrDef || ! $villageDef || ! ($geoRule || in_array($query->variable, [$arrVar, $villageVar], true))) {
             return null;
         }
         $clean = app(CleanDataService::class)->cleanSubmission($query->household);
@@ -223,14 +224,22 @@ class DataQueryController extends Controller
             ->filter(fn ($r) => in_array((string) ($r['extra']['parent'] ?? ''), $codes, true))
             ->sortBy(fn ($r) => mb_strtolower((string) $r['label']));
         $label = fn ($r) => trim(strip_tags((string) $r['label'])) ?: $r['name'];
+        $arrCurrent = (string) ($clean->data[$arrVar] ?? '');
+        $villageCurrent = (string) ($clean->data[$villageVar] ?? '');
+        // Village proposé (ex. d'après l'identifiant ménage) : pré-coché avec son arrondissement, s'il est de la commune.
+        $proposed = $query->variable === $villageVar && $query->suggested_value !== null
+            ? $villages->first(fn ($r) => (string) $r['name'] === (string) $query->suggested_value) : null;
 
         return [
+            'arr_selected' => $proposed ? (string) $proposed['extra']['parent'] : $arrCurrent,
+            'village_selected' => $proposed ? (string) $proposed['name'] : $villageCurrent,
+            'village_proposed' => $proposed ? (string) $proposed['name'] : null,
             'arr_var' => $arrVar,
             'village_var' => $villageVar,
             'arr_label' => trim(strip_tags((string) $arrDef['label'])),
             'village_label' => trim(strip_tags((string) $villageDef['label'])),
-            'arr_current' => (string) ($clean->data[$arrVar] ?? ''),
-            'village_current' => (string) ($clean->data[$villageVar] ?? ''),
+            'arr_current' => $arrCurrent,
+            'village_current' => $villageCurrent,
             'arrondissements' => $arrondissements->sortBy(fn ($r) => mb_strtolower((string) $r['label']))->map(fn ($r) => ['code' => $r['name'], 'label' => $label($r)])->values()->all(),
             'villages' => $villages->map(fn ($r) => ['code' => $r['name'], 'label' => $label($r), 'parent' => (string) $r['extra']['parent']])->values()->all(),
         ];

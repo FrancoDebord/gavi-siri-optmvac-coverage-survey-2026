@@ -17,7 +17,7 @@ class Household extends Model
     protected $fillable = [
         'submission_uuid', 'data_source_id', 'import_batch_id', 'form_version_id', 'source_type',
         'health_zone_id', 'commune_id', 'arrondissement_id', 'village_id', 'cluster_id', 'sub_cluster', 'collector_id',
-        'household_code', 'visit_number', 'survey_status', 'consented', 'interview_date',
+        'submitter', 'household_code', 'visit_number', 'survey_status', 'consented', 'interview_date',
         'started_at', 'ended_at', 'submitted_at', 'duration_minutes', 'latitude', 'longitude',
         'gps_accuracy', 'form_version', 'review_state', 'content_hash', 'data', 'raw_data', 'source_data', 'excluded_at',
     ];

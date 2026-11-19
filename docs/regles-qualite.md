@@ -54,6 +54,7 @@ ne ferme pas automatiquement celles qui existent.
 | `GPS_OUTSIDE_COMMUNE` | Point hors de la commune | Métier | Ménage | Mineure | Approximation sans polygones : distance au centroïde (médiane) des points de la commune supérieure au rayon. | `radius_km = 50`<br>`min_points = 5` |
 | `HH_CODE` | Identifiant ménage non conforme | Métier | Ménage | Majeure | Identifiant hors format ZONE-VIL-NN[-Sx]-MMM, préfixe de zone inconnu ou différent de la zone déclarée, code village inconnu, ou composante S différente de la sous-grappe sélectionnée dans le formulaire. | — |
 | `GEO_HIERARCHY` | Grappe / village incohérents | Métier | Ménage | Critique | Le village déclaré n'appartient pas à l'arrondissement ou à la commune déclarés, ou la grappe n'est pas rattachée au village. | — |
+| `TEAM_VILLAGE` | Village hors de ceux du binôme | Métier | Ménage | Majeure | Village coché hors des villages attribués au binôme (`binomes_villages.csv`), ou agent sélectionné d'un autre binôme que celui du compte ODK qui a soumis. Le compte ODK (binôme sélectionné dans ≥ 80 % de ses soumissions) et le code village de l'identifiant ménage départagent : agent mal sélectionné, village coché faux (village de l'identifiant proposé), ou binôme hors de ses villages. La query est confiée au binôme du compte ODK et visible des deux binômes ; suivi sur la page « Villages des binômes ». | — |
 | `PARA_DURATION` | Durée d'interview anormale | Métier | Ménage | Mineure | Durée (end − start) inférieure au minimum ou supérieure au maximum, pour les ménages ayant accepté. | `min_minutes = 10`<br>`max_minutes = 120` |
 | `PARA_OFF_HOURS` | Interview hors heures de travail | Métier | Ménage | Mineure | Début avant l'heure d'ouverture ou fin après l'heure de fermeture. | `start_hour = 7`<br>`end_hour = 19` |
 | `PARA_TODAY_START` | Date « today » différente de « start » | Métier | Ménage | Mineure | La date du jour enregistrée ne correspond pas à la date de début d'interview. | — |
@@ -123,6 +124,7 @@ Recopiées dans chaque query et dans les exports ; modifiables par règle (Param
 | `GPS_OUTSIDE_COMMUNE` | Vérifier la commune et le village déclarés ainsi que la position GPS, puis corriger la localisation. |
 | `HH_CODE` | Corriger l'identifiant du ménage dans ODK Central ({valeur}) au format attendu : {attendu}. Vérifier avec le binôme la grappe, la sous-grappe et le numéro d'ordre. |
 | `GEO_HIERARCHY` | Corriger le village, l'arrondissement ou la commune sélectionnés pour qu'ils soient cohérents ({attendu}). |
+| `TEAM_VILLAGE` | Selon le diagnostic : corriger l'agent sélectionné, le village coché (village de l'identifiant ménage pré-coché) ou justifier. |
 | `PARA_DURATION` | Échanger avec le binôme sur le déroulement de l'interview ({valeur}) ; justifier, ou contrôler le ménage. |
 | `PARA_OFF_HOURS` | Vérifier l'heure de la tablette et les conditions de l'interview ({valeur}) avec le binôme, puis justifier. |
 | `PARA_TODAY_START` | Vérifier et régler la date et l'heure de la tablette du binôme, puis justifier la soumission. |

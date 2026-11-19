@@ -216,6 +216,7 @@ class ImportController extends Controller
         $warnings = array_filter([
             $loader->unmatchedVillageCodes ? 'Codes villages sans correspondance : '.implode(' ; ', $loader->unmatchedVillageCodes).'.' : null,
             $loader->unmatchedFrameVillages ? 'Villages de la base de sondage non rattachés : '.implode(' ; ', $loader->unmatchedFrameVillages).'.' : null,
+            $loader->unmatchedTeamVillages ? 'Villages des binômes non rattachés : '.implode(' ; ', $loader->unmatchedTeamVillages).'.' : null,
         ]);
         if ($warnings) {
             return back()->with('warning', $message.' '.implode(' ', $warnings));

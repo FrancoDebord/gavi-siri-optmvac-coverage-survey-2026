@@ -4,7 +4,7 @@
         @if ($focus['member'])<span class="text-muted"><i class="bi bi-person me-1"></i>{{ $focus['member'] }}@if ($focus['uri']) · <code class="small">{{ \Illuminate\Support\Str::limit($focus['uri'], 24) }}</code>@endif</span>@endif
         @if ($focus['variable'])
             <span>Saisi : <span class="badge text-bg-danger-subtle text-danger-emphasis border">{{ $focus['raw'] ?? '(vide)' }}</span></span>
-            @if ($focus['has_suggestion'])<span><i class="bi bi-arrow-right"></i> {{ $focus['is_ai'] ? 'IA' : 'Photo' }} : <span class="badge {{ $focus['is_ai'] ? 'text-bg-info-subtle text-info-emphasis' : 'text-bg-success-subtle text-success-emphasis' }} border">{{ $focus['suggested'] }}</span></span>@endif
+            @if ($focus['has_suggestion'])<span><i class="bi bi-arrow-right"></i> {{ $focus['is_ai'] ? 'IA' : ($focus['is_rule'] ? 'Proposé' : 'Photo') }} : <span class="badge {{ $focus['is_ai'] ? 'text-bg-info-subtle text-info-emphasis' : 'text-bg-success-subtle text-success-emphasis' }} border">{{ $focus['suggested'] }}</span></span>@endif
             @if ($focus['current'])<span class="text-muted">(corrigé : {{ $focus['current'] }})</span>@endif
         @endif
     </div>

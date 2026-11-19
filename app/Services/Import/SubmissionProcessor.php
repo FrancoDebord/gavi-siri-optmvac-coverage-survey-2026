@@ -174,6 +174,8 @@ class SubmissionProcessor
             'cluster_id' => $clusterId,
             'sub_cluster' => $subCluster,
             'collector_id' => $collectorId,
+            // Compte ODK qui a envoyé la soumission (identifie le binôme qui a réellement collecté).
+            'submitter' => self::submitter($s),
             'household_code' => $get('id_menage') !== null ? trim((string) $get('id_menage')) : null,
             'visit_number' => is_numeric($get('numero_visite')) ? (int) $get('numero_visite') : null,
             'survey_status' => $status !== null ? (string) $status : null,
@@ -332,6 +334,15 @@ class SubmissionProcessor
         $listName = $variable ? ($this->dictionary->variable($variable)['list_name'] ?? null) : null;
 
         return ($listName ? $this->dictionary->choiceLabel($listName, $code) : null) ?? $code;
+    }
+
+    /** Compte ODK de la soumission (ODK Central, Kobo ou export CSV). */
+    public static function submitter(NormalizedSubmission $s): ?string
+    {
+        $value = $s->submitter ?? $s->raw['__system']['submitterName'] ?? $s->raw['_submitted_by'] ?? null;
+        $value = is_string($value) ? trim($value) : '';
+
+        return $value === '' || $value === 'null' ? null : mb_substr($value, 0, 120);
     }
 
     public static function dateTime(mixed $value): ?CarbonImmutable

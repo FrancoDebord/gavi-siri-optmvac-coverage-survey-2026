@@ -243,7 +243,7 @@
                                                 <div class="geo-choices border rounded bg-body p-2 mb-2" style="max-height: 180px; overflow:auto">
                                                     @foreach ($geoField['arrondissements'] as $choice)
                                                         <div class="form-check">
-                                                            <input class="form-check-input" type="radio" name="corrections[60][new_value]" id="arr-{{ $choice['code'] }}" value="{{ $choice['code'] }}" data-geo-arr @checked($choice['code'] === $geoField['arr_current'])>
+                                                            <input class="form-check-input" type="radio" name="corrections[60][new_value]" id="arr-{{ $choice['code'] }}" value="{{ $choice['code'] }}" data-geo-arr @checked($choice['code'] === $geoField['arr_selected'])>
                                                             <label class="form-check-label" for="arr-{{ $choice['code'] }}">{{ $choice['label'] }} @if ($choice['code'] === $geoField['arr_current'])<span class="badge text-bg-light border">saisi</span>@endif</label>
                                                         </div>
                                                     @endforeach
@@ -258,8 +258,8 @@
                                                 <div class="geo-choices border rounded bg-body p-2 mb-2" style="max-height: 240px; overflow:auto">
                                                     @foreach ($geoField['villages'] as $choice)
                                                         <div class="form-check" data-parent="{{ $choice['parent'] }}" data-name="{{ mb_strtolower($choice['label']) }}">
-                                                            <input class="form-check-input" type="radio" name="corrections[61][new_value]" id="vil-{{ $choice['code'] }}" value="{{ $choice['code'] }}" @checked($choice['code'] === $geoField['village_current'])>
-                                                            <label class="form-check-label" for="vil-{{ $choice['code'] }}">{{ $choice['label'] }} @if ($choice['code'] === $geoField['village_current'])<span class="badge text-bg-light border">saisi</span>@endif</label>
+                                                            <input class="form-check-input" type="radio" name="corrections[61][new_value]" id="vil-{{ $choice['code'] }}" value="{{ $choice['code'] }}" @checked($choice['code'] === $geoField['village_selected'])>
+                                                            <label class="form-check-label" for="vil-{{ $choice['code'] }}">{{ $choice['label'] }} @if ($choice['code'] === $geoField['village_current'])<span class="badge text-bg-light border">saisi</span>@endif @if ($choice['code'] === $geoField['village_proposed'])<span class="badge text-bg-success-subtle text-success-emphasis border">proposé</span>@endif</label>
                                                         </div>
                                                     @endforeach
                                                 </div>

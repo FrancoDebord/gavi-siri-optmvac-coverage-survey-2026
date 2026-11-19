@@ -72,6 +72,7 @@ class RuleCatalog
             'GPS_OUTSIDE_COMMUNE' => self::rule('Point hors de la commune', 'Approximation sans polygones : distance au centroïde (médiane) des points de la commune supérieure au rayon.', 'metier', 'mineure', Rules\Business\GpsOutsideCommuneRule::class, 'household', null, ['radius_km' => 50, 'min_points' => 5]),
             'HH_CODE' => self::rule('Identifiant ménage non conforme', 'Identifiant hors format ZONE-VIL-NN[-Sx]-MMM, préfixe de zone inconnu ou différent de la zone déclarée, code village inconnu, ou composante S différente de la sous-grappe sélectionnée dans le formulaire.', 'metier', 'majeure', Rules\Business\HouseholdCodeRule::class),
             'GEO_HIERARCHY' => self::rule('Grappe / village incohérents', 'Le village déclaré n\'appartient pas à l\'arrondissement ou à la commune déclarés, ou la grappe n\'est pas rattachée au village.', 'metier', 'critique', Rules\Business\GeoHierarchyRule::class),
+            'TEAM_VILLAGE' => self::rule('Village hors de ceux du binôme', 'Le village coché ne fait pas partie des villages attribués au binôme de l\'agent (fichier binomes_villages.csv). Si le code village de l\'identifiant ménage désigne un village du binôme, ce village est proposé comme correction.', 'metier', 'majeure', Rules\Business\TeamVillageRule::class),
 
             // ── Paradonnées ─────────────────────────────────────────────────────────
             'PARA_DURATION' => self::rule('Durée d\'interview anormale', 'Durée (end − start) inférieure au minimum ou supérieure au maximum, pour les ménages ayant accepté.', 'metier', 'mineure', Rules\Business\InterviewDurationRule::class, 'household', null, ['min_minutes' => 10, 'max_minutes' => 120]),
@@ -125,6 +126,7 @@ class RuleCatalog
         'GPS_CLUSTER_DISTANCE' => 'Vérifier que le ménage appartient bien à la grappe déclarée ({valeur} du centre) : corriger la grappe ou le village, ou justifier.',
         'GPS_OUTSIDE_COMMUNE' => 'Vérifier la commune et le village déclarés ainsi que la position GPS, puis corriger la localisation.',
         'GEO_HIERARCHY' => 'Corriger le village, l\'arrondissement ou la commune sélectionnés pour qu\'ils soient cohérents ({attendu}).',
+        'TEAM_VILLAGE' => 'Vérifier avec le binôme le village enquêté ({attendu}) : corriger le village coché ou l\'agent sélectionné, ou justifier.',
         'PARA_DURATION' => 'Échanger avec le binôme sur le déroulement de l\'interview ({valeur}) ; justifier, ou contrôler le ménage.',
         'PARA_OFF_HOURS' => 'Vérifier l\'heure de la tablette et les conditions de l\'interview ({valeur}) avec le binôme, puis justifier.',
         'PARA_TODAY_START' => 'Vérifier et régler la date et l\'heure de la tablette du binôme, puis justifier la soumission.',

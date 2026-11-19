@@ -14,6 +14,11 @@ final class QueryCandidate
         public string $discriminator = '',
         /** Suggestion propre à ce cas ; sinon celle de la règle. */
         public ?string $suggestion = null,
+        /** Valeur à proposer pour la correction (pré-remplie), déduite par la règle ; et d'où elle vient. */
+        public ?string $suggestedValue = null,
+        public ?string $suggestedNote = null,
+        /** Binôme concerné en plus de celui de l'agent sélectionné (ex. binôme du compte ODK) : la query lui est confiée. */
+        public ?int $teamId = null,
     ) {}
 
     public static function for(Scope $scope, string $message, ?string $variable = null, mixed $observed = null, ?string $expected = null): self

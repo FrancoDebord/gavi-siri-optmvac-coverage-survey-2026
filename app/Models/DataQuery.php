@@ -100,7 +100,7 @@ class DataQuery extends Model
 
     protected $fillable = [
         'fingerprint', 'quality_rule_id', 'rule_code', 'label', 'severity', 'household_id', 'caregiver_id',
-        'child_id', 'submission_uuid', 'household_code', 'health_zone_id', 'commune_id', 'village_id',
+        'child_id', 'team_id', 'submission_uuid', 'household_code', 'health_zone_id', 'commune_id', 'village_id',
         'cluster_id', 'collector_id', 'collection_date', 'variable', 'variable_label', 'instance_path', 'observed_value',
         'expected', 'message', 'suggestion', 'status', 'kind', 'assigned_to', 'assigned_by', 'assigned_at', 'due_on',
         'responded_by', 'responded_at', 'validated_by', 'detected_at', 'last_detected_at',
@@ -198,6 +198,12 @@ class DataQuery extends Model
         return $this->belongsTo(Child::class);
     }
 
+    /** Binôme concerné en plus de celui de l'agent sélectionné (ex. binôme du compte ODK). */
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
     public function healthZone(): BelongsTo
     {
         return $this->belongsTo(HealthZone::class);
@@ -229,7 +235,10 @@ class DataQuery extends Model
     }
 
     /** Sources de la valeur suggérée : lue sur la photo par une personne, ou par lecture automatique (IA). */
-    public const SUGGESTION_SOURCES = ['photo' => 'lue sur la photo', 'ia' => 'lue par l\'IA, à vérifier'];
+    /** Valeur suggérée déduite par la règle elle-même (ex. village d'après l'identifiant ménage). */
+    public const SUGGESTION_RULE = 'regle';
+
+    public const SUGGESTION_SOURCES = ['photo' => 'lue sur la photo', 'ia' => 'lue par l\'IA, à vérifier', self::SUGGESTION_RULE => 'déduite par le contrôle'];
 
     public function suggester(): BelongsTo
     {

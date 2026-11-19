@@ -28,6 +28,7 @@ use App\Http\Controllers\SupervisionController;
 use App\Http\Controllers\SupervisionObservationController;
 use App\Http\Controllers\TeamMessageController;
 use App\Http\Controllers\TeamSpaceController;
+use App\Http\Controllers\TeamVillageController;
 use App\Http\Controllers\UserController;
 use App\Models\DataQuery;
 use App\Models\User;
@@ -63,6 +64,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/queries', [DataQueryController::class, 'index'])->name('queries.index');
         Route::get('/queries/tableau', [DataQueryController::class, 'datatable'])->name('queries.datatable');
         Route::get('/observations', [SupervisionObservationController::class, 'index'])->name('observations.index');
+        // Villages des binômes (règle TEAM_VILLAGE) : diagnostic agent / compte ODK / village, cas à traiter.
+        Route::get('/queries/villages-binomes', [TeamVillageController::class, 'index'])->middleware('permission:validate queries')->name('team-villages.index');
         Route::get('/corrections', [DataCorrectionController::class, 'index'])->middleware('permission:validate queries|view pi dashboard')->name('corrections.index');
         Route::post('/corrections/accepter', [DataCorrectionController::class, 'acceptAll'])->middleware('permission:validate queries')->name('corrections.accept-all');
         Route::post('/corrections/{correction}/accepter', [DataCorrectionController::class, 'accept'])->middleware('permission:validate queries')->name('corrections.accept');

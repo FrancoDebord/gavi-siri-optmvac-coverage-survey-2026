@@ -29,6 +29,9 @@ class ReferenceDataLoader
     /** @var list<string> villages de la base de sondage sans village correspondant sur la plateforme */
     public array $unmatchedFrameVillages = [];
 
+    /** @var list<string> lignes de binomes_villages.csv sans binôme ou village correspondant */
+    public array $unmatchedTeamVillages = [];
+
     /**
      * Les grappes viennent de l'identifiant ménage (ZONE-VIL-NN) ;
      * $clustersFromVillages recrée l'ancien découpage « une grappe par village ».
@@ -124,6 +127,10 @@ class ReferenceDataLoader
             $frame = (new SamplingFrameImporter)->import();
             $this->unmatchedFrameVillages = $frame['unmatched'];
         }
+        // Villages attribués à chaque binôme (règle TEAM_VILLAGE), rattachés aux villages rechargés.
+        $teamVillages = (new TeamVillageImporter)->import();
+        $counts['villages_binomes'] = $teamVillages['links'];
+        $this->unmatchedTeamVillages = $teamVillages['unmatched'];
 
         return $counts;
     }

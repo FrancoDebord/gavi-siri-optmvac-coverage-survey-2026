@@ -72,6 +72,7 @@ final class QueryFocus
             'suggested_source' => $source,
             'suggested_note' => $query->suggested_note,
             'is_ai' => $query->suggested_source === 'ia',
+            'is_rule' => $query->suggested_source === DataQuery::SUGGESTION_RULE,
             'problem' => $query->message,
             'short_label' => $query->variable ? RelatedFields::label($query->variable) : null,
             'related' => $related,

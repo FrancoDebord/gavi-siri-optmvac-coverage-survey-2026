@@ -38,6 +38,9 @@ class QualityEngine
     /** @var array<int, int> agent → compte du binôme (affectation automatique) */
     private array $teamAccounts = [];
 
+    /** @var array<int, int> binôme => compte binôme (affectation automatique) */
+    private array $teamAccountsByTeam = [];
+
     private array $touched = [];
 
     private int $opened = 0;
@@ -77,8 +80,8 @@ class QualityEngine
             // Les queries des soumissions exclues de la base nettoyée ne sont plus réévaluées (fermées à l'exclusion).
             $this->existing = DataQuery::withoutGlobalScope('kind')
                 ->when($householdIds !== null, fn ($q) => $q->whereIn('household_id', $householdIds ?: [0]))
-                ->where(fn ($q) => $q->whereNull('household_id')->orWhereNotIn('household_id', Household::withoutGlobalScope('included')->whereNotNull('excluded_at')->select('id')))->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to'])
-                ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value, 'assigned_to' => $q->assigned_to]])
+                ->where(fn ($q) => $q->whereNull('household_id')->orWhereNotIn('household_id', Household::withoutGlobalScope('included')->whereNotNull('excluded_at')->select('id')))->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to', 'suggested_source'])
+                ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value, 'assigned_to' => $q->assigned_to, 'suggested_source' => $q->suggested_source]])
                 ->all();
             $this->prepareAutoAssignment();
 
@@ -149,20 +152,22 @@ class QualityEngine
      */
     private function prepareAutoAssignment(): void
     {
-        $this->teamAccounts = [];
+        $this->teamAccounts = $this->teamAccountsByTeam = [];
         if (AppSetting::get(AppSetting::AUTO_ASSIGN) !== 'team') {
             return;
         }
         $accounts = User::role(User::ROLE_TEAM)->whereNotNull('team_id')->orderBy('id')->get(['id', 'team_id'])
             ->unique('team_id')->pluck('id', 'team_id');
+        $this->teamAccountsByTeam = $accounts->all();
         $this->teamAccounts = Collector::whereNotNull('team_id')->pluck('team_id', 'id')
             ->map(fn ($teamId) => $accounts[$teamId] ?? null)->filter()->all();
     }
 
     /** Colonnes d'affectation d'une nouvelle query (vides sans affectation automatique). */
-    private function autoAssignment(QualityRule $rule, Household $household, CarbonInterface $now): array
+    private function autoAssignment(QualityRule $rule, Household $household, CarbonInterface $now, ?int $teamId = null): array
     {
-        $assignee = $this->teamAccounts[$household->collector_id] ?? null;
+        // Binôme désigné par la règle (ex. celui du compte ODK), sinon celui de l'agent sélectionné.
+        $assignee = ($teamId ? ($this->teamAccountsByTeam[$teamId] ?? null) : null) ?? $this->teamAccounts[$household->collector_id] ?? null;
         if (! $assignee || ($rule->kind ?: QualityRule::KIND_QUERY) !== QualityRule::KIND_QUERY) {
             return ['assigned_to' => null, 'assigned_at' => null, 'due_on' => null];
         }
@@ -212,6 +217,7 @@ class QualityEngine
                 'household_id' => $household->id,
                 'caregiver_id' => $candidate->scope?->caregiverId,
                 'child_id' => $candidate->scope?->childId,
+                'team_id' => $candidate->teamId,
                 'submission_uuid' => $household->submission_uuid,
                 'household_code' => $household->household_code,
                 'health_zone_id' => $household->health_zone_id,
@@ -227,12 +233,13 @@ class QualityEngine
                 'message' => mb_substr($candidate->message, 0, 2000),
                 'kind' => $rule->kind ?: QualityRule::KIND_QUERY,
                 'status' => DataQuery::STATUS_OPEN,
+                ...$this->ruleSuggestion($candidate, $now),
                 'detected_at' => $now,
                 'last_detected_at' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
-            $this->toInsert[$fingerprint] = $this->autoAssignment($rule, $household, $now) + $this->toInsert[$fingerprint];
+            $this->toInsert[$fingerprint] = $this->autoAssignment($rule, $household, $now, $candidate->teamId) + $this->toInsert[$fingerprint];
 
             return;
         }
@@ -243,12 +250,17 @@ class QualityEngine
             // Les identifiants d'enfant/caregiver changent quand une soumission est réimportée.
             'caregiver_id' => $candidate->scope?->caregiverId,
             'child_id' => $candidate->scope?->childId,
+            'team_id' => $candidate->teamId,
             'severity' => $rule->severity,
             'kind' => $rule->kind ?: QualityRule::KIND_QUERY,
             'collector_id' => $household->collector_id,
             'cluster_id' => $household->cluster_id,
             'collection_date' => $household->interview_date?->toDateString(),
         ];
+        // Valeur proposée par la règle : jamais à la place d'une valeur lue sur la photo ou par l'IA.
+        if (in_array($existing['suggested_source'], [null, DataQuery::SUGGESTION_RULE], true)) {
+            $updates += $this->ruleSuggestion($candidate, $now);
+        }
         if ($observed !== $existing['observed']) {
             $updates += ['observed_value' => $observed, 'message' => mb_substr($candidate->message, 0, 2000), 'expected' => $candidate->expected];
         }
@@ -260,6 +272,19 @@ class QualityEngine
             $this->opened++;
         }
         DataQuery::withoutGlobalScope('kind')->whereKey($existing['id'])->update($updates);
+    }
+
+    /** Valeur suggérée par la règle elle-même (ex. village d'après l'identifiant ménage), sinon aucune. */
+    private function ruleSuggestion(QueryCandidate $candidate, CarbonInterface $now): array
+    {
+        $has = $candidate->suggestedValue !== null;
+
+        return [
+            'suggested_value' => $has ? $candidate->suggestedValue : null,
+            'suggested_source' => $has ? DataQuery::SUGGESTION_RULE : null,
+            'suggested_note' => $has ? mb_substr((string) $candidate->suggestedNote, 0, 255) ?: null : null,
+            'suggested_at' => $has ? $now : null,
+        ];
     }
 
     /**

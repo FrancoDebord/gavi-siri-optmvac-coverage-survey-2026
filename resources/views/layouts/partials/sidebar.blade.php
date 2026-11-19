@@ -81,6 +81,10 @@
         @if ($myQueries = \App\Models\DataQuery::where('assigned_to', auth()->id())->whereIn('status', \App\Models\DataQuery::UNRESOLVED)->count())<span class="badge rounded-pill text-bg-primary ms-1" title="Queries qui vous sont assignées">{{ $myQueries }}</span>@endif
         @if ($myReviews = \App\Models\DataQuery::where('reviewer_id', auth()->id())->whereIn('status', \App\Models\DataQuery::RESPONSES)->count())<span class="badge rounded-pill text-bg-warning ms-1" title="Queries à valider par vous">{{ $myReviews }}</span>@endif</span></a>
     <a class="{{ $link('observations.*') }}" href="{{ route('observations.index') }}"><i class="bi bi-binoculars"></i><span class="label">Observations de supervision</span></a>
+    @can('validate queries')
+        <a class="{{ $link('team-villages.*') }}" href="{{ route('team-villages.index') }}"><i class="bi bi-signpost-split"></i><span class="label">Villages des binômes
+            @if ($teamVillageCases = \App\Models\DataQuery::where('rule_code', 'TEAM_VILLAGE')->whereIn('status', \App\Models\DataQuery::UNRESOLVED)->count())<span class="badge rounded-pill text-bg-warning ms-1">{{ $teamVillageCases }}</span>@endif</span></a>
+    @endcan
     @canany(['validate queries', 'view pi dashboard'])
         <a class="{{ $link('corrections.*') }}" href="{{ route('corrections.index') }}"><i class="bi bi-pencil-square"></i><span class="label">Registre des corrections</span></a>
     @endcanany

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -20,6 +21,12 @@ class Team extends Model
     public function collectors(): HasMany
     {
         return $this->hasMany(Collector::class)->orderBy('code');
+    }
+
+    /** Villages que le binôme doit couvrir (binomes_villages.csv) : base de la règle TEAM_VILLAGE. */
+    public function villages(): BelongsToMany
+    {
+        return $this->belongsToMany(Village::class, 'team_village')->orderBy('name');
     }
 
     /**
