@@ -150,6 +150,24 @@ class DataExportTest extends TestCase
         $this->assertNotEmpty($this->csv($zip, 'queries.csv'));
     }
 
+    public function test_download_survives_deleted_release_and_reports_missing_files(): void
+    {
+        $this->actingAs($this->admin)->post(route('exports.store'), ['type' => DataExport::TYPE_RAW]);
+        $export = DataExport::firstOrFail();
+        // Chemin enregistré sous une release supprimée depuis (déploiements successifs) : le fichier est dans storage partagé.
+        $export->update(['file_path' => '/home/app/releases/20261101000000-old/storage/app/private/exports/'.$export->file_name]);
+
+        $this->actingAs($this->admin)->get(route('exports.index'))->assertOk()->assertSee('Télécharger');
+        $this->actingAs($this->admin)->get(route('exports.download', $export))->assertOk()->assertDownload($export->file_name);
+
+        unlink($export->path());
+        $this->actingAs($this->admin)->get(route('exports.index'))->assertSee('Fichier introuvable')->assertDontSee('Télécharger');
+
+        $stuck = DataExport::create(['type' => DataExport::TYPE_CLEAN, 'status' => DataExport::STATUS_PENDING, 'requested_by' => $this->admin->id]);
+        $stuck->forceFill(['created_at' => now()->subMinutes(20)])->save();
+        $this->actingAs($this->admin)->get(route('exports.index'))->assertSee('ne semble pas tourner');
+    }
+
     public function test_sql_copy_is_admin_only_signed_and_encrypted(): void
     {
         $this->actingAs($this->manager)->get(route('exports.index'))->assertRedirect();

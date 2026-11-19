@@ -26,6 +26,9 @@ class ReferenceDataLoader
     /** @var list<string> lignes du classeur des codes villages sans village correspondant (dernier chargement) */
     public array $unmatchedVillageCodes = [];
 
+    /** @var list<string> villages de la base de sondage sans village correspondant sur la plateforme */
+    public array $unmatchedFrameVillages = [];
+
     /**
      * Les grappes viennent de l'identifiant ménage (ZONE-VIL-NN) ;
      * $clustersFromVillages recrée l'ancien découpage « une grappe par village ».
@@ -116,6 +119,12 @@ class ReferenceDataLoader
         $counts['codes_villages'] = $codes['matched'];
         $this->unmatchedVillageCodes = $codes['unmatched'];
 
+        // Base de sondage re-rattachée aux villages tels qu'ils sont maintenant (noms ou villages nouveaux).
+        if (is_file(SamplingFrameImporter::path())) {
+            $frame = (new SamplingFrameImporter)->import();
+            $this->unmatchedFrameVillages = $frame['unmatched'];
+        }
+
         return $counts;
     }
 
@@ -164,7 +173,8 @@ class ReferenceDataLoader
             return $result;
         }
 
-        $normalize = fn (?string $name) => preg_replace('/[^A-Z0-9]/', '', mb_strtoupper(Str::ascii(trim((string) $name))));
+        // Mêmes règles et mêmes alias que la base de sondage (ex. « EROKOYA (ZANKOUMADON) » → Zankoumadon).
+        $normalize = fn (?string $name) => SamplingFrameImporter::normalize(trim((string) $name));
         $spreadsheet = IOFactory::load($path);
 
         foreach ($spreadsheet->getSheetNames() as $sheet) {

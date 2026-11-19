@@ -17,13 +17,28 @@ use Illuminate\Support\Str;
  */
 class SamplingFrameImporter
 {
-    /** Noms de la liste → nom de la plateforme, quand l'écriture diffère trop. */
+    /**
+     * Noms des fichiers → nom de la plateforme (forme normalisée : minuscules sans accents ni ponctuation),
+     * quand l'écriture diffère ou pour fixer une correspondance confirmée par l'équipe.
+     */
     public const ALIASES = [
         'tchaouroucentre' => 'tchaourou',
         'zaffe' => 'zaffecentre',
-        'erokoyazankoumadon' => 'zankoumadon',
+        'erokoyazankoumadon' => 'zankoumadon',   // EROKOYA (ZANKOUMADON) → Zankoumadon
+        'erokoya' => 'zankoumadon',
         'yevedoactuellealodoalomin' => 'yevedo',
+        'vedji' => 'vedji',                     // Vêdji → VEDJI
+        'itchoguesotre' => 'itchoguesotre',     // Itchogué Sotré → Itchogue-Sotre
+        'fita' => 'fita',                       // FITA → Fita
     ];
+
+    /** Forme normalisée d'un nom de village, alias appliqué. */
+    public static function normalize(string $name): string
+    {
+        $key = preg_replace('/[^a-z0-9]/', '', strtolower(Str::ascii($name)));
+
+        return self::ALIASES[$key] ?? $key;
+    }
 
     public static function path(): string
     {
@@ -90,8 +105,7 @@ class SamplingFrameImporter
     {
         $norm = fn (string $s) => preg_replace('/[^a-z0-9]/', '', strtolower(Str::ascii($s)));
         $base = fn (string $s) => preg_replace('/\d+$/', '', $norm($s));
-        $target = $norm($label);
-        $target = self::ALIASES[$target] ?? $target;
+        $target = self::normalize($label);
 
         $exact = $villages->filter(fn ($v) => $norm($v->name) === $target);
         if ($exact->isNotEmpty()) {

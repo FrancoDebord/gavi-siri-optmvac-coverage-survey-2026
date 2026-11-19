@@ -61,11 +61,16 @@
                         <td class="text-muted">EXP-{{ str_pad((string) $export->id, 6, '0', STR_PAD_LEFT) }}</td>
                         <td>{{ $export->typeLabel() }}</td>
                         <td class="text-nowrap">{{ $export->requester?->name ?? '—' }}<div class="text-muted">{{ $export->created_at->format('d/m/Y H:i') }}</div></td>
-                        <td><span class="badge text-bg-{{ $export->statusColor() }}">{{ $export->statusLabel() }}</span>@if ($export->error)<div class="text-danger">{{ \Illuminate\Support\Str::limit($export->error, 120) }}</div>@endif</td>
+                        <td>
+                            <span class="badge text-bg-{{ $export->statusColor() }}">{{ $export->statusLabel() }}</span>
+                            @if ($export->error)<div class="text-danger">{{ \Illuminate\Support\Str::limit($export->error, 120) }}</div>@endif
+                            @if ($export->isMissing())<div class="text-danger">Fichier introuvable sur le serveur : relancez la génération.</div>@endif
+                            @if ($export->isStuck())<div class="text-warning-emphasis">En attente depuis {{ $export->created_at->diffForHumans(null, true) }} : le traitement en arrière-plan (worker de la file) ne semble pas tourner.</div>@endif
+                        </td>
                         <td>@if ($export->file_name){{ $export->file_name }}<div class="text-muted">{{ number_format(($export->file_size ?? 0) / 1048576, 1, ',', ' ') }} Mo · {{ collect($export->manifest['fichiers'] ?? [])->count() }} fichier(s) · {{ $export->download_count }} téléchargement(s)</div>@else — @endif</td>
                         <td><code class="small text-break">{{ $export->sha256 ?? '—' }}</code></td>
                         <td class="text-nowrap">{{ $export->expires_at?->format('d/m/Y') ?? '—' }}</td>
-                        <td>@if ($export->isDownloadable())<a href="{{ route('exports.download', $export) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a>@endif</td>
+                        <td class="text-nowrap">@if ($export->isDownloadable())<a href="{{ route('exports.download', $export) }}" class="btn btn-sm btn-primary"><i class="bi bi-download me-1"></i>Télécharger</a>@endif</td>
                     </tr>
                 @empty
                     <tr><td colspan="8" class="text-center text-muted py-4">Aucun export.</td></tr>

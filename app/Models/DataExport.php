@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Export\ExportPackager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -82,8 +83,36 @@ class DataExport extends Model
         return self::STATUSES[$this->status][1] ?? 'secondary';
     }
 
+    /**
+     * Emplacement actuel du fichier : retrouvé par son nom dans le dossier des exports. Le chemin absolu enregistré
+     * pointe vers la release du moment de la génération, supprimée après quelques déploiements.
+     */
+    public function path(): ?string
+    {
+        if ($this->file_name) {
+            $path = ExportPackager::directory().DIRECTORY_SEPARATOR.basename($this->file_name);
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return $this->file_path && is_file($this->file_path) ? $this->file_path : null;
+    }
+
     public function isDownloadable(): bool
     {
-        return $this->status === self::STATUS_DONE && $this->file_path && is_file($this->file_path);
+        return $this->status === self::STATUS_DONE && $this->path() !== null;
+    }
+
+    /** Marqué prêt mais fichier introuvable sur le serveur : à regénérer. */
+    public function isMissing(): bool
+    {
+        return $this->status === self::STATUS_DONE && $this->path() === null;
+    }
+
+    /** En attente depuis plus de 5 minutes : la file de traitement en arrière-plan ne tourne probablement pas. */
+    public function isStuck(): bool
+    {
+        return $this->status === self::STATUS_PENDING && $this->created_at?->lt(now()->subMinutes(5));
     }
 }

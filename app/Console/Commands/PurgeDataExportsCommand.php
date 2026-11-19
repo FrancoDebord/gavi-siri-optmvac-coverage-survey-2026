@@ -16,8 +16,8 @@ class PurgeDataExportsCommand extends Command
     {
         $expired = DataExport::where('status', DataExport::STATUS_DONE)->where('expires_at', '<', now())->get();
         foreach ($expired as $export) {
-            if ($export->file_path && is_file($export->file_path)) {
-                @unlink($export->file_path);
+            if ($path = $export->path()) {
+                @unlink($path);
             }
             $export->update(['status' => DataExport::STATUS_EXPIRED]);
         }

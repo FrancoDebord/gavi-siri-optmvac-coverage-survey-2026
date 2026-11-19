@@ -56,6 +56,6 @@ class DataExportController extends Controller
         $export->increment('download_count');
         AuditLog::record('export.base_telechargement', $export, ['type' => $export->type, 'fichier' => $export->file_name, 'sha256' => $export->sha256]);
 
-        return response()->download($export->file_path, $export->file_name);
+        return response()->download($export->path(), $export->file_name);
     }
 }

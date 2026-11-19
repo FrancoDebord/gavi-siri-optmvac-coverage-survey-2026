@@ -265,6 +265,15 @@ class InvestigatorTest extends TestCase
         $this->assertSame(288, $frame->households_enumerated);
         $this->assertSame(96, $frame->expected()); // 288 ménages ÷ 3 subdivisions
 
+        // Correspondances confirmées par l'équipe (écritures différentes entre la liste et la plateforme).
+        $dagla = HealthZone::where('code', '2')->firstOrFail();
+        foreach (['Vêdji' => 'VEDJI', 'EROKOYA (ZANKOUMADON)' => 'ZANKOUMADON', 'Itchogué Sotré' => 'ITCHOGUESOTRE', 'FITA' => 'FITA'] as $label => $platform) {
+            $village = Village::where('health_zone_id', $dagla->id)->get()->first(fn ($v) => strtoupper(preg_replace('/[^A-Za-z0-9]/', '', Str::ascii($v->name))) === $platform);
+            $this->assertNotNull($village, "Village {$platform} absent du référentiel");
+            $this->assertSame([$village->id], ClusterFrame::where('village_label', $label)->firstOrFail()->village_ids, "{$label} → {$village->name}");
+        }
+        $this->assertSame([], $report['unmatched'] ?? []);
+
         $pi = $this->user(User::ROLE_PI);
         $report = $this->actingAs($pi)->get(route('investigator.clusters', ['health_zone_id' => $this->tchaourou->id]))->assertOk()
             ->assertSee('Ménages dénombrés')->assertSee('Ménages attendus')->assertDontSee('non visitée')->viewData('report');

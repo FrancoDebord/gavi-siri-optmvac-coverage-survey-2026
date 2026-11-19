@@ -10,13 +10,31 @@ use App\Models\HealthZone;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        return view('users.index', ['users' => User::with(['roles', 'healthZone', 'commune', 'team'])->orderBy('name')->paginate(25)]);
+        $filters = [
+            'q' => trim((string) $request->input('q')),
+            'role' => array_key_exists((string) $request->input('role'), User::ROLES) ? (string) $request->input('role') : null,
+            'statut' => in_array($request->input('statut'), ['actif', 'desactive'], true) ? $request->input('statut') : null,
+        ];
+        $like = '%'.$filters['q'].'%';
+        $users = User::with(['roles', 'healthZone', 'commune', 'team'])
+            // Recherche rapide : nom, identifiant, e-mail, binôme, zone sanitaire ou commune du périmètre.
+            ->when($filters['q'] !== '', fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', $like)
+                ->orWhere('username', 'like', $like)->orWhere('email', 'like', $like)
+                ->orWhereHas('team', fn ($t) => $t->where('code', 'like', $like)->orWhere('name', 'like', $like))
+                ->orWhereHas('healthZone', fn ($z) => $z->where('name', 'like', $like))
+                ->orWhereHas('commune', fn ($c) => $c->where('name', 'like', $like))))
+            ->when($filters['role'], fn ($q, $role) => $q->role($role))
+            ->when($filters['statut'], fn ($q, $statut) => $q->where('is_active', $statut === 'actif'))
+            ->orderBy('name')->paginate(25)->withQueryString();
+
+        return view('users.index', ['users' => $users, 'filters' => $filters, 'total' => User::count()]);
     }
 
     public function create(): View

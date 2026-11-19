@@ -213,8 +213,12 @@ class ImportController extends Controller
         DashboardCache::bump();
 
         $message = sprintf('Référentiel rechargé : %d zone(s), %d commune(s), %d village(s) dont %d avec code à 3 lettres, %d agent(s) en %d binôme(s).', $counts['zones'], $counts['communes'], $counts['villages'], $counts['codes_villages'], $counts['enqueteurs'], $counts['binomes']);
-        if ($loader->unmatchedVillageCodes) {
-            return back()->with('warning', $message.' Codes villages sans correspondance : '.implode(' ; ', $loader->unmatchedVillageCodes).'.');
+        $warnings = array_filter([
+            $loader->unmatchedVillageCodes ? 'Codes villages sans correspondance : '.implode(' ; ', $loader->unmatchedVillageCodes).'.' : null,
+            $loader->unmatchedFrameVillages ? 'Villages de la base de sondage non rattachés : '.implode(' ; ', $loader->unmatchedFrameVillages).'.' : null,
+        ]);
+        if ($warnings) {
+            return back()->with('warning', $message.' '.implode(' ', $warnings));
         }
 
         return back()->with('success', $message);

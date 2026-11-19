@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import '../css/app.css';
 
 import { initLayout } from './lib/layout';
+import { initLiveFilters } from './lib/live-filter';
 import { initSearchableSelects } from './lib/searchable-select';
 import { initSessionRefresh } from './lib/session';
 import progressPage from './pages/progress';
@@ -49,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initLayout();
     initSessionRefresh();
     initSearchableSelects();
+    initLiveFilters();
     const page = document.body.dataset.page;
     if (page && pages[page]) {
         pages[page]();
