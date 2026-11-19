@@ -118,5 +118,19 @@ class TeamVillageRuleTest extends TestCase
         $admin->assignRole(User::ROLE_ADMIN);
         $this->actingAs($admin)->get(route('team-villages.index'))->assertOk()
             ->assertSee('TCH-WAR-04-S1-050')->assertSee('TCH 05')->assertSee('Agent mal sélectionné')->assertSee('46-47');
+
+        // Correction : binômes de Tchaourou à cocher (pas ceux de Dagla), agents avec leur code, agent saisi coché.
+        $page = $this->actingAs($admin)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('Cochez le bon agent')->assertSee('binôme du compte ODK')
+            ->assertSee('name="corrections[62][new_value]" id="agent-46" value="46"', false)
+            ->assertSee('id="agent-38" value="38" checked', false)
+            ->assertDontSee('id="agent-20"', false); // agent de Dagla
+        $this->assertLessThan(strpos($page->getContent(), 'id="agent-38"'), strpos($page->getContent(), 'id="agent-46"'), 'binôme du compte ODK en tête');
+
+        $this->actingAs($admin)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
+            62 => ['variable' => 'fieldworker', 'new_value' => '46', 'optional' => '1', 'reason' => 'appel'],
+        ]])->assertSessionHasNoErrors();
+        app(QualityEngine::class)->run('test');
+        $this->assertTrue(in_array($query->fresh()->status, [DataQuery::STATUS_VALIDATED, DataQuery::STATUS_CORRECTED], true), $query->fresh()->status);
     }
 }

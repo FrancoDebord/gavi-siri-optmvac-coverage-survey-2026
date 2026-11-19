@@ -10,10 +10,12 @@ use App\Http\Requests\QueryStatusRequest;
 use App\Jobs\RunQualityChecksJob;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
+use App\Models\Collector;
 use App\Models\DataCorrection;
 use App\Models\DataQuery;
 use App\Models\QualityRule;
 use App\Models\QualityRun;
+use App\Models\Team;
 use App\Models\User;
 use App\Services\Attachments\PhotoReader;
 use App\Services\Attachments\SubmissionPhotos;
@@ -29,6 +31,7 @@ use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QueryFocus;
 use App\Services\Quality\QueryWorkflow;
 use App\Services\Quality\RelatedFields;
+use App\Services\Quality\TeamVillageCheck;
 use App\Support\Filters;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -178,13 +181,15 @@ class DataQueryController extends Controller
 
         $focus = QueryFocus::for($query);
         $geo = $this->geoField($query);
+        $agent = $user->can('respond', $query) ? $this->agentField($query) : null;
 
         return view('queries.show', [
             'query' => $query,
             'focus' => $focus,
             'corrections' => DataCorrection::where('data_query_id', $query->id)->with(['proposer:id,name', 'decider:id,name'])->latest('id')->get(),
-            'correctionField' => $user->can('respond', $query) && ! $geo ? $this->correctionField($query, $focus['suggested_value']) : null,
+            'correctionField' => $user->can('respond', $query) && ! $geo && ! $agent ? $this->correctionField($query, $focus['suggested_value']) : null,
             'geoField' => $user->can('respond', $query) ? $geo : null,
+            'agentField' => $agent,
             'reasons' => DataCorrection::REASONS,
             'members' => $user->can('respond', $query) ? $this->members($query) : [],
             'memberValues' => $user->can('respond', $query) ? $this->memberValues($query) : [],
@@ -243,6 +248,31 @@ class DataQueryController extends Controller
             'arrondissements' => $arrondissements->sortBy(fn ($r) => mb_strtolower((string) $r['label']))->map(fn ($r) => ['code' => $r['name'], 'label' => $label($r)])->values()->all(),
             'villages' => $villages->map(fn ($r) => ['code' => $r['name'], 'label' => $label($r), 'parent' => (string) $r['extra']['parent']])->values()->all(),
         ];
+    }
+
+    /**
+     * Agent à corriger (ex. agent d'un autre binôme sélectionné) : binômes de la zone sanitaire du ménage avec leurs
+     * agents, à cocher ; binôme désigné par la query (compte ODK) en tête, agent saisi signalé.
+     */
+    private function agentField(DataQuery $query): ?array
+    {
+        $variable = Map::var('binome');
+        if (! $variable || $query->variable !== $variable || ! $query->household) {
+            return null;
+        }
+        $current = (string) (app(CleanDataService::class)->cleanSubmission($query->household)->data[$variable] ?? '');
+        $zone = $query->household->health_zone_id;
+        $agent = fn (Collector $c) => ['code' => (string) $c->code, 'label' => $c->name];
+        $teams = Team::with('collectors')->when($zone, fn ($q) => $q->where('health_zone_id', $zone))->orderBy('code')->get()
+            ->map(fn (Team $t) => ['id' => $t->id, 'label' => TeamVillageCheck::teamLabel($t), 'proposed' => (int) $t->id === (int) $query->team_id, 'agents' => $t->collectors->map($agent)->all()])
+            ->sortByDesc('proposed')->values();
+        // Agents de la zone sans binôme (ex. superviseurs).
+        $others = Collector::whereNull('team_id')->when($zone, fn ($q) => $q->where('health_zone_id', $zone))->orderBy('code')->get();
+        if ($others->isNotEmpty()) {
+            $teams->push(['id' => null, 'label' => 'Agents sans binôme', 'proposed' => false, 'agents' => $others->map($agent)->all()]);
+        }
+
+        return ['variable' => $variable, 'current' => $current, 'teams' => $teams->all()];
     }
 
     /** Membres de la soumission (ménage, caregivers, enfants…) : chemin => libellé lisible. */

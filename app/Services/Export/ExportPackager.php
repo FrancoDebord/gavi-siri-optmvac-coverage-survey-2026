@@ -19,7 +19,7 @@ class ExportPackager
 {
     public static function directory(): string
     {
-        return storage_path('app/private/exports');
+        return rtrim((string) (config('gavi.exports_path') ?: storage_path('app/private/exports')), '/\\');
     }
 
     public function build(DataExport $export, ?string $password = null): void
@@ -133,7 +133,9 @@ class ExportPackager
             '',
             'Format : CSV UTF-8 (avec BOM), séparateur virgule, guillemets doubles, une ligne d\'en-tête.',
             'Intégrité : manifest.json donne l\'empreinte SHA-256 et le nombre de lignes de chaque fichier ;',
-            'vérification, par exemple : sha256sum menages.csv (Linux) ou certutil -hashfile menages.csv SHA256 (Windows).',
+            'vérification, par exemple : sha256sum <fichier>.csv (Linux) ou certutil -hashfile <fichier>.csv SHA256 (Windows).',
+            'Noms des tables : ceux de l\'export CSV d\'ODK Central préfixés de « app_ » (app_<formulaire>.csv pour les ménages,',
+            'app_<formulaire>-<repeat>.csv pour chaque repeat).',
             '',
             'Fichiers :',
         ];

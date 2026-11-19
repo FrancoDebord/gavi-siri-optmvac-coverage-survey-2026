@@ -13,6 +13,9 @@
 
 return [
 
+    // Dossier des fichiers d'export générés (ZIP) ; par défaut storage/app/private/exports. Les tests en utilisent un autre.
+    'exports_path' => env('GAVI_EXPORTS_PATH'),
+
     // Dossier contenant le XLSForm et les fichiers CSV de pulldata (l1.csv, village.csv…).
     'settings_path' => (function () {
         $path = env('GAVI_SETTINGS_PATH') ?: storage_path('app/public/settings');

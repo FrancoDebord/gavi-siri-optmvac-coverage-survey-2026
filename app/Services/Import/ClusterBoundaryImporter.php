@@ -6,6 +6,7 @@ use App\Models\Cluster;
 use App\Models\HealthZone;
 use App\Models\SubCluster;
 use App\Models\Village;
+use App\Services\Export\ExportPackager;
 use App\Support\DashboardCache;
 use App\Support\HouseholdCode;
 use Carbon\CarbonImmutable;
@@ -111,7 +112,7 @@ class ClusterBoundaryImporter
         if (! is_file($this->compilationPath())) {
             $this->run();
         }
-        $path = storage_path('app/private/exports/contours-grappes-'.now()->format('Ymd-His').'.zip');
+        $path = ExportPackager::directory().'/contours-grappes-'.now()->format('Ymd-His').'.zip';
         if (! is_dir(dirname($path))) {
             mkdir(dirname($path), 0755, true);
         }

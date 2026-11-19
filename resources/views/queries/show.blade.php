@@ -266,6 +266,34 @@
                                                 @include('queries._correction-reason', ['i' => 60])
                                             </div>
                                         @endif
+                                        @if ($agentField)
+                                            {{-- Agent à cocher : binômes de la zone sanitaire, binôme du compte ODK en tête. --}}
+                                            <div class="border rounded p-2 mb-2 bg-light-subtle" data-correction-row>
+                                                <div class="small fw-semibold mb-1">Cochez le bon agent</div>
+                                                <input type="hidden" name="corrections[62][variable]" value="{{ $agentField['variable'] }}">
+                                                <input type="hidden" name="corrections[62][optional]" value="1">
+                                                <div class="geo-choices border rounded bg-body p-2 mb-2" style="max-height: 320px; overflow:auto">
+                                                    @foreach ($agentField['teams'] as $team)
+                                                        <div class="mb-2 {{ $team['proposed'] ? 'border border-success-subtle rounded p-1' : '' }}">
+                                                            <div class="small fw-semibold">
+                                                                {{ $team['id'] ? 'Binôme '.$team['label'] : $team['label'] }}
+                                                                @if ($team['proposed'])<span class="badge text-bg-success-subtle text-success-emphasis border ms-1">binôme du compte ODK</span>@endif
+                                                            </div>
+                                                            @foreach ($team['agents'] as $agent)
+                                                                <div class="form-check ms-2">
+                                                                    <input class="form-check-input" type="radio" name="corrections[62][new_value]" id="agent-{{ $agent['code'] }}" value="{{ $agent['code'] }}" @checked($agent['code'] === $agentField['current'])>
+                                                                    <label class="form-check-label" for="agent-{{ $agent['code'] }}">
+                                                                        <code>{{ $agent['code'] }}</code> – {{ $agent['label'] }}
+                                                                        @if ($agent['code'] === $agentField['current'])<span class="badge text-bg-light border">saisi</span>@endif
+                                                                    </label>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                                @include('queries._correction-reason', ['i' => 62])
+                                            </div>
+                                        @endif
                                         @if ($correctionField && $correctionField['related'])
                                             <fieldset class="border border-warning-subtle rounded p-2 mb-2" data-pair-choice>
                                                 <legend class="float-none w-auto small fw-semibold px-1 mb-1">Quelle valeur est fausse ?</legend>

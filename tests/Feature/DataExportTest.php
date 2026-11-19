@@ -7,13 +7,14 @@ use App\Models\DataExport;
 use App\Models\DataQuery;
 use App\Models\Household;
 use App\Models\User;
+use App\Services\Dictionary\Dictionary;
+use App\Services\Export\DatasetExporter;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QualityEngine;
 use Database\Seeders\QualityRuleSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -44,7 +45,6 @@ class DataExportTest extends TestCase
         $this->admin->assignRole(User::ROLE_ADMIN);
         $this->manager = User::factory()->create();
         $this->manager->assignRole(User::ROLE_DATA_MANAGER);
-        File::deleteDirectory(storage_path('app/private/exports'));
     }
 
     private function correct(string $uuid, string $rule, array $corrections): DataQuery
@@ -57,6 +57,12 @@ class DataExportTest extends TestCase
         $this->actingAs($second)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED, 'password' => 'password'])->assertSessionHas('success');
 
         return $query->fresh();
+    }
+
+    /** Table des ménages : nom de l'export ODK Central préfixé de « app_ ». */
+    private function main(): string
+    {
+        return (new DatasetExporter)->fileName('menages');
     }
 
     private function zip(DataExport $export, ?string $password = null): ZipArchive
@@ -112,20 +118,20 @@ class DataExportTest extends TestCase
         $this->assertSame(hash_file('sha256', $raw->file_path), $raw->sha256);
 
         // Base brute : 3 soumissions telles que reçues (pas de GPS), doublon signalé.
-        $rows = collect($this->csv($zip = $this->zip($raw), 'menages.csv'))->keyBy('submission_uuid');
+        $rows = collect($this->csv($zip = $this->zip($raw), $this->main()))->keyBy('submission_uuid');
         $this->assertCount(3, $rows);
         $this->assertSame('', $rows['uuid:1']['current_location']);
         $this->assertSame('oui', $rows['uuid:3']['exclue_base_nettoyee']);
         // Manifeste : empreinte de chaque fichier.
         $manifest = json_decode($zip->getFromName('manifest.json'), true);
-        $file = collect($manifest['fichiers'])->firstWhere('fichier', 'menages.csv');
-        $this->assertSame(hash('sha256', $zip->getFromName('menages.csv')), $file['sha256']);
+        $file = collect($manifest['fichiers'])->firstWhere('fichier', $this->main());
+        $this->assertSame(hash('sha256', $zip->getFromName($this->main())), $file['sha256']);
         $this->assertSame(3, $file['lignes']);
         $this->assertNotFalse($zip->getFromName('LISEZMOI.txt'));
 
         // Base nettoyée : correction appliquée, doublon écarté, registre joint.
         $zip = $this->zip($clean);
-        $rows = collect($this->csv($zip, 'menages.csv'))->keyBy('submission_uuid');
+        $rows = collect($this->csv($zip, $this->main()))->keyBy('submission_uuid');
         $this->assertSame(['uuid:1', 'uuid:2'], $rows->keys()->sort()->values()->all());
         $this->assertSame('9.31 2.49 0 5', $rows['uuid:1']['current_location']);
         $this->assertSame('1', $rows['uuid:1']['nb_corrections']);
@@ -143,11 +149,15 @@ class DataExportTest extends TestCase
         $export = DataExport::firstOrFail();
         $this->assertSame(DataExport::STATUS_DONE, $export->status, (string) $export->error);
         $zip = $this->zip($export);
-        foreach (['base_brute/menages.csv', 'base_nettoyee/menages.csv', 'registre_corrections.csv', 'queries.csv', 'historique_queries.csv',
+        foreach (['base_brute/'.$this->main(), 'base_nettoyee/'.$this->main(), 'registre_corrections.csv', 'queries.csv', 'historique_queries.csv',
             'observations_supervision.csv', 'dictionnaire.csv', 'manifest.json', 'LISEZMOI.txt'] as $name) {
             $this->assertNotFalse($zip->getFromName($name), $name);
         }
         $this->assertNotEmpty($this->csv($zip, 'queries.csv'));
+        // Noms ODK Central préfixés : app_<formulaire>.csv et app_<formulaire>-<repeat>.csv.
+        $form = Dictionary::current()->formVersion->form_id;
+        $this->assertSame("app_{$form}.csv", $this->main());
+        $this->assertNotFalse($zip->getFromName("base_brute/app_{$form}-cg.csv"));
     }
 
     public function test_download_survives_deleted_release_and_reports_missing_files(): void
