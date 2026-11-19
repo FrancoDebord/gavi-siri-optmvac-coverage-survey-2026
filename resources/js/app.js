@@ -8,6 +8,7 @@ import '../css/app.css';
 
 import { initLayout } from './lib/layout';
 import { initSearchableSelects } from './lib/searchable-select';
+import { initSessionRefresh } from './lib/session';
 import progressPage from './pages/progress';
 import queriesDashboardPage from './pages/queries-dashboard';
 import queriesListPage from './pages/queries-list';
@@ -46,6 +47,7 @@ const pages = {
 
 document.addEventListener('DOMContentLoaded', () => {
     initLayout();
+    initSessionRefresh();
     initSearchableSelects();
     const page = document.body.dataset.page;
     if (page && pages[page]) {

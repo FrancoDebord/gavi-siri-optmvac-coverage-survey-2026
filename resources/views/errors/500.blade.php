@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 500, 'icon' => 'alert', 'title' => 'Une erreur est survenue', 'message' => 'Le problème a été enregistré et sera examiné. Réessayez dans un instant ; s\'il persiste, prévenez le data manager en indiquant l\'heure et la page.', 'retry' => true])

@@ -25,6 +25,18 @@
         <a class="{{ $link('team.clusters', 'clusters.*') }} {{ request()->routeIs('team.clusters') ? 'active' : '' }}" href="{{ route('team.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Mes grappes</span></a>
         <a class="{{ $link('maps.clusters') }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte de mes villages</span></a>
     @endif
+    @if (auth()->user()->hasOwnTeam())
+        {{-- Superviseur agent d'un binôme : tout ce que voit son binôme, en plus de la supervision. --}}
+        @php($own = ['team_id' => auth()->user()->team_id])
+        @php($ownQueries = \App\Models\DataQuery::whereIn('collector_id', \App\Models\Collector::where('team_id', auth()->user()->team_id)->select('id'))->whereIn('status', \App\Models\DataQuery::UNRESOLVED)->count())
+        @php($onOwn = (int) request('team_id', auth()->user()->team_id) === (int) auth()->user()->team_id)
+        <div class="nav-section">Mon binôme · {{ auth()->user()->team?->code }}</div>
+        <a class="nav-link {{ $onOwn && request()->routeIs('team.space') ? 'active' : '' }}" href="{{ route('team.space', $own) }}"><i class="bi bi-people-fill"></i><span class="label">Ma progression</span></a>
+        <a class="nav-link {{ $onOwn && request()->routeIs('team.submissions') ? 'active' : '' }}" href="{{ route('team.submissions', $own) }}"><i class="bi bi-house-door"></i><span class="label">Mes soumissions</span></a>
+        <a class="nav-link {{ $onOwn && request()->routeIs('team.queries') ? 'active' : '' }}" href="{{ route('team.queries', $own) }}"><i class="bi bi-flag"></i><span class="label">Mes queries
+            @if ($ownQueries)<span class="badge rounded-pill text-bg-danger ms-1">{{ $ownQueries }}</span>@endif</span></a>
+        <a class="nav-link {{ $onOwn && request()->routeIs('team.clusters') ? 'active' : '' }}" href="{{ route('team.clusters', $own) }}"><i class="bi bi-bounding-box"></i><span class="label">Mes grappes</span></a>
+    @endif
     @if ($isPi)
         @php($openQueries = \App\Models\DataQuery::whereIn('status', \App\Models\DataQuery::UNRESOLVED)->count())
         <div class="nav-section">Suivi de la collecte</div>
@@ -57,7 +69,7 @@
         @if ($openIncidents)<span class="badge rounded-pill text-bg-danger ms-1">{{ $openIncidents }}</span>@endif</span></a>
     <a class="{{ $link('messages.*') }}" href="{{ route('messages.index') }}"><i class="bi bi-chat-left-text"></i><span class="label">Messages aux équipes
         @if ($unreadMessages)<span class="badge rounded-pill text-bg-primary ms-1">{{ $unreadMessages }}</span>@endif</span></a>
-    <a class="{{ $link('team.space') }}" href="{{ route('team.space') }}"><i class="bi bi-people-fill"></i><span class="label">Espace des binômes</span></a>
+    <a class="{{ request()->routeIs('team.*') && ! ($onOwn ?? false) ? 'nav-link active' : 'nav-link' }}" href="{{ route('team.space') }}"><i class="bi bi-people-fill"></i><span class="label">Espace des binômes</span></a>
     <a class="{{ $link('decisions.*') }}" href="{{ route('decisions.index') }}"><i class="bi bi-journal-check"></i><span class="label">Décisions de terrain</span></a>
 
     <div class="nav-section">Suivi</div>

@@ -15,7 +15,7 @@ class EnsurePasswordChanged
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        if ($user?->must_change_password && ! $request->routeIs('profile.edit', 'user-password.update', 'logout', 'login')) {
+        if ($user?->must_change_password && ! $request->routeIs('profile.edit', 'user-password.update', 'logout', 'login', 'session.token')) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Changez votre mot de passe avant de continuer.'], 403);
             }

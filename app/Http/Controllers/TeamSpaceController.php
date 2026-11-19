@@ -37,6 +37,8 @@ class TeamSpaceController extends Controller
         $progress = new TeamProgress($team, CarbonImmutable::today());
         $user = $request->user();
         $isTeam = $user->hasRole(User::ROLE_TEAM);
+        // Messages reçus : compte binôme, ou superviseur sur l'espace de son propre binôme.
+        $ownTeam = $isTeam || (int) $user->team_id === (int) $team->id;
 
         return view('team.space', $this->shared($request, $team, $teams, 'progression') + [
             'kpis' => $progress->kpis(),
@@ -44,7 +46,7 @@ class TeamSpaceController extends Controller
             'agents' => $progress->agents(),
             'places' => $progress->places(),
             'queries' => $progress->openQueries(),
-            'messages' => $isTeam
+            'messages' => $ownTeam
                 ? TeamMessage::visibleTo($user)->with('sender:id,name')->withExists(['readers as read_by_me' => fn ($q) => $q->whereKey($user->id)])->latest('id')->limit(10)->get()
                 : collect(),
         ]);
@@ -190,8 +192,10 @@ class TeamSpaceController extends Controller
         }
         abort_unless($user->can('view dashboards'), 403);
         $zoneId = $user->supervisedZoneId();
-        $teams = Team::when($zoneId, fn ($q) => $q->where('health_zone_id', $zoneId))->with('healthZone:id,name')->orderBy('code')->get();
-        $team = $request->integer('team_id') ? $teams->firstWhere('id', $request->integer('team_id')) : $teams->first();
+        $teams = Team::when($zoneId, fn ($q) => $q->where(fn ($w) => $w->where('health_zone_id', $zoneId)->when($user->team_id, fn ($o, $own) => $o->orWhere('id', $own))))
+            ->with('healthZone:id,name')->orderBy('code')->get();
+        // Superviseur agent d'un binôme : son binôme par défaut.
+        $team = $request->integer('team_id') ? $teams->firstWhere('id', $request->integer('team_id')) : ($teams->firstWhere('id', $user->team_id) ?? $teams->first());
         abort_unless($team, $request->integer('team_id') ? 403 : 404);
 
         return [$team->load(['collectors', 'healthZone']), $teams];

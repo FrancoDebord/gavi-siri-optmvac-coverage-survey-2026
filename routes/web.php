@@ -31,6 +31,10 @@ use App\Http\Controllers\UserController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
+// Jeton CSRF à jour (pages restées ouvertes longtemps) : évite l'erreur « page expirée ».
+Route::get('/session/jeton', fn () => response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store'))
+    ->name('session.token')->middleware('throttle:30,1');
+
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/profil', [ProfileController::class, 'edit'])->name('profile.edit');
 
@@ -132,6 +136,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/queries/{query}/statut', [DataQueryController::class, 'updateStatus'])->whereNumber('query')->name('queries.status')->middleware('throttle:60,1');
     Route::post('/queries/{query}/commentaire', [DataQueryController::class, 'comment'])->whereNumber('query')->name('queries.comment')->middleware('throttle:60,1');
     Route::post('/queries/{query}/suggestion', [DataQueryController::class, 'suggest'])->whereNumber('query')->name('queries.suggest')->middleware('throttle:60,1');
+    Route::post('/queries/{query}/suggestion-ia', [DataQueryController::class, 'suggestAi'])->whereNumber('query')->name('queries.suggest-ai')->middleware('throttle:20,1');
     Route::post('/queries/{query}/affectation', [DataQueryController::class, 'assign'])->whereNumber('query')->name('queries.assign')->middleware('throttle:60,1');
     Route::post('/queries/lot', [DataQueryController::class, 'bulk'])->name('queries.bulk')->middleware('throttle:30,1');
     Route::post('/queries/{query}/validation', [DataQueryController::class, 'assignReview'])->whereNumber('query')->name('queries.review-assign')->middleware('throttle:60,1');

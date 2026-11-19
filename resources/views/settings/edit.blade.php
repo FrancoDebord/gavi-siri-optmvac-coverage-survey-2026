@@ -32,6 +32,20 @@
                 <div class="form-text">Une correction est appliquée sans attendre si elle lève l'erreur et ne crée aucune autre query. Le data manager la revoit ensuite dans le registre (« À revoir ») et peut la refuser : la valeur précédente est alors rétablie. Sinon, la correction attend sa validation.</div>
             </div>
 
+            <div class="mb-4">
+                <input type="hidden" name="ai_reading" value="0">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" name="ai_reading" value="1" id="ai_reading" @checked(old('ai_reading', $aiReading)) @disabled(! $aiConfigured)>
+                    <label class="form-check-label fw-semibold" for="ai_reading">Lecture des photos par l'IA (Claude)</label>
+                </div>
+                <div class="form-text">
+                    Sur une query, le bouton « Lire la valeur avec l'IA » envoie les photos de la soumission (carnet, acte de naissance) à l'API Anthropic,
+                    qui propose la valeur lue. Elle est présentée à l'agent comme « lue par l'IA, à vérifier » et n'est jamais appliquée sans correction validée.
+                    Les photos contiennent des données personnelles d'enfants : n'activer qu'avec l'accord du responsable de la protection des données.
+                    @unless ($aiConfigured)<br><span class="text-danger">Indisponible : renseigner ANTHROPIC_API_KEY dans le fichier .env du serveur.</span>@endunless
+                </div>
+            </div>
+
             <fieldset>
                 <legend class="form-label fw-semibold fs-6">Double validation (revue indépendante et signature électronique)</legend>
                 @foreach (\App\Models\QualityRule::SEVERITIES as $key => $label)

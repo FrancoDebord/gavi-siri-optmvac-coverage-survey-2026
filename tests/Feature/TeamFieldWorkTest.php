@@ -4,18 +4,23 @@ namespace Tests\Feature;
 
 use App\Console\Commands\CreateTeamAccountsCommand;
 use App\Models\Cluster;
+use App\Models\DataCorrection;
 use App\Models\DataQuery;
+use App\Models\Household;
 use App\Models\PhotoCheck;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Dictionary\Dictionary;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QualityEngine;
 use Database\Seeders\QualityRuleSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /** Comptes binômes, queries présentées clairement aux agents, PDF des cartes de grappes. */
@@ -113,7 +118,7 @@ class TeamFieldWorkTest extends TestCase
         $query->refresh();
         $this->assertSame(DataQuery::STATUS_VALIDATED, $query->status);
         $this->assertSame($validator->id, $query->validated_by);
-        $this->assertSame('2', \App\Models\Household::where('submission_uuid', 'uuid:1')->firstOrFail()->data['visit_num']);
+        $this->assertSame('2', Household::where('submission_uuid', 'uuid:1')->firstOrFail()->data['visit_num']);
     }
 
     public function test_data_manager_records_the_value_read_on_the_photo(): void
@@ -148,7 +153,7 @@ class TeamFieldWorkTest extends TestCase
         $query = DataQuery::where('submission_uuid', 'uuid:1')->firstOrFail();
         $query->update(['rule_code' => 'GEO_HIERARCHY', 'variable' => 'village']);
 
-        $dictionary = \App\Services\Dictionary\Dictionary::current();
+        $dictionary = Dictionary::current();
         $other = collect($dictionary->choiceRows('village.csv'))->first(fn ($r) => ($r['extra']['parent'] ?? null) === '5' && $r['name'] !== '66');
         $this->assertNotNull($other, "Un autre village de l'arrondissement 5 dans le dictionnaire");
 
@@ -164,7 +169,7 @@ class TeamFieldWorkTest extends TestCase
         ]])->assertSessionHasNoErrors();
 
         // Arrondissement inchangé : ignoré ; village corrigé avec le motif partagé.
-        $corrections = \App\Models\DataCorrection::where('data_query_id', $query->id)->get();
+        $corrections = DataCorrection::where('data_query_id', $query->id)->get();
         $this->assertSame(['village'], $corrections->pluck('variable')->all());
         $this->assertSame('superviseur', $corrections->first()->reason);
         $this->assertSame('chef de village', $corrections->first()->source_reference);
@@ -197,5 +202,42 @@ class TeamFieldWorkTest extends TestCase
         $manager = User::factory()->create();
         $manager->assignRole(User::ROLE_DATA_MANAGER);
         $this->actingAs($manager)->get(route('team.clusters.pdf', ['team_id' => $this->team->id]))->assertOk();
+    }
+
+    public function test_supervisor_member_of_a_team_sees_everything_the_team_sees(): void
+    {
+        app(QualityEngine::class)->run('test');
+        $agent = $this->team->collectors()->firstOrFail();
+        [$last, $first] = array_map('trim', explode(',', $agent->name.','));
+        $supervisor = User::factory()->create(['name' => mb_strtoupper($last).' '.$first, 'health_zone_id' => $this->team->health_zone_id]);
+        $supervisor->assignRole(User::ROLE_SUPERVISOR);
+
+        // Rattachement d'après le nom (migration), comme pour les superviseurs déjà créés.
+        $this->assertSame($this->team->id, Team::forPerson($supervisor->name)?->id);
+        $supervisor->forceFill(['team_id' => $this->team->id])->save();
+        $this->assertTrue($supervisor->fresh()->hasOwnTeam());
+
+        $query = DataQuery::where('submission_uuid', 'uuid:1')->firstOrFail();
+        $this->actingAs($supervisor)->get(route('team.space'))->assertOk()->assertSee('Mon binôme · '.$this->team->code)->assertSee($this->team->label());
+        $this->actingAs($supervisor)->get(route('team.queries', ['team_id' => $this->team->id]))->assertOk()->assertSee($query->household_code);
+        $this->assertTrue($supervisor->can('respond', $query));
+        // Supervision conservée.
+        $this->actingAs($supervisor)->get(route('supervision.index'))->assertOk();
+    }
+
+    public function test_expired_page_returns_to_the_form_and_error_pages_are_friendly(): void
+    {
+        Route::middleware('web')->post('/_test/expire', fn () => throw new TokenMismatchException);
+        $user = User::factory()->create();
+        $user->assignRole(User::ROLE_DATA_MANAGER);
+
+        $this->actingAs($user)->from(route('queries.index'))->post('/_test/expire', ['comment' => 'mon texte'])
+            ->assertRedirect(route('queries.index'))->assertSessionHas('warning')->assertSessionHasInput('comment', 'mon texte');
+        $this->postJson('/_test/expire')->assertStatus(419);
+        auth()->logout();
+        $this->from(route('login'))->post('/_test/expire', ['email' => 'a@b.c', 'password' => 'x'])->assertRedirect(route('login'))->assertSessionHas('status');
+
+        $this->getJson(route('session.token'))->assertOk()->assertJsonStructure(['token']);
+        $this->get('/page-qui-n-existe-pas')->assertNotFound()->assertSee('Page introuvable');
     }
 }

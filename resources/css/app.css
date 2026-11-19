@@ -23,15 +23,18 @@
     --gavi-warning: #d98e04;
     --gavi-danger: var(--airid-red);
     --gavi-muted: var(--airid-grey);
-    --gavi-bg: #f6f5f4;
+    --gavi-bg: #f8f7f6;
     --gavi-surface: var(--airid-white);
-    --gavi-border: #e4e2e0;
-    --gavi-sidebar-bg: var(--airid-black);
-    --gavi-sidebar-fg: #d4d2d0;
-    --gavi-sidebar-active: var(--airid-white);
+    --gavi-border: #ebe8e6;
+    --gavi-ink: #1d1b1a;
+    --gavi-sidebar-bg: var(--airid-white);
+    --gavi-sidebar-fg: #45423f;
+    --gavi-sidebar-active: var(--airid-red);
     --gavi-sidebar-width: 250px;
     --gavi-sidebar-collapsed: 72px;
-    --gavi-radius: .65rem;
+    --gavi-radius: .85rem;
+    --bs-body-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --bs-border-radius: .55rem;
 
     --bs-primary: var(--airid-red);
     --bs-primary-rgb: var(--airid-red-rgb);
@@ -51,10 +54,10 @@
     --bs-secondary: var(--airid-grey);
     --bs-secondary-rgb: var(--airid-grey-rgb);
     --bs-secondary-color: var(--airid-grey);
-    --bs-body-color: var(--airid-black);
+    --bs-body-color: var(--gavi-ink);
     --bs-body-color-rgb: var(--airid-black-rgb);
     --bs-emphasis-color: var(--airid-black);
-    --bs-heading-color: var(--airid-black);
+    --bs-heading-color: var(--gavi-ink);
     --bs-border-color: var(--gavi-border);
     --bs-body-bg: var(--gavi-bg);
     --bs-body-font-size: .925rem;
@@ -149,6 +152,8 @@ body {
     width: var(--gavi-sidebar-width);
     background: var(--gavi-sidebar-bg);
     color: var(--gavi-sidebar-fg);
+    border-right: 1px solid var(--gavi-border);
+    scrollbar-width: thin;
     display: flex;
     flex-direction: column;
     transform: translateX(-100%);
@@ -161,10 +166,10 @@ body {
     align-items: center;
     gap: .6rem;
     padding: 1rem 1.1rem;
-    color: #fff;
-    font-weight: 600;
+    color: var(--gavi-ink);
+    font-weight: 650;
     text-decoration: none;
-    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    border-bottom: 1px solid var(--gavi-border);
     white-space: nowrap;
 }
 
@@ -178,7 +183,8 @@ body {
     font-size: .7rem;
     text-transform: uppercase;
     letter-spacing: .06em;
-    color: rgba(212, 210, 208, .5);
+    color: #9a9693;
+    font-weight: 600;
     white-space: nowrap;
 }
 
@@ -186,10 +192,11 @@ body {
     display: flex;
     align-items: center;
     gap: .75rem;
-    margin: .1rem .6rem;
-    padding: .55rem .7rem;
-    border-radius: .5rem;
+    margin: .05rem .6rem;
+    padding: .5rem .7rem;
+    border-radius: .55rem;
     color: var(--gavi-sidebar-fg);
+    font-size: .9rem;
     white-space: nowrap;
 }
 
@@ -197,18 +204,22 @@ body {
     font-size: 1.1rem;
     width: 1.3rem;
     text-align: center;
+    color: #8a8683;
 }
 
 .app-sidebar .nav-link:hover {
-    background: rgba(255, 255, 255, .07);
-    color: #fff;
+    background: #f4f2f1;
+    color: var(--gavi-ink);
 }
 
 .app-sidebar .nav-link.active {
-    background: rgba(var(--airid-red-rgb), .22);
-    box-shadow: inset 3px 0 0 var(--airid-red);
+    background: var(--airid-red-subtle);
     color: var(--gavi-sidebar-active);
-    font-weight: 500;
+    font-weight: 600;
+}
+
+.app-sidebar .nav-link.active i {
+    color: var(--airid-red);
 }
 
 .app-main {
@@ -222,8 +233,8 @@ body {
     position: sticky;
     top: 0;
     z-index: 1030;
-    background: var(--gavi-surface);
-    border-top: 3px solid var(--airid-red);
+    background: rgba(255, 255, 255, .9);
+    backdrop-filter: blur(6px);
     border-bottom: 1px solid var(--gavi-border);
 }
 
@@ -235,7 +246,7 @@ body {
     position: fixed;
     inset: 0;
     z-index: 1035;
-    background: rgba(0, 0, 0, .35);
+    background: rgba(29, 27, 26, .25);
     display: none;
 }
 
@@ -281,21 +292,30 @@ body.sidebar-open .sidebar-backdrop {
 
 /* ── Composants ─────────────────────────────────────────────────────────── */
 .card {
+    --bs-card-border-radius: var(--gavi-radius);
+    --bs-card-inner-border-radius: calc(var(--gavi-radius) - 1px);
     border: 1px solid var(--gavi-border);
     border-radius: var(--gavi-radius);
-    box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+    box-shadow: 0 1px 3px rgba(29, 27, 26, .035);
 }
 
 .card-header {
     background: transparent;
     border-bottom: 1px solid var(--gavi-border);
     font-weight: 600;
+    padding: .8rem 1rem;
+}
+
+.card-footer {
+    background: #fcfbfb;
+    border-top: 1px solid var(--gavi-border);
 }
 
 .page-title {
     font-size: 1.35rem;
-    font-weight: 700;
-    color: var(--airid-red);
+    font-weight: 650;
+    color: var(--gavi-ink);
+    letter-spacing: -.01em;
     margin: 0;
 }
 
@@ -447,7 +467,7 @@ body.sidebar-open .sidebar-backdrop {
     display: grid;
     place-items: center;
     padding: 1rem;
-    background: linear-gradient(135deg, var(--airid-black) 0%, #2a2828 55%, var(--airid-red-darker) 100%);
+    background: radial-gradient(60rem 30rem at 15% -10%, #fdeeee 0%, transparent 60%), radial-gradient(50rem 30rem at 110% 110%, #f3efed 0%, transparent 60%), var(--gavi-bg);
 }
 
 .auth-card {
@@ -510,14 +530,14 @@ pre.json-view {
     background-color: var(--airid-white);
 }
 
-/* Écran de connexion : texte blanc sur le dégradé noir → rouge, logo en rouge AIRID. */
-.auth-wrapper .text-white h1 {
-    color: var(--airid-white);
+/* Écran de connexion : fond clair, logo en rouge AIRID. */
+.auth-brand .bi {
+    color: var(--airid-red);
 }
 
-.auth-wrapper .text-white .bi {
-    color: var(--airid-red);
-    filter: drop-shadow(0 0 1px rgba(255, 255, 255, .6));
+.auth-card .card {
+    border-top: 4px solid var(--airid-red);
+    box-shadow: 0 12px 32px rgba(29, 27, 26, .07) !important;
 }
 
 .form-control:focus,
@@ -625,3 +645,104 @@ body.map-window .map-box.map-explorer { height: calc(100vh - 4.5rem); }
 .ss-option mark { padding: 0; background: rgba(var(--bs-warning-rgb), .35); color: inherit; border-radius: 2px; }
 .ss-group { padding: .5rem .75rem .2rem; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; color: var(--bs-secondary-color); }
 @media print { .ss-panel { display: none !important; } }
+
+/* ---------------------------------------------------------------------------
+   Thème clair : tableaux aérés, en-têtes discrets, lecture des données reposante
+   --------------------------------------------------------------------------- */
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: #faf6f5;
+    --bs-table-striped-bg: #fbfaf9;
+    --bs-table-border-color: #f0edeb;
+}
+
+.table > thead > tr > th,
+.table-light,
+.table > thead.table-light th {
+    --bs-table-bg: #faf9f8;
+    --bs-table-color: #6f6c6a;
+    background-color: #faf9f8;
+    color: #6f6c6a;
+    font-size: .74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    border-bottom: 1px solid var(--gavi-border);
+    vertical-align: middle;
+}
+
+.table > tbody > tr > td {
+    vertical-align: middle;
+}
+
+.table > tbody > tr:last-child > td {
+    border-bottom: 0;
+}
+
+.card > .table-responsive > .table,
+.card > .table {
+    margin-bottom: 0;
+}
+
+.text-bg-dark {
+    color: var(--gavi-ink) !important;
+    background-color: #ecebea !important;
+}
+
+.badge {
+    font-weight: 600;
+    border-radius: .45rem;
+}
+
+.btn {
+    border-radius: .55rem;
+}
+
+.btn-light {
+    --bs-btn-bg: var(--airid-white);
+    --bs-btn-border-color: var(--gavi-border);
+    --bs-btn-hover-bg: #f4f2f1;
+    --bs-btn-hover-border-color: #e0dcd9;
+}
+
+.form-control,
+.form-select {
+    border-color: #e3dfdc;
+}
+
+.dropdown-menu {
+    border-color: var(--gavi-border);
+    border-radius: .7rem;
+    box-shadow: 0 10px 30px rgba(29, 27, 26, .08) !important;
+}
+
+.nav-tabs {
+    --bs-nav-tabs-border-color: var(--gavi-border);
+}
+
+.alert {
+    border-radius: .7rem;
+}
+
+.alert-success {
+    --bs-alert-bg: #edf7f1;
+    --bs-alert-border-color: #cfe8d9;
+}
+
+.alert-warning {
+    --bs-alert-bg: #fdf6e7;
+    --bs-alert-border-color: #f3e0b5;
+}
+
+.kpi-card .kpi-value {
+    letter-spacing: -.01em;
+}
+
+.progress {
+    background-color: #f0edeb;
+}
+
+.app-content > footer,
+footer.text-muted {
+    color: #9a9693 !important;
+}

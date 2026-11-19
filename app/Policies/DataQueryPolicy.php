@@ -15,7 +15,11 @@ class DataQueryPolicy
         }
         // Compte binôme : lecture des queries de ses agents (sans traitement).
         if ($user->hasRole(User::ROLE_TEAM)) {
-            return $user->team_id !== null && (int) $query->collector?->team_id === (int) $user->team_id;
+            return $this->ownTeam($user, $query);
+        }
+        // Superviseur agent d'un binôme : les queries de son binôme, en plus de son périmètre.
+        if ($this->ownTeam($user, $query)) {
+            return true;
         }
 
         return $user->can('view dashboards') && $this->inScope($user, $query);
@@ -33,7 +37,7 @@ class DataQueryPolicy
     public function respond(User $user, DataQuery $query): bool
     {
         return ($query->assigned_to !== null && (int) $query->assigned_to === (int) $user->id && $this->view($user, $query))
-            || ($user->hasRole(User::ROLE_TEAM) && $this->view($user, $query))
+            || $this->ownTeam($user, $query)
             || $this->update($user, $query);
     }
 
@@ -62,6 +66,12 @@ class DataQueryPolicy
     public function assignReview(User $user, DataQuery $query): bool
     {
         return $user->can('validate queries') && $this->inScope($user, $query);
+    }
+
+    /** Query collectée par le binôme de l'utilisateur (compte binôme ou superviseur agent du binôme). */
+    private function ownTeam(User $user, DataQuery $query): bool
+    {
+        return $user->team_id !== null && $query->collector_id !== null && (int) $query->collector?->team_id === (int) $user->team_id;
     }
 
     private function inScope(User $user, DataQuery $query): bool

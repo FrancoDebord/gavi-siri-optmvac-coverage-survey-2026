@@ -14,6 +14,12 @@ return [
     |
     */
 
+    // Lecture automatique des photos (Claude, vision) : suggestions de valeur sur les queries.
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-opus-5-5'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

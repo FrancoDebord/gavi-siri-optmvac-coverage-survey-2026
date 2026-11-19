@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => $exception?->getStatusCode() ?? 400, 'icon' => 'alert', 'title' => 'Demande impossible', 'message' => 'Cette demande n\'a pas pu être traitée. Revenez à la page précédente et réessayez.'])

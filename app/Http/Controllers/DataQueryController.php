@@ -15,6 +15,7 @@ use App\Models\DataQuery;
 use App\Models\QualityRule;
 use App\Models\QualityRun;
 use App\Models\User;
+use App\Services\Attachments\PhotoReader;
 use App\Services\Attachments\SubmissionPhotos;
 use App\Services\Cleaning\CleanDataService;
 use App\Services\Cleaning\CorrectionApplier;
@@ -34,6 +35,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use InvalidArgumentException;
+use RuntimeException;
 
 class DataQueryController extends Controller
 {
@@ -371,6 +373,43 @@ class DataQueryController extends Controller
         $workflow->comment($query, $value === null ? 'Valeur suggérée retirée.' : 'Valeur lue sur la photo : '.$value.(($data['suggested_note'] ?? null) ? ' ('.$data['suggested_note'].')' : ''), $request->user());
 
         return back()->with('success', $value === null ? 'Suggestion retirée.' : 'Valeur lue enregistrée : elle est proposée à l\'agent.');
+    }
+
+    /**
+     * Lecture de la valeur sur les photos par l'IA (Claude) : devient la suggestion « lue par l'IA, à vérifier »,
+     * contrôlée selon le dictionnaire. Jamais appliquée sans réponse de l'agent et validation.
+     */
+    public function suggestAi(Request $request, DataQuery $query, PhotoReader $reader, CleanDataService $cleaning): RedirectResponse
+    {
+        abort_unless($request->user()->can('update', $query) || $request->user()->can('validate', $query), 403);
+        abort_unless(PhotoReader::enabled(), 403, 'Lecture IA désactivée (Paramètres).');
+        try {
+            $result = $reader->read($query);
+        } catch (RuntimeException $e) {
+            return back()->with('danger', $e->getMessage());
+        }
+        $workflow = app(QueryWorkflow::class);
+        if (! $result['found']) {
+            $workflow->comment($query, trim('Lecture IA : valeur non lisible sur les photos. '.$result['note']), $request->user());
+
+            return back()->with('danger', trim('L\'IA n\'a pas pu lire la valeur sur les photos. '.$result['note']));
+        }
+        $definition = Dictionary::current()->variable($query->variable);
+        if ($definition) {
+            try {
+                $cleaning->checkValue($definition, Dictionary::current(), $result['value']);
+            } catch (InvalidArgumentException $e) {
+                $workflow->comment($query, 'Lecture IA écartée ('.$result['value'].') : '.str_replace('Correction 1 : ', '', $e->getMessage()), $request->user());
+
+                return back()->with('danger', 'Valeur lue par l\'IA non conforme au dictionnaire ('.$result['value'].') : à lire manuellement.');
+            }
+        }
+        $note = 'Confiance '.$result['confidence'].($result['photo'] ? ' · '.$result['photo'] : '').($result['note'] !== '' ? ' · '.$result['note'] : '');
+        $query->update(['suggested_value' => $result['value'], 'suggested_source' => 'ia', 'suggested_note' => mb_substr($note, 0, 255),
+            'suggested_by' => $request->user()->id, 'suggested_at' => now()]);
+        $workflow->comment($query, 'Valeur lue par l\'IA : '.$result['value'].' ('.$note.')', $request->user());
+
+        return back()->with('success', 'Valeur lue par l\'IA : '.$result['value'].' (confiance '.$result['confidence'].'). Vérifiez-la sur la photo : elle est proposée à l\'agent.');
     }
 
     public function updateStatus(QueryStatusRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse

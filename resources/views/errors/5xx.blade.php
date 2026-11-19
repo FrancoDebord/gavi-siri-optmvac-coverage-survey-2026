@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => $exception?->getStatusCode() ?? 500, 'icon' => 'alert', 'title' => 'Service momentanément indisponible', 'message' => 'Réessayez dans un instant ; si le problème persiste, prévenez le data manager.', 'retry' => true])

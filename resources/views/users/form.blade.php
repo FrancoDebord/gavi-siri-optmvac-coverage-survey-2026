@@ -53,7 +53,7 @@
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label" for="team_id">Binôme (compte binôme)</label>
+                    <label class="form-label" for="team_id">Binôme (compte binôme, ou superviseur agent d'un binôme)</label>
                     <select id="team_id" name="team_id" class="form-select @error('team_id') is-invalid @enderror">
                         <option value="">—</option>
                         @foreach ($teams->groupBy(fn ($t) => $t->healthZone?->name ?? '—') as $zoneName => $items)

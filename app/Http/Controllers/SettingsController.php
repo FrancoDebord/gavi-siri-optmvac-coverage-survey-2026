@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\QualityRule;
+use App\Services\Attachments\PhotoReader;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -20,6 +21,8 @@ class SettingsController extends Controller
             'dueDays' => (int) AppSetting::get(AppSetting::DUE_DAYS),
             'doubleValidation' => (array) AppSetting::get(AppSetting::DOUBLE_VALIDATION),
             'autoApply' => (bool) AppSetting::get(AppSetting::AUTO_APPLY),
+            'aiReading' => (bool) AppSetting::get(AppSetting::AI_READING),
+            'aiConfigured' => PhotoReader::configured(),
         ]);
     }
 
@@ -37,6 +40,7 @@ class SettingsController extends Controller
             AppSetting::DUE_DAYS => (int) $data['due_days'],
             AppSetting::DOUBLE_VALIDATION => array_values($data['double_validation'] ?? []),
             AppSetting::AUTO_APPLY => $request->boolean('auto_apply'),
+            AppSetting::AI_READING => $request->boolean('ai_reading') && PhotoReader::configured(),
         ];
         $changes = [];
         foreach ($values as $key => $value) {

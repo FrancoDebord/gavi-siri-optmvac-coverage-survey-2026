@@ -104,6 +104,13 @@
                         <div class="form-text">Laisser vide puis enregistrer pour retirer la suggestion.</div>
                     </div>
                 </form>
+                @if (\App\Services\Attachments\PhotoReader::enabled() && $photos)
+                    <form method="POST" action="{{ route('queries.suggest-ai', $query) }}" class="mb-3 mt-n2 text-end">
+                        @csrf
+                        <button class="btn btn-sm btn-outline-info" onclick="this.disabled = true; this.form.submit(); this.innerHTML = 'Lecture en cours…';"><i class="bi bi-stars me-1"></i>Lire la valeur avec l'IA</button>
+                        <div class="form-text">Envoie les photos à Claude (10 à 30 s). La valeur lue est proposée « à vérifier ».</div>
+                    </form>
+                @endif
             @endif
 
             <div class="card mb-3">

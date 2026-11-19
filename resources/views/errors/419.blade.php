@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 419, 'icon' => 'clock', 'title' => 'Page expirée', 'message' => 'La page était restée ouverte trop longtemps. Rechargez-la puis recommencez : votre session est conservée.', 'retry' => true])

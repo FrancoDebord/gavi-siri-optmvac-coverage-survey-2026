@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 503, 'icon' => 'tool', 'title' => 'Maintenance en cours', 'message' => 'La plateforme est en cours de mise à jour. Elle sera de nouveau disponible dans quelques minutes.', 'retry' => true])

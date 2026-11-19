@@ -89,7 +89,8 @@ class UserController extends Controller
             // La zone d'un superviseur de commune est déduite de la commune.
             'health_zone_id' => $supervisor ? ($communeId ? Commune::find($communeId)?->health_zone_id : ($data['health_zone_id'] ?? null)) : null,
             'commune_id' => $communeId,
-            'team_id' => $data['role'] === User::ROLE_TEAM ? ($data['team_id'] ?? null) : null,
+            // Binôme : compte binôme, ou superviseur agent d'un binôme (il voit alors aussi l'espace de son binôme).
+            'team_id' => in_array($data['role'], [User::ROLE_TEAM, User::ROLE_SUPERVISOR], true) ? ($data['team_id'] ?? null) : null,
         ];
     }
 }

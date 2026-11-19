@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 404, 'icon' => 'search', 'title' => 'Page introuvable', 'message' => 'Cette page n\'existe pas ou a été déplacée. L\'élément demandé a peut-être été supprimé ou exclu.'])

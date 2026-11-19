@@ -20,12 +20,16 @@ class AppSetting extends Model
     /** Corrections appliquées immédiatement si elles lèvent l'erreur sans en créer (revue a posteriori). */
     public const AUTO_APPLY = 'queries.auto_apply';
 
+    /** Lecture des photos par l'IA (envoi des photos à l'API Anthropic) : désactivée tant que l'administrateur ne l'a pas autorisée. */
+    public const AI_READING = 'queries.ai_reading';
+
     /** Valeurs par défaut : pas d'affectation automatique, échéance 3 jours, double validation des seules queries critiques. */
     public const DEFAULTS = [
         self::AUTO_ASSIGN => 'none',
         self::DUE_DAYS => 3,
         self::DOUBLE_VALIDATION => ['critique'],
         self::AUTO_APPLY => false,
+        self::AI_READING => false,
     ];
 
     /** Affectation automatique des nouvelles queries. */

@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 403, 'icon' => 'lock', 'title' => 'Accès non autorisé', 'message' => ($exception?->getMessage() && $exception->getMessage() !== 'This action is unauthorized.') ? $exception->getMessage() : 'Votre profil ne donne pas accès à cette page. Si vous pensez que c\'est une erreur, contactez le data manager.'])

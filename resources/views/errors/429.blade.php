@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 429, 'icon' => 'clock', 'title' => 'Trop de demandes', 'message' => 'Vous avez effectué beaucoup d\'actions en peu de temps. Patientez une minute puis réessayez.', 'retry' => true])

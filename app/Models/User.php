@@ -94,6 +94,12 @@ class User extends Authenticatable
         return $this->belongsTo(Commune::class);
     }
 
+    /** Superviseur (ou autre profil) agent d'un binôme : il voit aussi tout ce que voit son binôme. */
+    public function hasOwnTeam(): bool
+    {
+        return $this->team_id !== null && ! $this->hasRole(self::ROLE_TEAM);
+    }
+
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);

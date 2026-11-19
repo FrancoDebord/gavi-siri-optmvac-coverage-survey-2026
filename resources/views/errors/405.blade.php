@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 405, 'icon' => 'alert', 'title' => 'Action non disponible', 'message' => 'Cette adresse ne peut pas être ouverte directement. Revenez à la page précédente et utilisez le bouton prévu.'])
