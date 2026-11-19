@@ -27,7 +27,7 @@
                     <option value="{{ $key }}" @selected(request('severite') === $key)>{{ $label }}</option>
                 @endforeach
             </select>
-            <input type="search" name="q" value="{{ request('q') }}" class="form-control form-control-sm w-auto" placeholder="Ménage ou texte…" aria-label="Recherche">
+            <input type="search" name="q" value="{{ request('q') }}" class="form-control form-control-sm w-auto" placeholder="N° query, ménage ou texte…" aria-label="Recherche">
         </form>
     </div>
 

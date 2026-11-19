@@ -8,7 +8,7 @@
             <div class="row g-2 align-items-end">
                 <div class="col-6 col-md-3">
                     <label for="q" class="form-label small mb-0">ID ménage</label>
-                    <input id="q" type="search" name="q" value="{{ request('q') }}" class="form-control form-control-sm" placeholder="Ex. TCH-SEB-01-003">
+                    <input id="q" type="search" name="q" value="{{ request('q') }}" class="form-control form-control-sm" placeholder="Ex. TCH-SEB-01-003 ou Q-000123">
                 </div>
                 <div class="col-6 col-md-2">
                     <label for="date" class="form-label small mb-0">Jour</label>

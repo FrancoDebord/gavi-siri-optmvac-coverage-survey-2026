@@ -119,6 +119,21 @@ class TeamVillageRuleTest extends TestCase
         $this->actingAs($admin)->get(route('team-villages.index'))->assertOk()
             ->assertSee('TCH-WAR-04-S1-050')->assertSee('TCH 05')->assertSee('Agent mal sélectionné')->assertSee('46-47');
 
+        // Recherche par numéro de query, sous toutes ses formes, partout.
+        foreach ([$query->code, 'q'.$query->id, (string) $query->id] as $term) {
+            $this->actingAs($admin)->getJson(route('queries.datatable', ['draw' => 1, 'search' => $term]))->assertJsonPath('data.0.code', $query->code);
+            $this->actingAs($admin)->get(route('team-villages.index', ['q' => $term]))->assertSee('TCH-WAR-04-S1-050');
+        }
+        $this->actingAs($admin)->get(route('submissions.index', ['q' => $query->code]))->assertSee('TCH-WAR-04-S1-050')->assertDontSee('TCH-WAR-04-S1-001');
+        $kora = User::factory()->create(['team_id' => $kora->id]);
+        $kora->assignRole(User::ROLE_TEAM);
+        $this->actingAs($kora)->get(route('team.queries', ['q' => $query->code]))->assertSee('TCH-WAR-04-S1-050');
+        // Soumissions du binôme de l'agent sélectionné (Dieudonné Idossou & Grazella).
+        $declared = User::factory()->create(['team_id' => Team::where('code', '38-39')->value('id')]);
+        $declared->assignRole(User::ROLE_TEAM);
+        $this->actingAs($declared)->get(route('team.submissions', ['q' => $query->code]))->assertSee('TCH-WAR-04-S1-050');
+        $this->actingAs($kora)->get(route('team.queries', ['q' => 'Q-999999']))->assertDontSee('TCH-WAR-04-S1-050');
+
         // Correction : binômes de Tchaourou à cocher (pas ceux de Dagla), agents avec leur code, agent saisi coché.
         $page = $this->actingAs($admin)->get(route('queries.show', $query))->assertOk()
             ->assertSee('Cochez le bon agent')->assertSee('binôme du compte ODK')

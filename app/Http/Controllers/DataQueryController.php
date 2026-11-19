@@ -111,9 +111,9 @@ class DataQueryController extends Controller
         $search = trim((string) $request->input('search'));
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
-                // Un code de query (Q-000123) cible directement la query.
-                if (preg_match('/^Q-?\d+$/i', $search)) {
-                    $q->orWhere('data_queries.id', DataQuery::idFromCode($search));
+                // Un numéro de query (Q-000123, Q123, 123) cible directement la query.
+                if (($id = DataQuery::idFromCode($search)) !== null) {
+                    $q->orWhere('data_queries.id', $id);
                 }
                 foreach (['data_queries.household_code', 'data_queries.variable', 'data_queries.label', 'data_queries.message', 'data_queries.rule_code', 'data_queries.observed_value', 'collectors.name', 'villages.name', 'data_queries.submission_uuid'] as $column) {
                     $q->orWhere($column, 'like', '%'.$search.'%');

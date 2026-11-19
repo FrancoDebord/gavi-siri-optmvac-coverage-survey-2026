@@ -140,6 +140,37 @@ class DataQuery extends Model
         return preg_match('/^\s*Q?-?0*(\d+)\s*$/i', $code, $m) ? (int) $m[1] : null;
     }
 
+    /**
+     * Recherche rapide : numéro de query (« Q-000123 », « Q123 », « 123 ») ou texte dans les colonnes données
+     * (par défaut ID ménage et description de l'erreur).
+     *
+     * @param  list<string>  $columns
+     */
+    public function scopeSearch(Builder $query, ?string $term, array $columns = ['data_queries.household_code', 'data_queries.message']): Builder
+    {
+        $term = trim((string) $term);
+        if ($term === '') {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($term, $columns) {
+            if (($id = self::idFromCode($term)) !== null) {
+                $q->orWhere('data_queries.id', $id);
+            }
+            foreach ($columns as $column) {
+                $q->orWhere($column, 'like', '%'.$term.'%');
+            }
+        });
+    }
+
+    /** Ménages concernés par un numéro de query saisi dans une recherche de soumissions (sinon aucun). */
+    public static function householdIdForCode(?string $term): ?int
+    {
+        $id = self::idFromCode((string) $term);
+
+        return $id !== null ? self::withoutGlobalScopes()->whereKey($id)->value('household_id') : null;
+    }
+
     public static function resolutionOf(string $status): string
     {
         foreach (self::RESOLUTIONS as $key => $group) {

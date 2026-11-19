@@ -1,4 +1,4 @@
-import { dataTable } from '../lib/datatable';
+import { dataTable, LANGUAGE_FR } from '../lib/datatable';
 import { bindExportLinks, initFilterBar } from '../lib/filters';
 import { escapeHtml } from '../lib/format';
 import { postJson, toast } from '../lib/http';
@@ -19,6 +19,7 @@ export default function queriesListPage() {
     const dt = dataTable(table, {
         serverSide: true,
         processing: true,
+        language: { ...LANGUAGE_FR, searchPlaceholder: 'N° query (Q-000123), ménage, variable…' },
         order: [[10, 'desc']],
         ajax: (request, callback) => {
             const params = new URLSearchParams({

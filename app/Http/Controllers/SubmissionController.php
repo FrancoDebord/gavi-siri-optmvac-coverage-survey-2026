@@ -86,7 +86,9 @@ class SubmissionController extends Controller
             ->when($status === 'non_enquetes', fn ($q) => $q->where('consented', false))
             ->when($status === 'avec_queries', fn ($q) => $q->whereHas('queries', fn ($s) => $s->whereIn('status', DataQuery::UNRESOLVED)))
             ->when($status === 'sans_gps', fn ($q) => $q->whereNull('latitude'))
-            ->when(trim((string) $request->input('q')) !== '', fn ($q) => $q->where('household_code', 'like', '%'.trim((string) $request->input('q')).'%'));
+            ->when(trim((string) $request->input('q')) !== '', fn ($q) => $q->where(fn ($w) => $w->where('household_code', 'like', '%'.trim((string) $request->input('q')).'%')
+                // Numéro de query : le ménage concerné.
+                ->orWhere('households.id', DataQuery::householdIdForCode($request->input('q')) ?? 0)));
     }
 
     /** Listes des filtres, limitées au périmètre de l'utilisateur (zone d'un superviseur). */

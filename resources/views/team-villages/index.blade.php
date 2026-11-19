@@ -22,8 +22,8 @@
 
     <form method="GET" class="row g-2 align-items-end mb-3">
         <div class="col-md-3">
-            <label class="form-label small mb-0" for="tv-q">ID ménage ou texte</label>
-            <input id="tv-q" type="search" name="q" value="{{ $filters['q'] }}" class="form-control form-control-sm" placeholder="ex. TCH-WAR-04">
+            <label class="form-label small mb-0" for="tv-q">N° query, ID ménage ou texte</label>
+            <input id="tv-q" type="search" name="q" value="{{ $filters['q'] }}" class="form-control form-control-sm" placeholder="ex. Q-000123, TCH-WAR-04">
         </div>
         <div class="col-md-3">
             <label class="form-label small mb-0" for="tv-zone">Zone sanitaire</label>

@@ -56,7 +56,7 @@
                 </div>
                 <div class="col-6 col-md-2">
                     <label for="f-q" class="form-label small mb-0">ID ménage</label>
-                    <input id="f-q" type="search" name="q" value="{{ request('q') }}" class="form-control form-control-sm" placeholder="Ex. DAG-ASS-01">
+                    <input id="f-q" type="search" name="q" value="{{ request('q') }}" class="form-control form-control-sm" placeholder="Ex. DAG-ASS-01 ou Q-000123">
                 </div>
                 <div class="col-auto">
                     <button class="btn btn-sm btn-primary"><i class="bi bi-search me-1"></i>Filtrer</button>

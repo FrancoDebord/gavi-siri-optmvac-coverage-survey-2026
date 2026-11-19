@@ -70,7 +70,9 @@ class TeamSpaceController extends Controller
             ->when($status === 'avec_queries', fn ($q) => $q->whereHas('queries', fn ($s) => $s->whereIn('status', DataQuery::UNRESOLVED)))
             ->when($request->filled('date'), fn ($q) => $q->whereDate('interview_date', $request->date('date')))
             ->when($request->integer('cluster_id'), fn ($q, $id) => $q->where('cluster_id', $id))
-            ->when(trim((string) $request->input('q')) !== '', fn ($q) => $q->where('household_code', 'like', '%'.trim((string) $request->input('q')).'%'))
+            ->when(trim((string) $request->input('q')) !== '', fn ($q) => $q->where(fn ($w) => $w->where('household_code', 'like', '%'.trim((string) $request->input('q')).'%')
+                // Numéro de query : le ménage concerné.
+                ->orWhere('id', DataQuery::householdIdForCode($request->input('q')) ?? 0)))
             ->orderByDesc('interview_date')->orderByDesc('submitted_at')->paginate(50)->withQueryString();
 
         return view('team.submissions', $this->shared($request, $team, $teams, 'soumissions') + [
@@ -92,8 +94,8 @@ class TeamSpaceController extends Controller
         $queries = (clone $base)->with(['collector:id,name', 'cluster:id,code'])
             ->when(isset(DataQuery::RESOLUTIONS[$resolution]), fn ($q) => $q->whereIn('status', DataQuery::RESOLUTIONS[$resolution]['statuses']))
             ->when($request->filled('severite'), fn ($q) => $q->where('severity', $request->input('severite')))
-            ->when(trim((string) $request->input('q')) !== '', fn ($q) => $q->where(fn ($s) => $s->where('household_code', 'like', '%'.trim((string) $request->input('q')).'%')
-                ->orWhere('message', 'like', '%'.trim((string) $request->input('q')).'%')))
+            // Numéro de query (Q-000123), ID ménage ou texte de l'erreur.
+            ->search($request->input('q'))
             ->orderByRaw("case severity when 'critique' then 0 when 'majeure' then 1 else 2 end")->orderByDesc('collection_date')->orderByDesc('id')
             ->paginate(30)->withQueryString();
 

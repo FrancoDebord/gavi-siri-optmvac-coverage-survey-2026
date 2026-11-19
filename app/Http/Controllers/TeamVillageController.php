@@ -26,7 +26,7 @@ class TeamVillageController extends Controller
 
         $all = DataQuery::where('rule_code', 'TEAM_VILLAGE')
             ->when($zoneId, fn ($q, $zone) => $q->where('health_zone_id', $zone))
-            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w->where('household_code', 'like', "%{$search}%")->orWhere('message', 'like', "%{$search}%")))
+            ->search($search)
             ->with(['household', 'assignee:id,name', 'team.collectors:id,team_id,name'])
             ->orderBy('household_code')->get();
 
