@@ -102,7 +102,7 @@ class TeamSpaceController extends Controller
     private function queryList(Request $request, string $tab): View
     {
         [$team, $teams] = $this->team($request);
-        $base = DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id))
+        $base = DataQuery::forTeam($team)
             ->when($tab === 'villages', fn ($q) => $q->where('rule_code', 'TEAM_VILLAGE'));
         $resolution = $request->input('resolution', DataQuery::RESOLUTION_UNRESOLVED);
 
@@ -231,8 +231,8 @@ class TeamSpaceController extends Controller
             'today' => CarbonImmutable::today(),
             // Le binôme choisi suit l'utilisateur d'un onglet à l'autre (équipe centrale, superviseurs).
             'teamParam' => $isTeam ? [] : ['team_id' => $team->id],
-            'openQueries' => DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id))->whereIn('status', DataQuery::UNRESOLVED)->count(),
-            'openVillageQueries' => DataQuery::where(fn ($q) => $q->whereIn('collector_id', $team->collectors->pluck('id'))->orWhere('team_id', $team->id))
+            'openQueries' => DataQuery::forTeam($team)->whereIn('status', DataQuery::UNRESOLVED)->count(),
+            'openVillageQueries' => DataQuery::forTeam($team)
                 ->where('rule_code', 'TEAM_VILLAGE')->whereIn('status', DataQuery::UNRESOLVED)->count(),
         ];
     }

@@ -41,6 +41,12 @@ class QualityEngine
     /** @var array<int, int> binôme => compte binôme (affectation automatique) */
     private array $teamAccountsByTeam = [];
 
+    /** @var array<int, int> agent => binôme */
+    private array $collectorTeams = [];
+
+    /** @var array<string, int> compte ODK => binôme */
+    private array $accountTeams = [];
+
     private array $touched = [];
 
     private int $opened = 0;
@@ -84,6 +90,7 @@ class QualityEngine
                 ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value, 'assigned_to' => $q->assigned_to, 'suggested_source' => $q->suggested_source]])
                 ->all();
             $this->prepareAutoAssignment();
+            $this->prepareSubmitterTeams();
 
             $checked = 0;
             $failures = [];
@@ -163,6 +170,22 @@ class QualityEngine
             ->map(fn ($teamId) => $accounts[$teamId] ?? null)->filter()->all();
     }
 
+    /** Binôme de chaque compte ODK et de chaque agent (rattachement des queries au binôme qui a soumis). */
+    private function prepareSubmitterTeams(): void
+    {
+        $this->collectorTeams = Collector::whereNotNull('team_id')->pluck('team_id', 'id')->map(fn ($id) => (int) $id)->all();
+        $this->accountTeams = collect(TeamVillageCheck::accountTeams($this->collectorTeams))
+            ->map(fn ($account) => $account['team_id'])->filter()->all();
+    }
+
+    /** Binôme du compte ODK de la soumission s'il diffère de celui de l'agent sélectionné, sinon aucun. */
+    private function submitterTeam(Household $household): ?int
+    {
+        $account = $household->submitter !== null ? ($this->accountTeams[$household->submitter] ?? null) : null;
+
+        return $account !== null && $account !== ($this->collectorTeams[$household->collector_id] ?? null) ? $account : null;
+    }
+
     /** Colonnes d'affectation d'une nouvelle query (vides sans affectation automatique). */
     private function autoAssignment(QualityRule $rule, Household $household, CarbonInterface $now, ?int $teamId = null): array
     {
@@ -206,6 +229,9 @@ class QualityEngine
         }
         $observed = $candidate->observedAsString();
         $existing = $this->existing[$fingerprint] ?? null;
+        // Binôme qui traite la query : celui que désigne la règle, sinon celui du compte ODK qui a soumis la donnée
+        // quand l'agent sélectionné est d'un autre binôme (c'est le binôme du compte qui a collecté).
+        $teamId = $candidate->teamId ?? $this->submitterTeam($household);
         $description = $this->describe($rule, $candidate, $observed);
 
         if (! $existing) {
@@ -217,7 +243,7 @@ class QualityEngine
                 'household_id' => $household->id,
                 'caregiver_id' => $candidate->scope?->caregiverId,
                 'child_id' => $candidate->scope?->childId,
-                'team_id' => $candidate->teamId,
+                'team_id' => $teamId,
                 'submission_uuid' => $household->submission_uuid,
                 'household_code' => $household->household_code,
                 'health_zone_id' => $household->health_zone_id,
@@ -239,7 +265,7 @@ class QualityEngine
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
-            $this->toInsert[$fingerprint] = $this->autoAssignment($rule, $household, $now, $candidate->teamId) + $this->toInsert[$fingerprint];
+            $this->toInsert[$fingerprint] = $this->autoAssignment($rule, $household, $now, $teamId) + $this->toInsert[$fingerprint];
 
             return;
         }
@@ -250,13 +276,21 @@ class QualityEngine
             // Les identifiants d'enfant/caregiver changent quand une soumission est réimportée.
             'caregiver_id' => $candidate->scope?->caregiverId,
             'child_id' => $candidate->scope?->childId,
-            'team_id' => $candidate->teamId,
+            'team_id' => $teamId,
             'severity' => $rule->severity,
             'kind' => $rule->kind ?: QualityRule::KIND_QUERY,
             'collector_id' => $household->collector_id,
             'cluster_id' => $household->cluster_id,
             'collection_date' => $household->interview_date?->toDateString(),
         ];
+        // Query non résolue confiée au compte d'un autre binôme : rendue au compte du binôme qui a soumis la donnée
+        // (jamais une affectation à une personne : seulement d'un compte binôme à un autre).
+        $target = $teamId ? ($this->teamAccountsByTeam[$teamId] ?? null) : null;
+        if ($target && $existing['assigned_to'] && (int) $existing['assigned_to'] !== (int) $target
+            && in_array((int) $existing['assigned_to'], array_map('intval', $this->teamAccountsByTeam), true)
+            && in_array($existing['status'], DataQuery::UNRESOLVED, true)) {
+            $updates['assigned_to'] = $target;
+        }
         // Valeur proposée par la règle : jamais à la place d'une valeur lue sur la photo ou par l'IA.
         if (in_array($existing['suggested_source'], [null, DataQuery::SUGGESTION_RULE], true)) {
             $updates += $this->ruleSuggestion($candidate, $now);

@@ -106,12 +106,18 @@ class TeamVillageRuleTest extends TestCase
         $kora = Team::where('code', '46-47')->firstOrFail();
         $this->assertSame($kora->id, $query->team_id, 'binôme du compte ODK');
 
-        // Visible des deux binômes : celui du compte ODK (désigné) et celui de l'agent sélectionné.
-        foreach (['46-47', '38-39'] as $code) {
-            $account = User::factory()->create(['team_id' => Team::where('code', $code)->value('id')]);
-            $account->assignRole(User::ROLE_TEAM);
-            $this->actingAs($account)->get(route('team.queries'))->assertOk()->assertSee('TCH-WAR-04-S1-050');
-        }
+        // Toutes les queries de cette soumission vont au binôme qui l'a soumise (compte ODK) : c'est lui qui a collecté
+        // et qui s'est trompé d'agent ; le binôme de l'agent sélectionné ne les voit pas.
+        $this->assertSame([$kora->id], DataQuery::where('household_code', 'TCH-WAR-04-S1-050')->pluck('team_id')->unique()->values()->all());
+        $submitting = User::factory()->create(['team_id' => $kora->id]);
+        $submitting->assignRole(User::ROLE_TEAM);
+        $this->actingAs($submitting)->get(route('team.queries'))->assertOk()->assertSee('TCH-WAR-04-S1-050');
+        $this->actingAs($submitting)->get(route('queries.show', $query))->assertOk();
+        $other = User::factory()->create(['team_id' => Team::where('code', '38-39')->value('id')]);
+        $other->assignRole(User::ROLE_TEAM);
+        $this->actingAs($other)->get(route('team.queries'))->assertOk()->assertDontSee('TCH-WAR-04-S1-050');
+        $this->actingAs($other)->get(route('team.village-queries'))->assertOk()->assertDontSee('TCH-WAR-04-S1-050');
+        $this->actingAs($other)->get(route('queries.show', $query))->assertForbidden();
 
         // Page de suivi (admin) : compte, binôme du compte et diagnostic.
         $admin = User::factory()->create();

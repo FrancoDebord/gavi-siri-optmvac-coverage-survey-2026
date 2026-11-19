@@ -163,6 +163,17 @@ class DataQuery extends Model
         });
     }
 
+    /**
+     * Queries d'un binôme : celles qui le désignent (team_id, ex. binôme du compte ODK qui a soumis la donnée), et
+     * celles de ses agents qui ne désignent pas un autre binôme.
+     */
+    public function scopeForTeam(Builder $query, Team $team): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->where('data_queries.team_id', $team->id)
+            ->orWhere(fn (Builder $own) => $own->whereNull('data_queries.team_id')
+                ->whereIn('data_queries.collector_id', $team->collectors()->select('collectors.id'))));
+    }
+
     /** Ménages concernés par un numéro de query saisi dans une recherche de soumissions (sinon aucun). */
     public static function householdIdForCode(?string $term): ?int
     {

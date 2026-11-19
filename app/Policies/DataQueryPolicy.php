@@ -75,9 +75,12 @@ class DataQueryPolicy
             return false;
         }
 
-        // Binôme de l'agent sélectionné, ou binôme désigné par la query (ex. celui du compte ODK qui a soumis).
-        return ($query->team_id !== null && (int) $query->team_id === (int) $user->team_id)
-            || ($query->collector_id !== null && (int) $query->collector?->team_id === (int) $user->team_id);
+        // Query qui désigne un binôme (ex. celui du compte ODK qui a soumis la donnée) : ce binôme seulement.
+        if ($query->team_id !== null) {
+            return (int) $query->team_id === (int) $user->team_id;
+        }
+
+        return $query->collector_id !== null && (int) $query->collector?->team_id === (int) $user->team_id;
     }
 
     private function inScope(User $user, DataQuery $query): bool
