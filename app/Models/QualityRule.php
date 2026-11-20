@@ -39,6 +39,7 @@ class QualityRule extends Model
         'household' => 'Ménage',
         'caregiver' => 'Caregiver',
         'child' => 'Enfant',
+        'repeat' => 'Autre repeat (membres du ménage, SES)',
     ];
 
     protected $fillable = [

@@ -71,6 +71,69 @@ par `VAC_DOSE_ORDER` et `VAC_DOSE_INTERVAL` se règlent dans `config/gavi.php` (
 à 42 j ; doses 2 à 70 j ; doses 3 à 98 j ; VPI1 à 98 j ; VAP1, 2 et 3 à 150, 180 et 210 j ; RR1, VAA et
 MenA à 270 j ; RR2 à 450 j ; VAP4 à 540 j.
 
+## Règles du document qualité Bénin (cov26c4v2)
+
+Règles du document « Règles de qualité des données – Bénin (cov26c4v2) » qui complètent les règles livrées ci-dessus, sans les remplacer : les contrôles du document déjà couverts (doublons, géographie, ordre et âge minimal des doses, rosters, GPS, paradonnées…) restent assurés par les règles existantes. Codes du document (CRI-10 → `CRI_10`). La plupart sont des règles par expression, modifiables dans **Règles** ; six sont créées désactivées, à activer après examen (volume élevé au test sur les données du 20/11/2026).
+
+| Code | Règle | Sévérité | Nature | Active | Action à faire |
+|---|---|---|---|---|---|
+| `CRI_05` | GPS hors du Bénin | Critique | Query | Oui | Reprendre le point GPS à la revisite. |
+| `CRI_07` | Ménage accepté sans membres | Critique | Query | Oui | Compléter le nombre de personnes et la liste des membres. |
+| `CRI_08` | Données saisies malgré le refus du caregiver | Critique | Query | Oui | Vider ses données, ou corriger le consentement. |
+| `CRI_10` | Date de naissance dans le futur | Critique | Query | Oui | Vérifier le document et corriger la date. |
+| `CRI_11` | Âge de l'enfant impossible à calculer | Critique | Query | Oui | Saisir la date de naissance ou l'âge. |
+| `CRI_12` | Éligibilité contradictoire | Critique | Query | Oui | Vérifier la date de naissance et l'âge, puis corriger. |
+| `CRI_13` | Enfant éligible sans section vaccination | Critique | Query | Oui | Compléter la section vaccination. |
+| `CRI_20` | Même point GPS pour deux ménages | Critique | Query | Non (à valider) | Vérifier la visite ; reprendre le point GPS si besoin. |
+| `MAJ_07` | Sous-circuit invalide | Majeure | Query | Oui | Corriger le nombre de sous-grappes ou la sous-grappe tirée. |
+| `MAJ_08` | Nombre de caregivers incohérent avec la liste des membres | Majeure | Query | Non (à valider) | Corriger le nombre de caregivers ou la liste des membres. |
+| `MAJ_09` | Plus d'enfants déclarés que d'enfants listés | Majeure | Query | Oui | Vérifier les âges des membres et le nombre d'enfants déclaré. |
+| `MAJ_10` | Ménage sans adulte | Majeure | Query | Oui | Vérifier les âges des membres. |
+| `MAJ_11` | Caregiver de moins de 15 ans | Majeure | Query | Oui | Vérifier l'âge du membre ou corriger « caregiver ». |
+| `MAJ_12` | Âge du caregiver impossible | Majeure | Query | Oui | Vérifier l'âge et corriger. |
+| `MAJ_13` | Parent trop jeune pour l'enfant | Majeure | Query | Oui | Vérifier l'âge du caregiver, l'âge de l'enfant ou le lien. |
+| `MAJ_14` | Sexe incohérent avec le lien de parenté | Majeure | Query | Oui | Corriger le sexe ou le lien de parenté. |
+| `MAJ_15` | Caregiver sans enfant | Majeure | Query | Oui | Vérifier le nombre d'enfants déclaré. |
+| `MAJ_16` | Années d'études coraniques impossibles | Majeure | Query | Oui | Corriger les années d'études ou l'âge. |
+| `MAJ_18` | Enfant de 5 ans ou plus | Majeure | Query | Oui | Vérifier l'âge ; signaler l'enfant en trop. |
+| `MAJ_19` | Date de naissance documentée sans photo | Majeure | Query | Oui | Photographier le document à la revisite. |
+| `MAJ_26` | Dose reçue sans la précédente (carte) | Majeure | Query | Oui | Relire la carte et corriger. |
+| `MAJ_27` | Carte vue sans photo | Majeure | Query | Oui | Photographier la carte à la revisite. |
+| `MAJ_28` | Photos de la carte manquantes | Majeure | Query | Oui | Photographier les pages manquantes. |
+| `MAJ_29` | VAP 4 trop proche de VAP 3 | Majeure | Query | Oui | Relire les deux dates sur la carte. |
+| `MAJ_31` | Rappel : dose reçue sans la précédente | Majeure | Query | Oui | Revoir le rappel avec le caregiver. |
+| `MAJ_32` | Rappel : dose impossible pour l'âge | Majeure | Query | Oui | Vérifier l'âge de l'enfant ou la réponse. |
+| `MAJ_34` | Revue « 3 doses de VAP » incohérente | Majeure | Query | Oui | Corriger la réponse de revue. |
+| `MAJ_35` | Revue de 2e année incohérente | Majeure | Query | Non (à valider) | Corriger la réponse de revue. |
+| `MAJ_36` | Question de 2e année posée trop tôt | Majeure | Query | Oui | Corriger en « N/A ». |
+| `MAJ_37` | Cycles CPS dans le désordre | Majeure | Query | Oui | Relire la carte CPS et corriger. |
+| `MAJ_38` | Cycles CPS trop rapprochés | Majeure | Query | Oui | Relire la carte CPS et corriger. |
+| `MAJ_40` | Cycle CPS avant la naissance | Majeure | Query | Oui | Relire la carte CPS et la date de naissance. |
+| `MAJ_41` | Carte CPS contredit la déclaration | Majeure | Query | Oui | Revoir avec le caregiver et corriger. |
+| `MAJ_42` | Nombre de traitements CPS incohérent | Majeure | Query | Non (à valider) | Corriger le nombre de traitements. |
+| `MAJ_43` | CPS avant 3 mois | Majeure | Query | Oui | Relire la carte CPS et la date de naissance. |
+| `MAJ_47` | Entretiens qui se chevauchent | Majeure | Query | Non (à valider) | Vérifier les heures de la tablette avec le binôme. |
+| `OBS_05` | Initiales du caregiver mal formatées | Mineure | Observation | Oui | Saisir des initiales (1 à 5 lettres). |
+| `OBS_11` | Taille du ménage atypique | Mineure | Observation | Oui | Vérifier le nombre de personnes. |
+| `OBS_13` | Études coraniques très longues | Mineure | Observation | Oui | Vérifier la durée. |
+| `OBS_16` | Naissance le jour de l'entretien | Mineure | Observation | Oui | Vérifier la date de naissance. |
+| `OBS_17` | Vaccins d'un même contact à des dates éloignées | Mineure | Observation | Oui | Relire la carte. |
+| `OBS_18` | HepB de naissance tardive | Mineure | Observation | Oui | Relire la date sur la carte. |
+| `OBS_19` | Rota 1 tardif | Mineure | Observation | Oui | Relire la date sur la carte. |
+| `OBS_20` | Cicatrice BCG incohérente | Mineure | Observation | Oui | Revoir avec le caregiver. |
+| `OBS_21` | Rappel contredit la carte | Mineure | Observation | Oui | Revoir avec le caregiver. |
+| `OBS_22` | Photos insuffisantes pour le carnet | Mineure | Observation | Oui | Photographier toutes les pages. |
+| `OBS_23` | Carte CPS sans CPS déclarée | Mineure | Observation | Oui | Revoir avec le caregiver. |
+| `OBS_24` | Carte CPS sans cycle traité | Mineure | Observation | Oui | Relire la carte CPS. |
+| `OBS_25` | Rappel CPS contredit la carte | Mineure | Observation | Oui | Revoir avec le caregiver. |
+| `OBS_28` | Type de murs incohérent | Mineure | Observation | Oui | Vérifier les murs. |
+| `OBS_29` | Toit ou sol non renseigné | Mineure | Observation | Non (à valider) | Vérifier le toit et le sol. |
+| `OBS_30` | Électricité incohérente | Mineure | Observation | Oui | Vérifier l'électricité. |
+| `OBS_31` | Animaux sans espèce | Mineure | Observation | Oui | Préciser les animaux. |
+| `OBS_32` | Aucun combustible de cuisson | Mineure | Observation | Oui | Vérifier le combustible. |
+
+Non reprises : CRI-09 (découpage des sous-grappes, visible dans « Grappes par village »), MAJ-05 (= module caregiver vide), MAJ-06 (historique des visites), MAJ-20 (= champ obligatoire), MAJ-22, MAJ-30, MAJ-33, MAJ-39 et MAJ-44 (paramètres « à fournir » ou contrôles à préciser), OBS-01 à OBS-04 et OBS-06 à OBS-10 (déjà couvertes), OBS-12, OBS-14, OBS-15, OBS-26, OBS-27 et AVT-01.
+
 ## Règles personnalisées (expressions)
 
 Une règle de type « Expression personnalisée » contient une expression XLSForm qui décrit la

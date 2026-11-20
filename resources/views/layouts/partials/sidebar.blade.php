@@ -94,6 +94,7 @@
         <a class="nav-link {{ request('resolution') === \App\Models\DataQuery::RESOLUTION_SUPERVISED ? 'active' : '' }}" href="{{ route('queries.index', ['resolution' => \App\Models\DataQuery::RESOLUTION_SUPERVISED]) }}"><i class="bi bi-patch-check"></i><span class="label">Validation finale
             @if ($toFinalize)<span class="badge rounded-pill text-bg-info ms-1">{{ $toFinalize }}</span>@endif</span></a>
     @endcan
+    <a class="{{ $link('correction-sheets.*') }}" href="{{ route('correction-sheets.index') }}"><i class="bi bi-card-checklist"></i><span class="label">Fiches de corrections</span></a>
     <a class="{{ $link('observations.*') }}" href="{{ route('observations.index') }}"><i class="bi bi-binoculars"></i><span class="label">Observations de supervision</span></a>
     @can('validate queries')
         <a class="{{ $link('team-villages.*') }}" href="{{ route('team-villages.index') }}"><i class="bi bi-signpost-split"></i><span class="label">Villages des binômes
