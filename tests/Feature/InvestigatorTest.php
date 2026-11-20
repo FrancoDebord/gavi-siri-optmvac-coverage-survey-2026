@@ -14,6 +14,7 @@ use App\Models\TeamMessage;
 use App\Models\User;
 use App\Models\Village;
 use App\Services\Dashboard\ClusterSelection;
+use App\Services\Dashboard\ClusterTeams;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SamplingFrameImporter;
 use App\Services\Import\SubmissionProcessor;
@@ -97,7 +98,7 @@ class InvestigatorTest extends TestCase
         preg_match_all('/<span class="label">\s*([^<]+?)\s*(?:<|$)/u', $menu[0], $labels);
 
         $this->assertSame(
-            ['GAVI SIRI · Round 2', 'Vue d\'ensemble', 'Progression', 'Rapport de synthèse', 'Grappes par village', 'Carte des grappes', 'Soumissions', 'Queries', 'Décisions de terrain', 'Messages aux équipes', 'Incidents terrain', 'Documentation'],
+            ['GAVI SIRI · Round 2', 'Vue d\'ensemble', 'Progression', 'Rapport de synthèse', 'Grappes par village', 'Villages restants', 'Carte des grappes', 'Soumissions', 'Queries', 'Décisions de terrain', 'Messages aux équipes', 'Incidents terrain', 'Documentation'],
             array_map('trim', $labels[1]),
         );
         $this->assertStringNotContainsString(route('supervision.index'), $menu[0]);
@@ -325,5 +326,22 @@ class InvestigatorTest extends TestCase
         $this->actingAs($supTch)->post(route('messages.store'), ['kind' => 'information', 'recipient' => 'all:', 'body' => 'x'])->assertRedirect(route('supervision.index'));
         $this->actingAs($pi)->post(route('messages.store'), ['kind' => 'information', 'recipient' => 'team:999', 'body' => 'x'])->assertSessionHasErrors('target_id');
         $this->assertSame(3, TeamMessage::count());
+    }
+
+    public function test_cluster_maps_show_the_team_that_worked_there(): void
+    {
+        $cluster = Cluster::where('code', 'TCH-SEB-01')->firstOrFail();
+        $teams = ClusterTeams::for($cluster->id);
+        $this->assertSame('46-47', $teams[0]['code']);
+        $this->assertSame(3, $teams[0]['households']);
+        $this->assertSame('46-47', $cluster->mapBoundary()['teams'][0]['code']);
+        $this->assertSame('46-47 (Kora & Barakatou)', $teams[0]['label'], 'nom du binôme (prénoms des agents)');
+        $sebouVillage = $cluster->village;
+        $sebouVillage->update(['short_code' => 'SEB']);
+        $this->assertSame($sebouVillage->name.' (SEB)', $cluster->fresh()->mapBoundary()['village'], 'village suivi de son code à 3 lettres');
+
+        $sebou = Village::where('code', '66')->firstOrFail();
+        $this->actingAs($this->user(User::ROLE_ADMIN))->get(route('maps.clusters', ['village_id' => $sebou->id]))->assertOk()
+            ->assertSee('Binôme(s)')->assertSee('46-47 (')->assertSee($sebouVillage->name.' (SEB)');
     }
 }

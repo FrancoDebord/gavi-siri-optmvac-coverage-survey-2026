@@ -63,7 +63,7 @@ class ClusterMapTest extends TestCase
         $this->assertEqualsCanonicalizing([$sebou, $assiyo], $page->viewData('villages')->pluck('id')->all());
         $this->assertSame([$assiyo => false, $sebou => true], $page->viewData('villages')->sortBy('id')->mapWithKeys(fn ($v) => [$v->id => $v->has_boundary])->all(),
             'village sans contour signalé, quel que soit l\'ordre');
-        $page->assertSee('Assiyo (sans contour)');
+        $page->assertSee(\App\Models\Village::find($assiyo)->displayName().' — sans contour');
         $this->assertSame(['TCH-SEB-01', 'TCH-SEB-02'], array_column($page->viewData('mapData')['boundaries'], 'code'));
         $this->assertSame([1], array_column($page->viewData('mapData')['boundaries'][0]['sub_clusters'], 'number'));
         $this->assertCount(2, $page->viewData('mapData')['points']);

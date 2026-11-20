@@ -24,6 +24,7 @@
         'soumissions' => ['team.submissions', 'house-door', 'Soumissions'],
         'queries' => ['team.queries', 'flag', 'Queries'],
         'villages' => ['team.village-queries', 'signpost-split', 'Villages et agents'],
+        'restants' => ['team.remaining', 'hourglass-split', 'Villages restants'],
         'grappes' => ['team.clusters', 'bounding-box', 'Grappes'],
     ] as $key => [$route, $icon, $label])
         <li class="nav-item">

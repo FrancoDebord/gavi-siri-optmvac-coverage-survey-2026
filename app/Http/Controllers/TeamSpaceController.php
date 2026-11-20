@@ -100,6 +100,22 @@ class TeamSpaceController extends Controller
         return $this->queryList($request, 'villages');
     }
 
+    /** Onglet « Villages restants » : villages du binôme où aucun ménage n'a encore été visité. */
+    public function remainingVillages(Request $request): View
+    {
+        [$team, $teams] = $this->team($request);
+        $villages = $team->villages()->get(['villages.id', 'villages.name']);
+        $remaining = new RemainingVillages(null, null, $villages->pluck('id')->all());
+        $visited = RemainingVillages::visitedCounts();
+
+        return view('team.remaining', $this->shared($request, $team, $teams, 'restants') + [
+            'remaining' => $remaining->remaining(),
+            'summary' => $remaining->summary(),
+            'visitedVillages' => $villages->filter(fn ($v) => ($visited[$v->id] ?? 0) > 0)
+                ->map(fn ($v) => ['name' => $v->name, 'visited' => $visited[$v->id]])->values(),
+        ]);
+    }
+
     private function queryList(Request $request, string $tab): View
     {
         [$team, $teams] = $this->team($request);
@@ -178,7 +194,7 @@ class TeamSpaceController extends Controller
 
             return [
                 'cluster' => $cluster,
-                'village' => $cluster->village?->name ?? 'Village non renseigné',
+                'village' => $cluster->village?->displayName() ?? 'Village non renseigné',
                 'map' => 'data:image/png;base64,'.base64_encode($map['png']),
                 'visited' => $own->count(),
                 'surveyed' => $own->where('consented', true)->count(),

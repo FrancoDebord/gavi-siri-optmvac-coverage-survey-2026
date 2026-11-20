@@ -96,26 +96,7 @@
             <span><i class="bi bi-hourglass-split me-1"></i>Villages restants : aucun ménage encore visité</span>
             <span class="badge text-bg-warning">{{ $remaining->flatten(1)->count() }} village(s)</span>
         </div>
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0 small">
-                <thead class="table-light"><tr><th>Village</th><th>Binôme(s) concerné(s)</th><th class="text-end">Grappes prévues</th><th class="text-end">Ménages dénombrés</th></tr></thead>
-                <tbody>
-                @forelse ($remaining as $zoneName => $items)
-                    <tr class="table-light"><th colspan="4">{{ $zoneName }} <span class="fw-normal text-muted">· {{ $items->count() }} village(s)</span></th></tr>
-                    @foreach ($items as $item)
-                        <tr>
-                            <td class="fw-semibold">{{ $item['village'] }}</td>
-                            <td>{!! $item['teams'] ? e(implode(' · ', $item['teams'])) : '<span class="text-danger">aucun binôme attribué</span>' !!}</td>
-                            <td class="text-end">{{ $item['clusters'] ?: '—' }}</td>
-                            <td class="text-end">{{ $item['enumerated'] ? number_format($item['enumerated'], 0, ',', ' ') : '—' }}</td>
-                        </tr>
-                    @endforeach
-                @empty
-                    <tr><td colspan="4" class="text-center text-success py-3"><i class="bi bi-check-circle me-1"></i>Tous les villages ont au moins un ménage visité.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
+        @include('remaining-villages._table', ['remaining' => $remaining, 'showTeams' => true])
     </div>
 
     <div class="card mb-3">

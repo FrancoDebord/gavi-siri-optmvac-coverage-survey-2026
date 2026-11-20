@@ -1,6 +1,6 @@
 @php
     $hasBoundary = $cluster->boundary || $cluster->subClusters->whereNotNull('boundary')->isNotEmpty();
-    $place = collect([$cluster->village?->name, $cluster->village?->arrondissement?->name, $cluster->commune?->name, $cluster->healthZone?->name])->filter()->implode(' · ');
+    $place = collect([$cluster->village?->displayName(), $cluster->village?->arrondissement?->name, $cluster->commune?->name, $cluster->healthZone?->name])->filter()->implode(' · ');
 @endphp
 <x-layouts.app :title="'Grappe '.$cluster->code" page="cluster">
     <x-page-header :title="'Grappe '.$cluster->code" :subtitle="$place">

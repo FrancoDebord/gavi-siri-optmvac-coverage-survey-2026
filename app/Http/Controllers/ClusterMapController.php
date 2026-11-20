@@ -95,7 +95,7 @@ class ClusterMapController extends Controller
         $withBoundary = (clone $clustered)->where(fn ($q) => $q->whereNotNull('boundary')->orWhereHas('subClusters', fn ($s) => $s->whereNotNull('boundary')))
             ->pluck('village_id')->unique()->flip();
 
-        return $query->get(['id', 'name', 'health_zone_id'])
+        return $query->get(['id', 'name', 'short_code', 'health_zone_id'])
             ->each(function ($v) use ($withBoundary) {
                 $v->has_boundary = isset($withBoundary[$v->id]); // pas de fonction fléchée : each() s'arrête si le rappel renvoie false
             })

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DataQuery;
+use App\Models\HealthZone;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\Village;
@@ -169,5 +170,39 @@ class TeamVillageRuleTest extends TestCase
         ]])->assertSessionHasNoErrors();
         app(QualityEngine::class)->run('test');
         $this->assertTrue(in_array($query->fresh()->status, [DataQuery::STATUS_VALIDATED, DataQuery::STATUS_CORRECTED], true), $query->fresh()->status);
+    }
+
+    public function test_remaining_villages_are_scoped_to_each_profile(): void
+    {
+        // Un ménage à Wari-Maro (Kora & Barakatou) : ce village n'est plus « restant ».
+        $this->submit('uuid:w', 'TCH-WAR-04-S1-001', $this->village('Wari-Maro'), '46');
+        $dagla = HealthZone::where('code', '2')->firstOrFail();
+        $user = function (string $role, array $attributes = []) {
+            $user = User::factory()->create($attributes);
+            $user->assignRole($role);
+
+            return $user;
+        };
+
+        // Administrateur : toutes les zones ; filtre par zone.
+        $admin = $user(User::ROLE_ADMIN);
+        $this->actingAs($admin)->get(route('remaining-villages.index'))->assertOk()
+            ->assertSee('Villages restants')->assertSee('Kpawa')->assertSee('Betou')->assertDontSee('>Wari-Maro<', false);
+        $this->actingAs($admin)->get(route('remaining-villages.index', ['health_zone_id' => $dagla->id]))->assertSee('Betou')->assertDontSee('Kpawa');
+
+        // PI : onglet de son espace et menu.
+        $this->actingAs($user(User::ROLE_PI))->get(route('remaining-villages.index'))->assertOk()->assertSee('Grappes par village')->assertSee('Kpawa');
+
+        // Superviseur de Dagla : sa zone seulement, même en demandant une autre zone.
+        $supervisor = $user(User::ROLE_SUPERVISOR, ['health_zone_id' => $dagla->id]);
+        $this->actingAs($supervisor)->get(route('remaining-villages.index', ['health_zone_id' => 999]))->assertOk()
+            ->assertSee('Zone sanitaire de')->assertSee('Betou')->assertDontSee('Kpawa');
+
+        // Binôme Kora & Barakatou : ses villages seulement, Wari-Maro parmi les villages commencés.
+        $kora = $user(User::ROLE_TEAM, ['team_id' => Team::where('code', '46-47')->value('id')]);
+        $this->actingAs($kora)->get(route('team.remaining'))->assertOk()
+            ->assertSee('Kpawa')->assertDontSee('Betou')->assertSee('Villages déjà commencés')->assertSee('Wari-Maro');
+        // Les binômes n'ont pas accès à la page générale.
+        $this->actingAs($kora)->get(route('remaining-villages.index'))->assertRedirect();
     }
 }

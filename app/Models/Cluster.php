@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Dashboard\ClusterTeams;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -60,7 +61,9 @@ class Cluster extends Model
             'code' => $this->code,
             'number' => $this->number,
             'name' => $this->name,
-            'village' => $this->village?->name,
+            'village' => $this->village?->displayName(),
+            // Binôme(s) qui ont travaillé dans la grappe (compte ODK, sinon agent sélectionné).
+            'teams' => ClusterTeams::for($this->id),
             'url' => $withUrl ? route('clusters.show', $this) : null,
             'boundary' => $this->boundary,
             'sub_clusters' => $this->subClusters->whereNotNull('boundary')

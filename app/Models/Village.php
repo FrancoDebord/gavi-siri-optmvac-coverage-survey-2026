@@ -37,4 +37,15 @@ class Village extends Model
     {
         return $this->hasMany(Household::class);
     }
+
+    /** Nom suivi du code à 3 lettres affecté au village (identifiant ménage), ex. « Sebou (SEB) ». */
+    public function displayName(): string
+    {
+        return self::nameWithCode($this->name, $this->short_code);
+    }
+
+    public static function nameWithCode(?string $name, ?string $shortCode): string
+    {
+        return trim((string) $name).($shortCode ? ' ('.strtoupper($shortCode).')' : '');
+    }
 }

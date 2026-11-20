@@ -22,6 +22,7 @@ use App\Http\Controllers\MicrosoftLoginController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QualityRuleController;
 use App\Http\Controllers\QueryDashboardController;
+use App\Http\Controllers\RemainingVillagesController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\SupervisionController;
@@ -64,6 +65,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/queries', [DataQueryController::class, 'index'])->name('queries.index');
         Route::get('/queries/tableau', [DataQueryController::class, 'datatable'])->name('queries.datatable');
         Route::get('/observations', [SupervisionObservationController::class, 'index'])->name('observations.index');
+        // Villages restants (aucun ménage visité) : toutes zones, ou zone / commune du superviseur.
+        Route::get('/villages-restants', [RemainingVillagesController::class, 'index'])->name('remaining-villages.index');
         // Villages des binômes (règle TEAM_VILLAGE) : diagnostic agent / compte ODK / village, cas à traiter.
         Route::get('/queries/villages-binomes', [TeamVillageController::class, 'index'])->middleware('permission:validate queries')->name('team-villages.index');
         Route::get('/corrections', [DataCorrectionController::class, 'index'])->middleware('permission:validate queries|view pi dashboard')->name('corrections.index');
@@ -111,6 +114,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/mon-binome/soumissions', [TeamSpaceController::class, 'submissions'])->name('team.submissions');
     Route::get('/mon-binome/queries', [TeamSpaceController::class, 'queries'])->name('team.queries');
     Route::get('/mon-binome/villages-agents', [TeamSpaceController::class, 'villageQueries'])->name('team.village-queries');
+    Route::get('/mon-binome/villages-restants', [TeamSpaceController::class, 'remainingVillages'])->name('team.remaining');
     Route::get('/mon-binome/grappes', [TeamSpaceController::class, 'clusters'])->name('team.clusters');
     Route::get('/mon-binome/grappes.pdf', [TeamSpaceController::class, 'clustersPdf'])->name('team.clusters.pdf')->middleware('throttle:10,1');
 

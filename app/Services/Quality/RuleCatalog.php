@@ -72,6 +72,9 @@ class RuleCatalog
             'GPS_OUTSIDE_COMMUNE' => self::rule('Point hors de la commune', 'Approximation sans polygones : distance au centroïde (médiane) des points de la commune supérieure au rayon.', 'metier', 'mineure', Rules\Business\GpsOutsideCommuneRule::class, 'household', null, ['radius_km' => 50, 'min_points' => 5]),
             'HH_CODE' => self::rule('Identifiant ménage non conforme', 'Identifiant hors format ZONE-VIL-NN[-Sx]-MMM, préfixe de zone inconnu ou différent de la zone déclarée, code village inconnu, ou composante S différente de la sous-grappe sélectionnée dans le formulaire.', 'metier', 'majeure', Rules\Business\HouseholdCodeRule::class),
             'GEO_HIERARCHY' => self::rule('Grappe / village incohérents', 'Le village déclaré n\'appartient pas à l\'arrondissement ou à la commune déclarés, ou la grappe n\'est pas rattachée au village.', 'metier', 'critique', Rules\Business\GeoHierarchyRule::class),
+            'ROSTER_MEMBERS' => self::rule('Roster des membres non conforme', 'Le nombre de membres saisis dans le roster du ménage diffère du nombre de personnes déclarées (personnes ayant dormi dans le ménage).', 'metier', 'majeure', Rules\Business\RosterMembersRule::class),
+            'ROSTER_CAREGIVERS' => self::rule('Roster des caregivers non conforme', 'Le nombre de caregivers saisis diffère du nombre de mères / gardien(ne)s déclaré(e)s dans le ménage.', 'metier', 'majeure', Rules\Business\RosterCaregiversRule::class),
+            'ROSTER_CHILDREN' => self::rule('Roster des enfants non conforme', 'Pour un caregiver, le nombre d\'enfants saisis diffère du nombre d\'enfants de moins de 5 ans qu\'il a déclaré.', 'metier', 'majeure', Rules\Business\RosterChildrenRule::class, 'caregiver'),
             'TEAM_VILLAGE' => self::rule('Village hors de ceux du binôme', 'Le village coché ne fait pas partie des villages attribués au binôme de l\'agent (fichier binomes_villages.csv). Si le code village de l\'identifiant ménage désigne un village du binôme, ce village est proposé comme correction.', 'metier', 'majeure', Rules\Business\TeamVillageRule::class),
 
             // ── Paradonnées ─────────────────────────────────────────────────────────
@@ -126,6 +129,9 @@ class RuleCatalog
         'GPS_CLUSTER_DISTANCE' => 'Vérifier que le ménage appartient bien à la grappe déclarée ({valeur} du centre) : corriger la grappe ou le village, ou justifier.',
         'GPS_OUTSIDE_COMMUNE' => 'Vérifier la commune et le village déclarés ainsi que la position GPS, puis corriger la localisation.',
         'GEO_HIERARCHY' => 'Corriger le village, l\'arrondissement ou la commune sélectionnés pour qu\'ils soient cohérents ({attendu}).',
+        'ROSTER_MEMBERS' => 'Vérifier avec le binôme le nombre de personnes du ménage ({valeur} déclarées, {attendu}) : corriger le nombre déclaré, ou signaler les membres en trop ou manquants.',
+        'ROSTER_CAREGIVERS' => 'Vérifier avec le binôme le nombre de mères / gardien(ne)s ({valeur} déclaré(s), {attendu}) : corriger le nombre déclaré, ou signaler le caregiver en trop ou manquant.',
+        'ROSTER_CHILDREN' => 'Vérifier avec le caregiver le nombre d\'enfants de moins de 5 ans ({valeur} déclaré(s), {attendu}) : corriger le nombre déclaré, ou signaler l\'enfant en trop ou manquant.',
         'TEAM_VILLAGE' => 'Vérifier avec le binôme le village enquêté ({attendu}) : corriger le village coché ou l\'agent sélectionné, ou justifier.',
         'PARA_DURATION' => 'Échanger avec le binôme sur le déroulement de l\'interview ({valeur}) ; justifier, ou contrôler le ménage.',
         'PARA_OFF_HOURS' => 'Vérifier l\'heure de la tablette et les conditions de l\'interview ({valeur}) avec le binôme, puis justifier.',

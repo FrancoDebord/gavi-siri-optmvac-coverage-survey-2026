@@ -23,6 +23,7 @@
         <a class="{{ $link('team.queries', 'queries.*') }} {{ request()->routeIs('team.queries') ? 'active' : '' }}" href="{{ route('team.queries') }}"><i class="bi bi-flag"></i><span class="label">Mes queries
             @if ($teamQueries)<span class="badge rounded-pill text-bg-danger ms-1">{{ $teamQueries }}</span>@endif</span></a>
         <a class="{{ $link('team.clusters', 'clusters.*') }} {{ request()->routeIs('team.clusters') ? 'active' : '' }}" href="{{ route('team.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Mes grappes</span></a>
+        <a class="{{ $link('team.remaining') }}" href="{{ route('team.remaining') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>
         <a class="{{ $link('maps.clusters') }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte de mes villages</span></a>
     @endif
     @if (auth()->user()->hasOwnTeam())
@@ -44,6 +45,7 @@
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
         <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
+        <a class="{{ $link('remaining-villages.*') }}" href="{{ route('remaining-villages.index') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>
         <a class="{{ $link('maps.clusters', 'clusters.*') }} {{ request()->routeIs('maps.clusters') ? 'active' : '' }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
         <a class="{{ $link('submissions.*', 'households.*') }} {{ request()->routeIs('submissions.*') ? 'active' : '' }}" href="{{ route('submissions.index') }}"><i class="bi bi-house-door"></i><span class="label">Soumissions</span></a>
         <a class="{{ $link('queries.*') }}" href="{{ route('queries.dashboard') }}"><i class="bi bi-flag"></i><span class="label">Queries
@@ -75,6 +77,7 @@
     <div class="nav-section">Suivi</div>
     <a class="{{ $link('dashboard') }}" href="{{ route('dashboard', $hasOwnHome ? ['complet' => 1] : []) }}"><i class="bi bi-speedometer2"></i><span class="label">Progression</span></a>
     <a class="{{ $link('maps.clusters') }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
+    <a class="{{ $link('remaining-villages.*') }}" href="{{ route('remaining-villages.index') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>
     <a class="{{ $link('submissions.*') }}" href="{{ route('submissions.index') }}"><i class="bi bi-house-door"></i><span class="label">Soumissions</span></a>
     <a class="{{ $link('queries.dashboard') }}" href="{{ route('queries.dashboard') }}"><i class="bi bi-clipboard2-pulse"></i><span class="label">Dashboard queries</span></a>
     <a class="{{ $link('queries.index', 'queries.index') }} {{ request()->routeIs('queries.show') ? 'active' : '' }}" href="{{ route('queries.index') }}"><i class="bi bi-list-check"></i><span class="label">Liste des queries

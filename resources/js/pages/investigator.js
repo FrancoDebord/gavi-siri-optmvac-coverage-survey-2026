@@ -40,7 +40,7 @@ function householdsMap(points, boundaries) {
     if (!container) return;
     const map = baseMap(container);
     const layer = L.featureGroup().addTo(map);
-    drawBoundaries(layer, boundaries);
+    drawBoundaries(layer, boundaries, { teams: false });
     points.forEach((p) => {
         householdMarker(p, `<strong><a href="${p.url}">Ménage ${escapeHtml(p.code)}</a></strong><br>${escapeHtml(p.zone ?? '')} · ${escapeHtml(p.village ?? '')}<br>Grappe ${escapeHtml(p.cluster ?? '—')} · binôme ${escapeHtml(p.team ?? '—')}<br>${escapeHtml(p.date ?? '')} · ${p.consented ? 'recruté' : 'non recruté'}`)
             .addTo(layer);

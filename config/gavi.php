@@ -70,12 +70,16 @@ return [
         'statut_absent' => ['Valeurs « absent » (séparées par des virgules)', 'menage', 'household_survey_status', '2,4'],
         'statut_sans_enfant' => ['Valeur « pas d\'enfant éligible »', 'menage', 'household_survey_status', '3'],
         'gps' => ['Coordonnées GPS', 'menage', 'current_location', null],
+        'nb_membres' => ['Nombre de personnes déclarées (roster des membres)', 'menage', 'num_slept_last_night', null],
+        'repeat_membres' => ['Repeat roster des membres du ménage', 'menage', 'smc_cov_roster_2023', null],
+        'nb_caregivers' => ['Nombre de caregivers déclarés', 'menage', 'hh_caregivers_num', null],
 
         'repeat_caregivers' => ['Repeat caregivers', 'caregiver', 'cg', null],
         'consentement_caregiver' => ['Participation du caregiver (valeur « oui »)', 'caregiver', 'participation_agreed', '1'],
         'caregiver_initiales' => ['Initiales du caregiver', 'caregiver', 'firstname', null],
         'caregiver_sexe' => ['Sexe du caregiver', 'caregiver', 'caregiver_sex', null],
         'caregiver_age' => ['Âge du caregiver', 'caregiver', 'age_years', null],
+        'nb_enfants_caregiver' => ['Nombre d\'enfants de moins de 5 ans déclarés par le caregiver', 'caregiver', 'caregiver_num_children', null],
 
         'repeat_enfants' => ['Repeat enfants', 'enfant', 'smc_cov_hh_cg_child_2023', null],
         'enfant_sexe' => ['Sexe de l\'enfant', 'enfant', 'child_sex', null],

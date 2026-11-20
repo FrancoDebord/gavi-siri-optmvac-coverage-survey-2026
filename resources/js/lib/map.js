@@ -161,13 +161,48 @@ export function addBoundaryLegend(map, boundaries) {
 export const LABEL_MIN_ZOOM = 12;
 const LABEL_PANE = 'zoneLabels';
 
-/** Étiquette affichée dans une zone : village, grappe, sous-grappe et hameau s'il y en a. */
+/** Binômes qui ont travaillé dans la grappe, avec les prénoms des agents (ex. « 46-47 (Kora & Barakatou) »). */
+function teamNames(cluster) {
+    return (cluster.teams || []).map((team) => team.label).join(' · ');
+}
+
+const teamLegends = new WeakMap();
+
+/** Encadré toujours visible : binôme(s) qui ont travaillé dans les grappes affichées, avec leurs ménages. */
+export function addTeamsLegend(map, boundaries) {
+    teamLegends.get(map)?.remove();
+    const teams = new Map();
+    boundaries.forEach((cluster) => (cluster.teams || []).forEach((team) => {
+        const current = teams.get(team.code) ?? { label: team.label, households: 0 };
+        current.households += team.households;
+        teams.set(team.code, current);
+    }));
+    if (!teams.size) return null;
+
+    const control = L.control({ position: 'topright' });
+    control.onAdd = () => {
+        const div = L.DomUtil.create('div', 'bg-white rounded shadow-sm px-2 py-1 small map-teams-legend');
+        div.innerHTML = `<div class="fw-semibold mb-1"><i class="bi bi-people-fill me-1"></i>Binôme${teams.size > 1 ? 's' : ''} ayant travaillé ici</div>`
+            + [...teams.values()].sort((a, b) => b.households - a.households)
+                .map((t) => `<div>${escapeHtml(t.label)} <span class="text-muted">· ${t.households} ménage${t.households > 1 ? 's' : ''}</span></div>`).join('');
+        L.DomEvent.disableClickPropagation(div);
+        return div;
+    };
+    control.addTo(map);
+    teamLegends.set(map, control);
+
+    return control;
+}
+
+/** Étiquette affichée dans une zone : village, grappe, sous-grappe, hameau s'il y en a, et binôme(s) qui y ont travaillé. */
 function zoneLabel(cluster, subNumber, hamlet, color) {
     const number = cluster.number ? String(cluster.number).padStart(2, '0') : cluster.code;
+    const teams = teamNames(cluster);
     const parts = [
         `Grappe ${number}`,
         subNumber ? `Sous-grappe ${subNumber}` : null,
         hamlet ? `Hameau ${hamlet}` : null,
+        teams ? `Binôme ${teams}` : null,
     ].filter(Boolean).map(escapeHtml);
 
     return `<div class="map-zone-village" style="color:${color}">${escapeHtml(cluster.village || cluster.name || '')}</div>`
@@ -177,9 +212,10 @@ function zoneLabel(cluster, subNumber, hamlet, color) {
 /**
  * Contours GeoJSON des grappes (bleu nuit, trait plein) et de leurs sous-grappes (pointillés, couleur par numéro).
  * Chaque zone porte son nom (village, grappe, sous-grappe, hameau), visible à partir du zoom LABEL_MIN_ZOOM.
- * boundaries : [{ code, number?, name, village?, url?, boundary, sub_clusters: [{ number, boundary }] }]
+ * boundaries : [{ code, number?, name, village?, teams?, url?, boundary, sub_clusters: [{ number, boundary }] }]
+ * teams : encadré des binômes ayant travaillé dans les grappes affichées (cartes d'un village, d'une grappe…).
  */
-export function drawBoundaries(layer, boundaries, { link = true } = {}) {
+export function drawBoundaries(layer, boundaries, { link = true, teams = true } = {}) {
     // Chaque contour (un par hameau) a sa fenêtre : hameau et superficie ; un point isolé (< 3 points) est un petit rond.
     const geoJson = (data, style, header, label) => L.geoJSON(data, {
         style,
@@ -203,7 +239,9 @@ export function drawBoundaries(layer, boundaries, { link = true } = {}) {
     });
 
     boundaries.forEach((cluster) => {
-        const title = `<strong>Grappe ${escapeHtml(cluster.code)}</strong><br>${escapeHtml(cluster.village || cluster.name)}`;
+        const teams = (cluster.teams || []).map((team) => `${escapeHtml(team.label)} (${team.households} ménage${team.households > 1 ? 's' : ''})`);
+        const title = `<strong>Grappe ${escapeHtml(cluster.code)}</strong><br>${escapeHtml(cluster.village || cluster.name)}`
+            + (teams.length ? `<br><i class="bi bi-people me-1"></i>Binôme${teams.length > 1 ? 's' : ''} : ${teams.join(', ')}` : '');
         const more = link && cluster.url ? `<br><a href="${cluster.url}">Voir la grappe et ses ménages</a>` : '';
         if (cluster.boundary) {
             const c = BOUNDARY_COLORS.cluster;
@@ -217,5 +255,8 @@ export function drawBoundaries(layer, boundaries, { link = true } = {}) {
                 (hamlet) => zoneLabel(cluster, sub.number, hamlet, c)).addTo(layer);
         });
     });
-    if (layer._map) addBoundaryLegend(layer._map, boundaries);
+    if (layer._map) {
+        addBoundaryLegend(layer._map, boundaries);
+        if (teams) addTeamsLegend(layer._map, boundaries);
+    }
 }

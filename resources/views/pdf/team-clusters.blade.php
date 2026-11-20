@@ -21,6 +21,9 @@
         <div class="page-break"></div>
         <h2 style="margin-top: 0;">{{ $page['village'] }} — grappe {{ $page['cluster']->number ?? '' }} ({{ $page['cluster']->code }})</h2>
         <div class="muted" style="margin-bottom: 4px;">{{ $page['visited'] }} ménage(s) visité(s), dont {{ $page['surveyed'] }} enquêté(s){{ $page['outside'] ? ' · '.$page['outside'].' hors du contour' : '' }}{{ $page['no_gps'] ? ' · '.$page['no_gps'].' sans GPS (non affiché(s))' : '' }}{{ $page['cluster']->boundary ? '' : ' · contour non encore relevé' }}</div>
+        @if ($teamsHere = \App\Services\Dashboard\ClusterTeams::for($page['cluster']->id))
+            <div class="muted" style="margin-bottom: 4px;">Binôme(s) ayant travaillé dans la grappe : {{ collect($teamsHere)->map(fn ($t) => $t['label'].' ('.$t['households'].' ménage(s))')->implode(', ') }}</div>
+        @endif
         <img src="{{ $page['map'] }}" style="width: 100%;" alt="Carte de la grappe {{ $page['cluster']->code }}">
     @endforeach
 @endsection

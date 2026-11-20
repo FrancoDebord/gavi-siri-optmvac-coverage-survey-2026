@@ -178,7 +178,7 @@ function renderMap(points, boundaries = lastBoundaries) {
         markersLayer = L.featureGroup().addTo(map);
     }
     boundariesLayer.clearLayers();
-    drawBoundaries(boundariesLayer, boundaries);
+    drawBoundaries(boundariesLayer, boundaries, { teams: false });
     // Par défaut : recrutés en vert, autres en rouge ; sinon une couleur par grappe, binôme ou agent.
     const by = document.getElementById('map-color')?.value || 'status';
     const palette = new Map();

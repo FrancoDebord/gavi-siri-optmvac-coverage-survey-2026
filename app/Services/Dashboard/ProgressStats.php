@@ -3,6 +3,7 @@
 namespace App\Services\Dashboard;
 
 use App\Models\DataQuery;
+use App\Models\Village;
 use App\Services\Dictionary\VariableMap as Map;
 use App\Support\DashboardCache;
 use App\Support\Filters;
@@ -322,7 +323,7 @@ class ProgressStats
             ->where(fn ($q) => $q->whereNotNull('clusters.boundary')
                 ->orWhereExists(fn ($s) => $s->from('sub_clusters')->whereColumn('sub_clusters.cluster_id', 'clusters.id')->whereNotNull('sub_clusters.boundary')))
             ->leftJoin('villages', 'villages.id', '=', 'clusters.village_id')
-            ->get(['clusters.id', 'clusters.code', 'clusters.number', 'clusters.name', 'villages.name as village', 'clusters.boundary']);
+            ->get(['clusters.id', 'clusters.code', 'clusters.number', 'clusters.name', 'villages.name as village', 'villages.short_code as village_code', 'clusters.boundary']);
         $subClusters = DB::table('sub_clusters')->whereIn('cluster_id', $clusters->pluck('id'))->whereNotNull('boundary')
             ->orderBy('number')->get(['cluster_id', 'number', 'boundary'])->groupBy('cluster_id');
 
@@ -331,7 +332,8 @@ class ProgressStats
             'code' => $c->code,
             'number' => $c->number,
             'name' => $c->name,
-            'village' => $c->village,
+            'village' => $c->village !== null ? Village::nameWithCode($c->village, $c->village_code) : null,
+            'teams' => ClusterTeams::for((int) $c->id),
             'url' => route('clusters.show', $c->id),
             'boundary' => $c->boundary ? json_decode($c->boundary, true) : null,
             'sub_clusters' => ($subClusters[$c->id] ?? collect())->map(fn ($s) => ['number' => $s->number, 'boundary' => json_decode($s->boundary, true)])->values()->all(),

@@ -2,7 +2,7 @@
     $windowUrl = route('maps.clusters', array_filter(['village_id' => $village?->id, 'fenetre' => 1]));
     $go = fn ($v) => route('maps.clusters', array_filter(['village_id' => $v?->id, 'fenetre' => $window ? 1 : null]));
 @endphp
-<x-layouts.app :title="'Carte des grappes'.($village ? ' · '.$village->name : '')" page="cluster-map" :body-class="$window ? 'map-window' : null">
+<x-layouts.app :title="'Carte des grappes'.($village ? ' · '.$village->displayName() : '')" page="cluster-map" :body-class="$window ? 'map-window' : null">
     <div class="map-window-hide">
         <x-page-header title="Carte des grappes et sous-grappes" :subtitle="'Choisissez un village pour voir toutes ses grappes et sous-grappes à la fois · '.$scopeLabel" />
     </div>
@@ -16,7 +16,7 @@
                 @foreach ($villages->groupBy(fn ($v) => $v->healthZone?->name ?? '—') as $zoneName => $items)
                     <optgroup label="{{ $zoneName }}">
                         @foreach ($items as $item)
-                            <option value="{{ $item->id }}" @selected($item->id === $village?->id)>{{ $item->name }}{{ $item->has_boundary ? '' : ' (sans contour)' }}</option>
+                            <option value="{{ $item->id }}" @selected($item->id === $village?->id)>{{ $item->displayName() }}{{ $item->has_boundary ? '' : ' — sans contour' }}</option>
                         @endforeach
                     </optgroup>
                 @endforeach
@@ -52,15 +52,16 @@
 
     @if ($village)
         <div class="card map-window-hide">
-            <div class="card-header"><i class="bi bi-pin-map me-1"></i>Grappes du village de {{ $village->name }} ({{ $village->healthZone?->name ?? '—' }})</div>
+            <div class="card-header"><i class="bi bi-pin-map me-1"></i>Grappes du village de {{ $village->displayName() }} · {{ $village->healthZone?->name ?? '—' }}</div>
             <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle mb-0">
-                    <thead class="table-light"><tr><th>Grappe</th><th class="text-end">Ménages</th><th>Contour de la grappe</th><th>Sous-grappes relevées</th></tr></thead>
+                    <thead class="table-light"><tr><th>Grappe</th><th>Binôme(s)</th><th class="text-end">Ménages</th><th>Contour de la grappe</th><th>Sous-grappes relevées</th></tr></thead>
                     <tbody>
                     @forelse ($clusters as $cluster)
                         @php($area = fn ($source) => number_format(collect($source->boundary['features'] ?? [])->sum('properties.superficie_ha'), 2, ',', ' '))
                         <tr>
                             <td><a href="{{ route('clusters.show', $cluster) }}" class="fw-semibold">{{ $cluster->code }}</a></td>
+                            <td class="small">{{ implode(' · ', \App\Services\Dashboard\ClusterTeams::labels($cluster->id)) ?: '—' }}</td>
                             <td class="text-end">{{ $cluster->visible_households }}</td>
                             <td class="small">
                                 @if ($cluster->boundary)
@@ -78,7 +79,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="text-center text-muted">Aucune grappe dans ce village.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted">Aucune grappe dans ce village.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
