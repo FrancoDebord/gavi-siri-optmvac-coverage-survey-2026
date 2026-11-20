@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Dictionary\Dictionary;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -121,5 +122,34 @@ class DataCorrection extends Model
     public static function display(?string $value): string
     {
         return $value === null || $value === '' ? '(vide)' : $value;
+    }
+
+    /**
+     * Valeur lisible d'une question : pour une liste de choix, le code suivi de son libellé
+     * (ex. « 100 – Zaffe Centre », plusieurs choix séparés par « ; ») ; sinon la valeur telle quelle.
+     */
+    public static function displayFor(?string $variable, ?string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '(vide)';
+        }
+        $dictionary = Dictionary::current();
+        $definition = $variable ? $dictionary->variable($variable) : null;
+        if (! $definition || ! $definition['list_name'] || ! str_starts_with((string) $definition['base_type'], 'select')) {
+            return $value;
+        }
+        $codes = str_starts_with((string) $definition['base_type'], 'select_multiple') ? preg_split('/\s+/', trim($value)) : [$value];
+
+        return implode(' ; ', array_map(function ($code) use ($dictionary, $definition) {
+            $label = trim(preg_replace('/\s+/', ' ', strip_tags((string) $dictionary->choiceLabel($definition['list_name'], (string) $code))));
+
+            return $label !== '' ? "{$code} – {$label}" : (string) $code;
+        }, $codes));
+    }
+
+    /** Valeur lisible pour la question de cette correction (libellé du choix pour une liste). */
+    public function displayValue(?string $value): string
+    {
+        return $this->variable === self::EXCLUSION ? self::display($value) : self::displayFor($this->variable, $value);
     }
 }

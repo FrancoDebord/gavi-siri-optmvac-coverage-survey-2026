@@ -398,7 +398,7 @@ class DataQueryController extends Controller
         ];
         // Choix « quelle valeur est fausse » : la question de la query puis les autres, valeur lisible (date jj/mm/aaaa).
         $field['pair'] = $field['related'] ? array_map(fn (array $f) => $f + [
-            'display' => ($f['type'] === 'date' ? SubmissionProcessor::date($f['current'])?->format('d/m/Y') : null) ?? DataCorrection::display($f['current']),
+            'display' => ($f['type'] === 'date' ? SubmissionProcessor::date($f['current'])?->format('d/m/Y') : null) ?? DataCorrection::displayFor($f['variable'], $f['current']),
         ], array_merge([$field], $field['related'])) : [];
 
         return $field;

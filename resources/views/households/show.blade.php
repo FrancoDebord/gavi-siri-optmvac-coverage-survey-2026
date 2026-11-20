@@ -79,8 +79,8 @@
                                     <span class="badge text-bg-{{ \App\Models\DataCorrection::STATUS_COLORS[$correction->status] ?? 'secondary' }} {{ $correction->status === 'remplacee' ? 'border' : '' }}">{{ $correction->statusLabel() }}</span>
                                 </div>
                                 @if ($correction->instance_path)<div class="text-muted">{{ \App\Exports\QueriesExport::memberLabel($correction->instance_path) }}</div>@endif
-                                <div>{{ \App\Models\DataCorrection::display($correction->old_value) }} <i class="bi bi-arrow-right"></i> <strong>{{ \App\Models\DataCorrection::display($correction->new_value) }}</strong></div>
-                                <div class="text-muted">ODK : {{ \App\Models\DataCorrection::display($correction->source_value) }} · {{ $correction->proposed_at->format('d/m/Y') }}@if ($correction->data_query_id) · <a href="{{ route('queries.show', $correction->data_query_id) }}">{{ \App\Models\DataQuery::codeFor($correction->data_query_id) }}</a>@endif</div>
+                                <div>{{ $correction->displayValue($correction->old_value) }} <i class="bi bi-arrow-right"></i> <strong>{{ $correction->displayValue($correction->new_value) }}</strong></div>
+                                <div class="text-muted">ODK : {{ $correction->displayValue($correction->source_value) }} · {{ $correction->proposed_at->format('d/m/Y') }}@if ($correction->data_query_id) · <a href="{{ route('queries.show', $correction->data_query_id) }}">{{ \App\Models\DataQuery::codeFor($correction->data_query_id) }}</a>@endif</div>
                             </li>
                         @endforeach
                     </ul>

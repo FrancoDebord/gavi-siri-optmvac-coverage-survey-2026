@@ -4,7 +4,7 @@
     <table class="table table-sm table-hover align-middle mb-0">
         <thead class="table-light"><tr>
             <th>Village</th><th>Commune</th>@if ($showTeams ?? true)<th>Binôme(s) concerné(s)</th>@endif
-            <th class="text-end">Nombre de grappes</th><th>Sous-grappes prévues par grappe</th><th>Ménages dénombrés par grappe</th>
+            <th class="text-end">Nombre de grappes</th><th class="text-end">Sous-grappes prévues par grappe</th><th>Ménages dénombrés par grappe</th>
         </tr></thead>
         <tbody>
         @forelse ($remaining as $zoneName => $items)
@@ -17,13 +17,8 @@
                         <td class="small">{!! $item['teams'] ? e(implode(' · ', $item['teams'])) : '<span class="text-danger">aucun binôme attribué</span>' !!}</td>
                     @endif
                     <td class="text-end">{{ $item['clusters'] ?: '—' }}</td>
-                    <td class="small">
-                        @forelse ($item['per_cluster'] as $cluster)
-                            <span class="badge text-bg-light border fw-normal me-1 mb-1">G{{ $cluster['number'] }} : {{ $cluster['subdivisions'] }}</span>
-                        @empty
-                            <span class="text-muted">—</span>
-                        @endforelse
-                    </td>
+                    {{-- Nombre de subdivisions prévues par grappe, une seule fois (valeurs distinctes si les grappes diffèrent). --}}
+                    <td class="text-end">{{ collect($item['per_cluster'])->pluck('subdivisions')->unique()->sort()->implode(' ou ') ?: '—' }}</td>
                     <td class="small">
                         @forelse ($item['per_cluster'] as $cluster)
                             <span class="badge text-bg-light border fw-normal me-1 mb-1">G{{ $cluster['number'] }} : {{ number_format($cluster['enumerated'], 0, ',', ' ') }}</span>

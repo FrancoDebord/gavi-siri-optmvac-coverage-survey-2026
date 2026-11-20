@@ -35,7 +35,7 @@ class CorrectionApplier
             if ($sourceValue === false || self::normalize($sourceValue) !== self::normalize($correction->source_value)) {
                 DB::table('data_corrections')->where('id', $correction->id)->update([
                     'status' => DataCorrection::STATUS_CONFLICT,
-                    'decision_comment' => trim(($correction->decision_comment ? $correction->decision_comment.' — ' : '').'Suspendue le '.now()->format('d/m/Y H:i').' : la valeur reçue d\'ODK a changé ('.DataCorrection::display(self::normalize($correction->source_value)).' → '.($sourceValue === false ? 'membre absent' : DataCorrection::display(self::normalize($sourceValue))).').'),
+                    'decision_comment' => trim(($correction->decision_comment ? $correction->decision_comment.' — ' : '').'Suspendue le '.now()->format('d/m/Y H:i').' : la valeur reçue d\'ODK a changé ('.$correction->displayValue(self::normalize($correction->source_value)).' → '.($sourceValue === false ? 'membre absent' : $correction->displayValue(self::normalize($sourceValue))).').'),
                     'updated_at' => now(),
                 ]);
 

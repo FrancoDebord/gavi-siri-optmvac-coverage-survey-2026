@@ -83,9 +83,9 @@
                             <div class="text-muted">{{ $correction->household?->healthZone?->name }}@if ($correction->data_query_id) · <a href="{{ route('queries.show', $correction->data_query_id) }}">{{ \App\Models\DataQuery::codeFor($correction->data_query_id) }}</a>@endif</div>
                         </td>
                         <td><code>{{ $correction->variableLabel() }}</code>@if ($correction->instance_path)<div class="text-muted">{{ \App\Exports\QueriesExport::memberLabel($correction->instance_path) }}</div>@endif</td>
-                        <td>{{ \App\Models\DataCorrection::display($correction->source_value) }}</td>
-                        <td>{{ \App\Models\DataCorrection::display($correction->old_value) }}</td>
-                        <td class="fw-semibold">{{ \App\Models\DataCorrection::display($correction->new_value) }}</td>
+                        <td>{{ $correction->displayValue($correction->source_value) }}</td>
+                        <td>{{ $correction->displayValue($correction->old_value) }}</td>
+                        <td class="fw-semibold">{{ $correction->displayValue($correction->new_value) }}</td>
                         <td>{{ $correction->reasonLabel() }}@if ($correction->source_reference)<div class="text-muted">{{ $correction->source_reference }}</div>@endif @if ($correction->comment)<div class="text-muted fst-italic">{{ $correction->comment }}</div>@endif</td>
                         <td class="text-nowrap">{{ $correction->proposer?->name ?? 'Système' }}<div class="text-muted">{{ $correction->proposed_at->format('d/m/Y H:i') }}</div></td>
                         <td class="text-nowrap">{{ $correction->decider?->name ?? '—' }}@if ($correction->decided_at)<div class="text-muted">{{ $correction->decided_at->format('d/m/Y H:i') }}</div>@endif @if ($correction->signed)<span class="badge text-bg-success"><i class="bi bi-pen me-1"></i>signée</span>@endif</td>

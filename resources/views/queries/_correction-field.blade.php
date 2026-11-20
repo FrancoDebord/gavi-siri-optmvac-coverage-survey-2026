@@ -17,7 +17,7 @@
     <div class="small mb-1">
         @if ($paired)<strong>{{ $field['short_label'] ?? $field['label'] }}</strong> · @endif<code>{{ $field['variable'] }}</code>{{ $path ? ' · '.\App\Exports\QueriesExport::memberLabel($path) : '' }}
     </div>
-    <div class="small text-muted mb-2">Valeur actuelle : <strong>{{ \App\Models\DataCorrection::display($field['current']) }}</strong>@if ($field['source'] !== $field['current']) · reçue d'ODK : {{ \App\Models\DataCorrection::display($field['source']) }}@endif</div>
+    <div class="small text-muted mb-2">Valeur actuelle : <strong>{{ \App\Models\DataCorrection::displayFor($field['variable'], $field['current']) }}</strong>@if ($field['source'] !== $field['current']) · reçue d'ODK : {{ \App\Models\DataCorrection::displayFor($field['variable'], $field['source']) }}@endif</div>
     <label class="form-label small mb-0" for="c{{ $i }}-value">Nouvelle valeur</label>
     @if ($field['choices'] && $field['type'] === 'select_one')
         <select id="c{{ $i }}-value" name="corrections[{{ $i }}][new_value]" class="form-select form-select-sm mb-2">

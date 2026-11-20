@@ -86,6 +86,11 @@ class TeamVillageRuleTest extends TestCase
             60 => ['variable' => 'l3', 'new_value' => $wariMaro->arrondissement->code, 'optional' => '1', 'group' => 'geo', 'reason' => 'revisite'],
             61 => ['variable' => 'village', 'new_value' => $wariMaro->code, 'optional' => '1', 'group' => 'geo'],
         ]])->assertSessionHasNoErrors();
+        // Correction affichée avec les libellés des villages, pas seulement les codes.
+        $beterou = $this->village('Bétérou');
+        $this->actingAs($admin)->get(route('queries.show', $wrong))
+            ->assertSee($beterou->code.' – '.$beterou->name)->assertSee($wariMaro->code.' – '.$wariMaro->name);
+        $this->actingAs($admin)->get(route('corrections.index'))->assertSee($wariMaro->code.' – '.$wariMaro->name);
         app(QualityEngine::class)->run('test');
         $this->assertTrue(in_array($wrong->fresh()->status, [DataQuery::STATUS_VALIDATED, DataQuery::STATUS_CORRECTED], true), $wrong->fresh()->status);
     }

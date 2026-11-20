@@ -55,7 +55,7 @@ class HouseholdController extends Controller
         ]);
         $corrections = DataCorrection::with(['proposer:id,name', 'decider:id,name'])->where('submission_uuid', $household->submission_uuid)->get()
             ->flatMap(fn (DataCorrection $c) => array_filter([
-                ['at' => $c->proposed_at, 'who' => $c->proposer?->name ?? 'Système', 'what' => 'Correction proposée : '.$c->variableLabel().' '.DataCorrection::display($c->old_value).' → '.DataCorrection::display($c->new_value).' ('.$c->reasonLabel().')', 'ref' => 'C-'.str_pad((string) $c->id, 6, '0', STR_PAD_LEFT), 'url' => null],
+                ['at' => $c->proposed_at, 'who' => $c->proposer?->name ?? 'Système', 'what' => 'Correction proposée : '.$c->variableLabel().' '.$c->displayValue($c->old_value).' → '.$c->displayValue($c->new_value).' ('.$c->reasonLabel().')', 'ref' => 'C-'.str_pad((string) $c->id, 6, '0', STR_PAD_LEFT), 'url' => null],
                 $c->decided_at ? ['at' => $c->decided_at, 'who' => $c->decider?->name ?? 'Système', 'what' => 'Correction '.mb_strtolower($c->statusLabel()).($c->signed ? ' (signée)' : ''), 'ref' => 'C-'.str_pad((string) $c->id, 6, '0', STR_PAD_LEFT), 'url' => null] : null,
             ]));
         $base = collect([
