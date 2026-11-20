@@ -163,7 +163,7 @@ class TeamFieldWorkTest extends TestCase
         $this->assertNotNull($other, "Un autre village de l'arrondissement 5 dans le dictionnaire");
 
         $this->actingAs($account)->get(route('queries.show', $query))->assertOk()
-            ->assertSee('Cochez le bon arrondissement puis le bon village')->assertSee('corrections[61][new_value]', false)
+            ->assertSee('Cochez le bon arrondissement et le bon village')->assertSee('corrections[61][new_value]', false)
             ->assertSee(trim(strip_tags((string) $other['label'])))
             // « Corriger une autre question » : libellés et noms de variables.
             ->assertSee('variable-options', false);
