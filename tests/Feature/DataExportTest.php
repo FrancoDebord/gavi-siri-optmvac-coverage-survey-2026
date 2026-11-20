@@ -7,6 +7,7 @@ use App\Models\DataExport;
 use App\Models\DataQuery;
 use App\Models\Household;
 use App\Models\User;
+use App\Models\Village;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Export\DatasetExporter;
 use App\Services\Import\NormalizedSubmission;
@@ -15,6 +16,7 @@ use App\Services\Quality\QualityEngine;
 use Database\Seeders\QualityRuleSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -209,6 +211,24 @@ class DataExportTest extends TestCase
     public function test_registry_excel_export(): void
     {
         $this->correct('uuid:1', 'GPS_MISSING', [['variable' => 'current_location', 'new_value' => '9.31 2.49 0 5', 'reason' => 'revisite']]);
-        $this->actingAs($this->manager)->get(route('corrections.export'))->assertOk()->assertDownload();
+        // Correction d'une liste de choix (village) : codes bruts et libellés côte à côte.
+        $household = Household::where('submission_uuid', 'uuid:2')->firstOrFail();
+        $from = Village::where('code', '100')->firstOrFail();
+        $to = Village::where('code', '1')->firstOrFail();
+        DataCorrection::create([
+            'submission_uuid' => 'uuid:2', 'household_id' => $household->id, 'variable' => 'village', 'instance_path' => null,
+            'source_value' => '100', 'old_value' => '100', 'new_value' => '1', 'reason' => 'revisite',
+            'status' => DataCorrection::STATUS_PROPOSED, 'proposed_by' => $this->manager->id, 'proposed_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->manager)->get(route('corrections.export'))->assertOk()->assertDownload();
+        $rows = IOFactory::load($response->baseResponse->getFile()->getPathname())->getActiveSheet()->toArray();
+        $header = $rows[0];
+        $this->assertSame(['Valeur ODK', 'Libellé ODK', 'Avant', 'Libellé avant', 'Après', 'Libellé après'], array_slice($header, 6, 6));
+        $village = collect(array_slice($rows, 1))->first(fn ($row) => $row[array_search('Après', $header, true)] === '1');
+        $this->assertSame($from->name, $village[array_search('Libellé ODK', $header, true)]);
+        $this->assertSame($to->name, $village[array_search('Libellé après', $header, true)]);
+        $gps = collect(array_slice($rows, 1))->first(fn ($row) => $row[array_search('Après', $header, true)] === '9.31 2.49 0 5');
+        $this->assertNull($gps[array_search('Libellé après', $header, true)], 'pas de libellé hors liste de choix');
     }
 }

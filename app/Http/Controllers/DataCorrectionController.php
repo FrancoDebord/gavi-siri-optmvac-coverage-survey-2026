@@ -75,12 +75,14 @@ class DataCorrectionController extends Controller
         [, $base] = $this->filtered($request);
         $rows = $base->with(['household:id,household_code', 'proposer:id,name', 'decider:id,name'])->orderBy('id')->get()->map(fn (DataCorrection $c) => [
             'C-'.str_pad((string) $c->id, 6, '0', STR_PAD_LEFT), $c->household?->household_code, $c->submission_uuid, $c->data_query_id ? DataQuery::codeFor($c->data_query_id) : null,
-            $c->variableLabel(), $c->instance_path, $c->source_value, $c->old_value, $c->new_value, $c->reasonLabel(), $c->source_reference, $c->comment, $c->statusLabel(),
+            // Codes bruts (analyse) et libellés des choix à côté (lecture).
+            $c->variableLabel(), $c->instance_path, $c->source_value, $c->choiceLabel($c->source_value), $c->old_value, $c->choiceLabel($c->old_value),
+            $c->new_value, $c->choiceLabel($c->new_value), $c->reasonLabel(), $c->source_reference, $c->comment, $c->statusLabel(),
             $c->proposer?->name, $c->proposed_at?->format('d/m/Y H:i'), $c->decider?->name, $c->decided_at?->format('d/m/Y H:i'), $c->signed ? 'oui' : 'non', $c->decision_comment,
         ])->all();
         AuditLog::record('export.registre_corrections', null, ['lignes' => count($rows)]);
 
-        return Excel::download(new ArrayExport($rows, ['N°', 'ID ménage', 'Soumission', 'Query', 'Variable', 'Membre', 'Valeur ODK', 'Avant', 'Après', 'Motif', 'Source', 'Commentaire',
+        return Excel::download(new ArrayExport($rows, ['N°', 'ID ménage', 'Soumission', 'Query', 'Variable', 'Membre', 'Valeur ODK', 'Libellé ODK', 'Avant', 'Libellé avant', 'Après', 'Libellé après', 'Motif', 'Source', 'Commentaire',
             'Statut', 'Proposée par', 'Proposée le', 'Décidée par', 'Décidée le', 'Signée', 'Commentaire de décision'], 'Registre des corrections'), 'registre-corrections-'.now()->format('Ymd-Hi').'.xlsx');
     }
 

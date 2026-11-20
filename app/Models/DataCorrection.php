@@ -147,6 +147,25 @@ class DataCorrection extends Model
         }, $codes));
     }
 
+    /** Libellé seul du ou des choix (« Zaffe Centre »), null si la question n'est pas une liste ou le code inconnu. */
+    public function choiceLabel(?string $value): ?string
+    {
+        if ($value === null || $value === '' || $this->variable === self::EXCLUSION) {
+            return null;
+        }
+        $dictionary = Dictionary::current();
+        $definition = $dictionary->variable($this->variable);
+        if (! $definition || ! $definition['list_name'] || ! str_starts_with((string) $definition['base_type'], 'select')) {
+            return null;
+        }
+        $labels = array_filter(array_map(
+            fn ($code) => trim(preg_replace('/\s+/', ' ', strip_tags((string) $dictionary->choiceLabel($definition['list_name'], (string) $code)))),
+            str_starts_with((string) $definition['base_type'], 'select_multiple') ? preg_split('/\s+/', trim($value)) : [$value],
+        ));
+
+        return $labels ? implode(' ; ', $labels) : null;
+    }
+
     /** Valeur lisible pour la question de cette correction (libellé du choix pour une liste). */
     public function displayValue(?string $value): string
     {
