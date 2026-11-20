@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DataQuery;
 use App\Models\HealthZone;
 use App\Models\Team;
+use App\Services\Dashboard\RemainingVillages;
 use App\Services\Import\TeamVillageImporter;
 use App\Services\Quality\TeamVillageCheck;
 use Illuminate\Http\Request;
@@ -52,6 +53,8 @@ class TeamVillageController extends Controller
 
         return view('team-villages.index', [
             'teamLists' => $teams,
+            // Villages où aucun ménage n'a encore été visité, avec les binômes qui doivent y aller.
+            'remaining' => RemainingVillages::build($zoneId),
             'rows' => $rows,
             'counts' => $counts,
             'accounts' => $accounts,

@@ -11,6 +11,7 @@ use App\Models\Team;
 use App\Models\TeamMessage;
 use App\Models\User;
 use App\Services\Dashboard\ClusterSelection;
+use App\Services\Dashboard\RemainingVillages;
 use App\Services\Dashboard\TeamProgress;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Dictionary\VariableMap as Map;
@@ -121,6 +122,7 @@ class TeamSpaceController extends Controller
 
         return view('team.queries', $this->shared($request, $team, $teams, $tab) + [
             'teamVillages' => $tab === 'villages' ? $team->villages()->get(['villages.id', 'villages.name']) : collect(),
+            'villageVisits' => $tab === 'villages' ? RemainingVillages::visitedCounts() : [],
             'queries' => $queries,
             'focus' => $queries->getCollection()->mapWithKeys(fn (DataQuery $q) => [$q->id => QueryFocus::for($q, $dictionary)]),
             'resolution' => $resolution,

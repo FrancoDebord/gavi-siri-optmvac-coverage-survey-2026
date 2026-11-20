@@ -6,6 +6,7 @@ use App\Models\DataQuery;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\Village;
+use App\Services\Dashboard\RemainingVillages;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Import\TeamVillageImporter;
@@ -143,9 +144,17 @@ class TeamVillageRuleTest extends TestCase
         // Onglet « Villages et agents » du binôme : ses villages et ces queries seulement.
         $this->actingAs($kora)->get(route('team.village-queries'))->assertOk()
             ->assertSee('Villages du binôme 46-47')->assertSee('Wari-Maro')->assertSee('TCH-WAR-04-S1-050')->assertSee('Villages et agents');
+        // Villages du binôme : visités (Wari-Maro) ou restants (Kpawa, aucun ménage).
+        $this->actingAs($kora)->get(route('team.village-queries'))->assertSee('pas encore visité')->assertSee('village(s) restant(s)')->assertSee('Kpawa');
         // Page admin : villages attribués à chaque binôme, avec son compte ODK.
         $this->actingAs($admin)->get(route('team-villages.index'))
             ->assertSee('Villages de chaque binôme')->assertSee('Kpassatona')->assertSee('Gouroubara');
+        // Villages restants : sans ménage visité, avec le binôme concerné ; Wari-Maro (visité) n'y figure pas.
+        $remaining = RemainingVillages::build()->flatten(1);
+        $this->assertNotNull($remaining->firstWhere('village', 'Kpawa'));
+        $this->assertNull($remaining->firstWhere('village', 'Wari-Maro'));
+        $this->assertStringContainsString('46-47', implode(' ', $remaining->firstWhere('village', 'Kpawa')['teams']));
+        $this->actingAs($admin)->get(route('team-villages.index'))->assertSee('Villages restants');
 
         // Correction : binômes de Tchaourou à cocher (pas ceux de Dagla), agents avec leur code, agent saisi coché.
         $page = $this->actingAs($admin)->get(route('queries.show', $query))->assertOk()

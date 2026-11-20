@@ -8,6 +8,7 @@ import '../css/app.css';
 
 import { initLayout } from './lib/layout';
 import { initLiveFilters } from './lib/live-filter';
+import { initPasswordFields } from './lib/password-fields';
 import { initSearchableSelects } from './lib/searchable-select';
 import { initSessionRefresh } from './lib/session';
 import progressPage from './pages/progress';
@@ -25,6 +26,7 @@ import teamPage from './pages/team';
 import householdPage from './pages/household';
 import submissionsPage from './pages/submissions';
 import clusterMapPage from './pages/cluster-map';
+import userFormPage from './pages/user-form';
 
 window.bootstrap = bootstrap;
 
@@ -44,6 +46,7 @@ const pages = {
     household: householdPage,
     submissions: submissionsPage,
     'cluster-map': clusterMapPage,
+    'user-form': userFormPage,
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -51,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSessionRefresh();
     initSearchableSelects();
     initLiveFilters();
+    initPasswordFields();
     const page = document.body.dataset.page;
     if (page && pages[page]) {
         pages[page]();

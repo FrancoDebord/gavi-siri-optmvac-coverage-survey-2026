@@ -37,6 +37,11 @@ return [
 
     'mailers' => [
 
+        // Microsoft 365 via Microsoft Graph (voir services.ms_graph).
+        'graph' => [
+            'transport' => 'graph',
+        ],
+
         'smtp' => [
             'transport' => 'smtp',
             'scheme' => env('MAIL_SCHEME'),

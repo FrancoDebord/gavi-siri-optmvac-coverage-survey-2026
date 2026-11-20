@@ -29,6 +29,15 @@ return [
         'tenant' => env('MICROSOFT_TENANT_ID'),
     ],
 
+    // Envoi des e-mails par Microsoft Graph (MAIL_MAILER=graph) : application Entra ID avec la permission Mail.Send.
+    'ms_graph' => [
+        'tenant_id' => env('MS_GRAPH_TENANT_ID'),
+        'client_id' => env('MS_GRAPH_CLIENT_ID'),
+        'client_secret' => env('MS_GRAPH_CLIENT_SECRET'),
+        'sender' => env('MS_GRAPH_SENDER_EMAIL'),
+        'sender_name' => env('MS_GRAPH_SENDER_NAME'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

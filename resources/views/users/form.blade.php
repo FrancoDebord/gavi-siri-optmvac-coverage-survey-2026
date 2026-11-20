@@ -1,4 +1,4 @@
-<x-layouts.app :title="$user->exists ? 'Modifier un utilisateur' : 'Nouvel utilisateur'">
+<x-layouts.app :title="$user->exists ? 'Modifier un utilisateur' : 'Nouvel utilisateur'" page="user-form">
     <x-page-header :title="$user->exists ? $user->name : 'Nouvel utilisateur'">
         <a href="{{ route('users.index') }}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left me-1"></i>Utilisateurs</a>
     </x-page-header>
@@ -68,13 +68,27 @@
                 </div>
                 <div class="col-md-8"></div>
                 <div class="col-md-6">
-                    <label class="form-label" for="password">Mot de passe @if ($user->exists)<span class="text-muted small">(laisser vide pour conserver)</span>@endif</label>
-                    <input id="password" type="password" name="password" class="form-control @error('password') is-invalid @enderror" autocomplete="new-password">
-                    @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <label class="form-label" for="password">{{ $user->exists ? 'Nouveau mot de passe provisoire' : 'Mot de passe provisoire' }} @if ($user->exists)<span class="text-muted small">(laisser vide pour conserver)</span>@endif</label>
+                    <div class="input-group">
+                        <input id="password" type="password" name="password" class="form-control @error('password') is-invalid @enderror" autocomplete="new-password">
+                        <button type="button" class="btn btn-outline-secondary" data-generate-password title="Générer un mot de passe provisoire"><i class="bi bi-magic me-1"></i>Générer</button>
+                        @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="form-text">10 caractères au moins, lettres et chiffres. La personne devra le changer à sa première connexion.</div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="password_confirmation">Confirmation</label>
                     <input id="password_confirmation" type="password" name="password_confirmation" class="form-control" autocomplete="new-password">
+                </div>
+                <div class="col-12">
+                    <input type="hidden" name="send_access" value="0">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="send_access" name="send_access" value="1" @checked(old('send_access', ! $user->exists))>
+                        <label class="form-check-label" for="send_access">
+                            <i class="bi bi-envelope me-1"></i>{{ $user->exists ? 'Envoyer le nouveau mot de passe par e-mail' : 'Envoyer les identifiants et les instructions de connexion par e-mail' }}
+                        </label>
+                        <div class="form-text">{{ $user->exists ? 'Seulement si un nouveau mot de passe est saisi.' : '' }} Message envoyé à l'adresse e-mail ci-dessus, avec le lien de connexion, l'identifiant, le mot de passe provisoire et les instructions selon le rôle.</div>
+                    </div>
                 </div>
                 <div class="col-12">
                     <input type="hidden" name="is_active" value="0">

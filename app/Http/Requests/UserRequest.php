@@ -27,6 +27,7 @@ class UserRequest extends FormRequest
             'commune_id' => ['nullable', 'exists:communes,id'],
             'team_id' => ['nullable', 'exists:teams,id', Rule::requiredIf(fn () => $this->input('role') === User::ROLE_TEAM)],
             'is_active' => ['boolean'],
+            'send_access' => ['boolean'],
             'password' => [$user ? 'nullable' : 'required', 'confirmed', Password::min(10)->letters()->numbers()],
         ];
     }

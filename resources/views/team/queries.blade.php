@@ -8,9 +8,19 @@
                 @if ($teamVillages->isEmpty())
                     <p class="text-muted small mb-0">Aucune liste de villages n'est attribuée à ce binôme.</p>
                 @else
+                    @php($left = $teamVillages->filter(fn ($v) => ($villageVisits[$v->id] ?? 0) === 0))
                     <div class="d-flex flex-wrap gap-1 mb-2">
-                        @foreach ($teamVillages as $village)<span class="badge text-bg-light border fs-6 fw-normal">{{ $village->name }}</span>@endforeach
+                        @foreach ($teamVillages as $village)
+                            @if (($villageVisits[$village->id] ?? 0) > 0)
+                                <span class="badge text-bg-light border fs-6 fw-normal">{{ $village->name }} <span class="text-success small">· {{ $villageVisits[$village->id] }} ménage(s)</span></span>
+                            @else
+                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-6 fw-normal"><i class="bi bi-hourglass-split me-1"></i>{{ $village->name }} <span class="small">· pas encore visité</span></span>
+                            @endif
+                        @endforeach
                     </div>
+                    @if ($left->isNotEmpty())
+                        <p class="small fw-semibold text-warning-emphasis mb-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ $left->count() }} village(s) restant(s) : {{ $left->pluck('name')->implode(', ') }}.</p>
+                    @endif
                 @endif
                 <p class="small text-muted mb-0">Ces queries signalent un ménage dont le <strong>village coché</strong> n'est pas l'un de ces villages, ou dont
                     l'<strong>agent sélectionné</strong> n'est pas du binôme qui a envoyé la soumission (compte ODK). Ouvrez chaque query : le bon village

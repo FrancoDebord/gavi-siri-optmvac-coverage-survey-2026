@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Console\Commands\CreateTeamAccountsCommand;
 use App\Http\Requests\UserRequest;
+use App\Mail\AccountAccessMail;
 use App\Models\AuditLog;
 use App\Models\Commune;
 use App\Models\HealthZone;
@@ -11,7 +12,9 @@ use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
+use Throwable;
 
 class UserController extends Controller
 {
@@ -48,7 +51,7 @@ class UserController extends Controller
         $user->syncRoles([$request->validated('role')]);
         AuditLog::record('user.created', $user, ['email' => $user->email, 'role' => $request->validated('role')]);
 
-        return redirect()->route('users.index')->with('success', "Utilisateur {$user->name} créé.");
+        return $this->afterSave($request, $user, "Utilisateur {$user->name} créé.", $request->validated('password'), false);
     }
 
     public function edit(User $user): View
@@ -70,7 +73,33 @@ class UserController extends Controller
         $user->syncRoles([$request->validated('role')]);
         AuditLog::record('user.updated', $user, ['email' => $user->email, 'role' => $request->validated('role'), 'actif' => $user->is_active]);
 
-        return redirect()->route('users.index')->with('success', "Utilisateur {$user->name} mis à jour.");
+        return $this->afterSave($request, $user, "Utilisateur {$user->name} mis à jour.", $request->filled('password') ? $request->validated('password') : null, true);
+    }
+
+    /**
+     * Après enregistrement : identifiants envoyés par e-mail si demandé (création, ou nouveau mot de passe provisoire).
+     * Le mot de passe n'est pas conservé en clair : il n'existe que dans le message.
+     */
+    private function afterSave(UserRequest $request, User $user, string $message, ?string $password, bool $reset): RedirectResponse
+    {
+        $redirect = redirect()->route('users.index');
+        if (! $request->boolean('send_access') || $password === null) {
+            return $redirect->with('success', $message);
+        }
+        try {
+            Mail::to($user->email, $user->name)->send(new AccountAccessMail($user->fresh(), $password, $reset, $request->user()));
+        } catch (Throwable $e) {
+            report($e);
+
+            return $redirect->with('warning', $message.' Mais l\'e-mail n\'a pas pu être envoyé : '.$e->getMessage());
+        }
+        AuditLog::record('user.acces_envoyes', $user, ['email' => $user->email, 'reinitialisation' => $reset]);
+        // En local (MAIL_MAILER=log) le message est seulement écrit dans le journal.
+        if (in_array(config('mail.default'), ['log', 'array'], true)) {
+            return $redirect->with('warning', $message.' E-mail préparé mais non envoyé : la messagerie est en mode « '.config('mail.default').' » (MAIL_MAILER=graph pour envoyer).');
+        }
+
+        return $redirect->with('success', $message.' Identifiants envoyés à '.$user->email.'.');
     }
 
     private function form(User $user): View
