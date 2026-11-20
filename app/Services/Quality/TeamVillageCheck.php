@@ -181,24 +181,23 @@ final class TeamVillageCheck
 
         if (! $agentOk) {
             $case = $villageOk ? self::AGENT : ($idOk ? self::AGENT_VILLAGE : self::UNKNOWN);
-            $message = "Soumis par le compte ODK « {$account} » (binôme {$actualLabel}) mais l'agent sélectionné est du binôme {$declaredLabel}";
-            $message .= $villageOk ? "; le village {$village?->name} est bien un village du binôme {$actualLabel}." : "; le village {$village?->name} n'est pas un village du binôme {$actualLabel}".($idVillage ? " (l'identifiant désigne {$idVillage->name})." : '.');
-            $suggestion = "Corriger l'agent : sélectionner un agent du binôme {$actualLabel}".($case === self::AGENT_VILLAGE ? " et le village {$idVillage->name} (identifiant ménage)" : '').'.';
+            $message = "Agent du binôme {$declaredLabel} sélectionné ; données envoyées par le compte « {$account} » (binôme {$actualLabel}).";
+            $message .= $villageOk ? '' : " Village « {$village?->name} » hors de ses villages".($idVillage ? " ; l'identifiant indique {$idVillage->name}." : '.');
+            $suggestion = "Sélectionner un agent du binôme {$actualLabel}".($case === self::AGENT_VILLAGE ? " et le village {$idVillage->name}" : '').'.';
             if ($case === self::AGENT_VILLAGE) {
                 $proposeVillage = $idVillage;
             }
             if ($case === self::UNKNOWN) {
-                $suggestion = "Vérifier avec les binômes {$actualLabel} et {$declaredLabel} : agent et village incohérents avec le compte ODK.";
+                $suggestion = "Vérifier l'agent et le village avec les binômes {$actualLabel} et {$declaredLabel}.";
             }
         } else {
             $case = $idOk ? self::VILLAGE : ($accountTeam ? self::OUTSIDE : self::UNKNOWN);
-            $message = "Village « {$village?->name} » hors des villages du binôme {$actualLabel}".($covered ? " (village du binôme {$covered})" : '');
-            $message .= $accountTeam ? ", compte ODK « {$account} » du même binôme" : '';
-            $message .= $idOk ? ". L'identifiant ménage {$household->household_code} désigne {$idVillage->name}." : ($idVillage ? ". L'identifiant ménage désigne aussi {$idVillage->name}." : '.');
+            $message = "Village « {$village?->name} » hors des villages du binôme {$actualLabel}".($covered ? " (village du binôme {$covered})" : '').'.';
+            $message .= $idVillage ? " L'identifiant ménage indique {$idVillage->name}." : '';
             $suggestion = match ($case) {
-                self::VILLAGE => "Le village coché est probablement faux : l'identifiant ménage ({$household->household_code}) désigne {$idVillage->name}, village du binôme. Corriger le village (et l'arrondissement si besoin).",
-                self::OUTSIDE => "Le compte ODK confirme que le binôme {$actualLabel} a enquêté dans un village qui n'est pas le sien : vérifier avec lui et le superviseur, corriger le village ou justifier.",
-                default => 'Vérifier avec les équipes : agent sélectionné ou village coché faux. Corriger, ou justifier.',
+                self::VILLAGE => "Corriger le village : {$idVillage->name} (d'après l'identifiant ménage).",
+                self::OUTSIDE => 'Binôme hors de ses villages : vérifier avec le superviseur, puis corriger le village ou justifier.',
+                default => 'Vérifier le village et l\'agent avec le binôme. Corriger, ou justifier.',
             };
             if ($case === self::VILLAGE) {
                 $proposeVillage = $idVillage;
@@ -216,7 +215,8 @@ final class TeamVillageCheck
             // Binôme concerné en plus de celui de l'agent sélectionné (il voit la query et la traite).
             'team_id' => $actual,
             'message' => $message,
-            'suggestion' => $suggestion.' Villages du binôme '.$actualLabel.' : '.$names.'.',
+            'suggestion' => $suggestion,
+            'villages' => $names,
             'propose_village' => $proposeVillage,
         ];
     }

@@ -65,14 +65,14 @@ class TeamVillageRuleTest extends TestCase
 
         $wrong = DataQuery::where('rule_code', 'TEAM_VILLAGE')->where('household_code', 'TCH-WAR-04-S1-008')->firstOrFail();
         $this->assertStringContainsString('Bétérou', $wrong->message);
-        $this->assertStringContainsString('désigne Wari-Maro', $wrong->message);
+        $this->assertStringContainsString('indique Wari-Maro', $wrong->message);
         $this->assertSame($wariMaro->code, $wrong->suggested_value);
         $this->assertSame(DataQuery::SUGGESTION_RULE, $wrong->suggested_source);
 
         $agent = DataQuery::where('rule_code', 'TEAM_VILLAGE')->where('household_code', 'DAG-KPE-01-119')->firstOrFail();
         $this->assertNull($agent->suggested_value);
         $this->assertStringContainsString('22-23', $agent->message, 'binôme qui couvre Kpekoute');
-        $this->assertStringContainsString('agent sélectionné', $agent->suggestion);
+        $this->assertStringContainsString("Vérifier le village et l'agent", $agent->suggestion);
 
         // Fiche : village proposé pré-coché dans la correction.
         $admin = User::factory()->create();

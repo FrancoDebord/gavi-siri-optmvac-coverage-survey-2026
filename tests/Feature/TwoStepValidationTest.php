@@ -88,7 +88,7 @@ class TwoStepValidationTest extends TestCase
         $this->actingAs($this->supervisor)->get(route('queries.show', $this->query))->assertOk()
             ->assertSee('Valider (vérification du superviseur)')->assertDontSee('Validation finale et fermeture');
         $this->move($this->supervisor, DataQuery::STATUS_SUPERVISED, ['comment' => 'Vérifié sur la photo du carnet'])
-            ->assertSessionHas('success', 'Réponse vérifiée : elle part à l\'administrateur pour la validation finale.');
+            ->assertSessionHas('success', 'Réponse vérifiée : envoyée en validation finale.');
         $query = $this->query->fresh();
         $this->assertSame(DataQuery::STATUS_SUPERVISED, $query->status);
         $this->assertSame($this->supervisor->id, $query->supervised_by);

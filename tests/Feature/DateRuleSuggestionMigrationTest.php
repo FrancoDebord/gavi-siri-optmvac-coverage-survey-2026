@@ -29,6 +29,6 @@ class DateRuleSuggestionMigrationTest extends TestCase
         (include database_path('migrations/2026_11_22_090000_refresh_date_rule_suggestions.php'))->up();
 
         $this->assertSame(RuleCatalog::SUGGESTIONS['VAC_DOSE_ORDER'], $rule->fresh()->suggestion);
-        $this->assertStringContainsString('« Date VPO 3 » ou sur la dose précédente', DB::table('data_queries')->where('id', $id)->value('suggestion'));
+        $this->assertStringContainsString('« Date VPO 3 » et la dose précédente', DB::table('data_queries')->where('id', $id)->value('suggestion'));
     }
 }

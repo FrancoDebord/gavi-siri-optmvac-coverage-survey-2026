@@ -295,12 +295,12 @@ class QueryWorkflow
     public static function help(string $status): string
     {
         return match ($status) {
-            DataQuery::STATUS_OPEN => 'Rejeter la réponse ou rouvrir : la query revient au binôme (motif obligatoire).',
-            DataQuery::STATUS_JUSTIFIED => 'La valeur est exacte : indiquez la justification et la source vérifiée. Le superviseur vérifiera, puis l\'administrateur validera.',
-            DataQuery::STATUS_CORRECTED => 'Saisissez la ou les bonnes valeurs, le motif et la source. Le superviseur vérifiera, puis l\'administrateur validera ; ODK n\'est pas modifié.',
-            DataQuery::STATUS_SUPERVISED => 'Vous avez vérifié la réponse du binôme (photo, carnet, appel) : elle part à l\'administrateur pour la validation finale. Rien n\'est encore appliqué.',
-            DataQuery::STATUS_VALIDATED => 'Validation finale : la réponse est acceptée. Corrections : appliquées à la base nettoyée, la query est résolue si l\'anomalie disparaît.',
-            DataQuery::STATUS_UNRESOLVABLE => 'La donnée ne peut être ni corrigée ni confirmée : motif obligatoire. La query est fermée.',
+            DataQuery::STATUS_OPEN => 'Retour au binôme. Motif obligatoire.',
+            DataQuery::STATUS_JUSTIFIED => 'La valeur est juste. Indiquez la source vérifiée (carnet, photo, revisite).',
+            DataQuery::STATUS_CORRECTED => 'Saisissez la bonne valeur, le motif et la source.',
+            DataQuery::STATUS_SUPERVISED => 'Réponse vérifiée : elle part en validation finale.',
+            DataQuery::STATUS_VALIDATED => 'Validation finale : les corrections sont appliquées et la query est fermée.',
+            DataQuery::STATUS_UNRESOLVABLE => 'Ni corrigeable ni confirmable. Motif obligatoire ; la query est fermée.',
             default => '',
         };
     }

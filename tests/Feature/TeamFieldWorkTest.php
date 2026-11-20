@@ -88,14 +88,14 @@ class TeamFieldWorkTest extends TestCase
             ->assertSee('Saisi :')->assertSee('1 – Visite 1')->assertSee('Photo :')->assertSee('2 – Visite 2');
         $this->actingAs($account)->get(route('queries.show', $query))->assertOk()
             ->assertSee('Valeur saisie (ODK)')->assertSee('Valeur suggérée')->assertSee('lue sur la photo')->assertSee('URI de la soumission')->assertSee('uuid:1')
-            ->assertSee('Pré-rempli avec la valeur lue sur la photo')
+            ->assertSee('Valeur lue sur la photo.')
             // Valeurs de la soumission transmises pour « corriger une autre question » : [actuelle, ODK].
             ->assertSee('"visit_num":["1","1"]', false);
 
         // Le binôme corrige directement : la réponse attend la validation.
         $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
             ['variable' => 'visit_num', 'new_value' => '2', 'reason' => 'carnet'],
-        ]])->assertSessionHas('success', 'Réponse enregistrée : elle part au superviseur de la zone pour vérification.');
+        ]])->assertSessionHas('success', 'Réponse envoyée au superviseur.');
         $this->assertSame(DataQuery::STATUS_CORRECTED, $query->fresh()->status);
         $this->actingAs($account)->get(route('team.queries', ['resolution' => DataQuery::RESOLUTION_PENDING]))->assertSee('À vérifier (superviseur)');
 
@@ -146,7 +146,7 @@ class TeamFieldWorkTest extends TestCase
 
         $this->actingAs($account)->get(route('team.queries'))->assertSee('Photo :')->assertSee('2 – Visite 2');
         $this->actingAs($account)->get(route('queries.show', $query))->assertOk()
-            ->assertSee('lue sur la photo par '.$manager->name)->assertSee('fiche de visite, photo 2')->assertSee('Pré-rempli avec la valeur lue sur la photo');
+            ->assertSee('lue sur la photo par '.$manager->name)->assertSee('fiche de visite, photo 2')->assertSee('Valeur lue sur la photo.');
     }
 
     public function test_village_is_corrected_by_ticking_it_in_the_dictionary_list(): void

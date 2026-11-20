@@ -37,7 +37,7 @@
                             @foreach ($focus['related'] as $related)
                                 <div>{{ $related['label'] }} <code class="small">{{ $related['variable'] }}</code> : <span class="badge fs-6 text-bg-warning-subtle text-warning-emphasis border">{{ $related['value'] ?? '(vide)' }}</span></div>
                             @endforeach
-                            <div class="small text-muted">L'erreur peut venir de {{ $focus['short_label'] }} ou de {{ count($focus['related']) > 1 ? 'ces valeurs' : 'cette valeur' }} : vérifiez sur le document avant de corriger.</div>
+                            <div class="small text-muted">Vérifiez laquelle est fausse avant de corriger.</div>
                         </dd>
                     @endif
                     <dt class="col-sm-4">Valeur suggérée</dt>

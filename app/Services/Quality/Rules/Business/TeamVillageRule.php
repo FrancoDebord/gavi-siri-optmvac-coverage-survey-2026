@@ -33,7 +33,7 @@ class TeamVillageRule extends BusinessRule implements PreparesDataset
         $agentOnly = $diagnosis['case'] === TeamVillageCheck::AGENT;
         $variable = $agentOnly ? Map::var('binome') : Map::var('village');
         $candidate = QueryCandidate::for($context->root, $diagnosis['case_label'].' : '.$diagnosis['message'], $variable,
-            $context->root->get($variable ?? ''), $agentOnly ? 'Agent du binôme '.TeamVillageCheck::teamLabel($diagnosis['account_team']) : 'Village du binôme');
+            $context->root->get($variable ?? ''), $agentOnly ? 'Agent du binôme '.TeamVillageCheck::teamLabel($diagnosis['account_team']) : 'Un de : '.$diagnosis['villages']);
         $candidate->suggestion = $diagnosis['suggestion'];
         $candidate->teamId = $diagnosis['team_id'];
         $candidate->discriminator = $diagnosis['case']; // un autre diagnostic = une autre query

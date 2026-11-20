@@ -300,9 +300,8 @@ class QualityEngine
         if (in_array($existing['suggested_source'], [null, DataQuery::SUGGESTION_RULE], true)) {
             $updates += $this->ruleSuggestion($candidate, $now);
         }
-        if ($observed !== $existing['observed']) {
-            $updates += ['observed_value' => $observed, 'message' => mb_substr($candidate->message, 0, 2000), 'expected' => $candidate->expected];
-        }
+        // Message et valeur attendue toujours à jour (données corrigées ou texte de la règle reformulé).
+        $updates += ['observed_value' => $observed, 'message' => mb_substr($candidate->message, 0, 2000), 'expected' => $candidate->expected];
         // L'anomalie réapparaît après une fermeture automatique : la query est rouverte (et rendue à son assigné).
         if ($existing['status'] === DataQuery::STATUS_VALIDATED && $existing['auto_closed']) {
             $reopened = $existing['assigned_to'] ? DataQuery::STATUS_SENT : DataQuery::STATUS_OPEN;

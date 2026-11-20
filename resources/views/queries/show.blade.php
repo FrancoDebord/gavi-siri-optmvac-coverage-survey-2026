@@ -94,7 +94,7 @@
                     @csrf
                     <div class="card-header"><i class="bi bi-eye me-1"></i>Valeur lue sur la photo</div>
                     <div class="card-body">
-                        <p class="small text-muted mb-2">Si la vraie valeur de « {{ $focus['question'] ?? $query->variable }} » est lisible sur une photo, saisissez-la : elle sera proposée à l'agent, qui la confirmera en corrigeant.</p>
+                        <p class="small text-muted mb-2">Valeur lisible sur une photo ? Saisissez-la : elle sera proposée au binôme.</p>
                         <div class="row g-2">
                             <div class="col-sm-5">
                                 <input name="suggested_value" class="form-control form-control-sm @error('suggested_value') is-invalid @enderror" value="{{ old('suggested_value', $query->suggested_value) }}" placeholder="{{ $correctionField && $correctionField['type'] === 'date' ? 'AAAA-MM-JJ' : 'valeur' }}" aria-label="Valeur lue">
@@ -236,7 +236,7 @@
                                 <div id="status-help" class="form-text mb-2"></div>
                                 @error('status')<div class="alert alert-danger py-2 small">{{ $message }}</div>@enderror
                                 <div id="corrections-block" class="d-none mb-2" data-next-index="{{ $correctionField ? 1 + count($correctionField['related']) : 0 }}">
-                                    <div class="small text-muted mb-1"><i class="bi bi-shield-lock me-1"></i>La correction s'applique à la base nettoyée ; la donnée ODK reste intacte et la valeur remplacée est conservée au registre.</div>
+                                    <div class="small text-muted mb-1"><i class="bi bi-shield-lock me-1"></i>Correction appliquée à la base nettoyée ; ODK reste intact.</div>
                                     <div data-correction-rows>
                                         @if ($geoField)
                                             <div class="border rounded p-2 mb-2 bg-light-subtle" data-correction-row data-geo>
@@ -302,7 +302,7 @@
                                         @if ($correctionField && $correctionField['related'])
                                             <fieldset class="border border-warning-subtle rounded p-2 mb-2" data-pair-choice>
                                                 <legend class="float-none w-auto small fw-semibold px-1 mb-1">Quelle valeur est fausse ?</legend>
-                                                <div class="small text-muted mb-1">L'erreur peut venir de l'une ou de l'autre : vérifiez sur le carnet ou la photo, puis corrigez celle qui est fausse.</div>
+                                                <div class="small text-muted mb-1">Vérifiez sur le carnet laquelle est fausse.</div>
                                                 @foreach ($correctionField['pair'] as $k => $f)
                                                     <div class="form-check">
                                                         <input class="form-check-input" type="radio" name="pair_choice" id="pair-{{ $k }}" value="{{ $k }}" required>
@@ -331,7 +331,7 @@
                                                 <input type="hidden" name="corrections[99][variable]" value="{{ \App\Models\DataCorrection::EXCLUSION }}" disabled>
                                                 <input type="hidden" name="corrections[99][new_value]" value="1" disabled>
                                                 @include('queries._correction-reason', ['i' => 99])
-                                                <div class="form-text">Indiquez dans le commentaire la soumission conservée. La soumission exclue reste dans la base brute et au registre.</div>
+                                                <div class="form-text">Indiquez la soumission conservée. L'exclue reste dans la base brute.</div>
                                             </div>
                                         </div>
                                     @endif
@@ -370,7 +370,7 @@
                                     <div id="signature-field" class="mb-2 d-none">
                                         <label class="form-label" for="password"><i class="bi bi-pen me-1"></i>Signature électronique : votre mot de passe</label>
                                         <input id="password" type="password" name="password" class="form-control" autocomplete="current-password">
-                                        <div class="form-text">Query {{ $query->severity }} : validation par une autre personne que l'auteur de la réponse, signée.</div>
+                                        <div class="form-text">Query {{ $query->severity }} : validation signée, par une autre personne que l'auteur.</div>
                                     </div>
                                 @endif
                                 <button class="btn btn-primary w-100"><i class="bi bi-check2 me-1"></i>Appliquer</button>

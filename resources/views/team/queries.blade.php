@@ -22,18 +22,14 @@
                         <p class="small fw-semibold text-warning-emphasis mb-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ $left->count() }} village(s) restant(s) : {{ $left->pluck('name')->implode(', ') }}.</p>
                     @endif
                 @endif
-                <p class="small text-muted mb-0">Ces queries signalent un ménage dont le <strong>village coché</strong> n'est pas l'un de ces villages, ou dont
-                    l'<strong>agent sélectionné</strong> n'est pas du binôme qui a envoyé la soumission (compte ODK). Ouvrez chaque query : le bon village
-                    ou le bon agent est à cocher dans la correction.</p>
+                <p class="small text-muted mb-0">Village coché hors de cette liste, ou agent d'un autre binôme : ouvrez la query et cochez le bon village ou le bon agent.</p>
             </div>
         </div>
     @endif
 
     <div class="alert alert-info small d-flex gap-2">
         <i class="bi bi-lightbulb"></i>
-        <div>Pour chaque query : vérifiez la valeur saisie sur le document (photo, carnet), puis ouvrez-la et cliquez <strong>Corriger</strong>.
-            Saisissez la bonne valeur (la valeur lue sur la photo est proposée) ; si elle lève l'erreur, elle est prise en compte tout de suite.
-            Si la valeur saisie est juste, choisissez <strong>Valeur confirmée</strong> et expliquez pourquoi. Ne modifiez rien dans ODK.</div>
+        <div>Ouvrez la query et vérifiez sur le carnet ou la photo. Puis <strong>Corriger</strong> (bonne valeur) ou <strong>Valeur confirmée</strong> (si elle est juste, avec la source). Ne modifiez rien dans ODK.</div>
     </div>
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">

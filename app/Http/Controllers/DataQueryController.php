@@ -496,8 +496,8 @@ class DataQueryController extends Controller
         return back()->with('success', match (true) {
             $auto !== null && $auto['applied'] => 'Correction prise en compte : l\'erreur est levée.',
             $auto !== null => 'Correction enregistrée ; elle sera examinée par le data manager ('.$auto['reason'].').',
-            in_array($request->validated('status'), DataQuery::RESPONSES, true) => 'Réponse enregistrée : elle part au superviseur de la zone pour vérification.',
-            $request->validated('status') === DataQuery::STATUS_SUPERVISED => 'Réponse vérifiée : elle part à l\'administrateur pour la validation finale.',
+            in_array($request->validated('status'), DataQuery::RESPONSES, true) => 'Réponse envoyée au superviseur.',
+            $request->validated('status') === DataQuery::STATUS_SUPERVISED => 'Réponse vérifiée : envoyée en validation finale.',
             default => 'Statut mis à jour : '.$query->fresh()->statusLabel().'.',
         });
     }

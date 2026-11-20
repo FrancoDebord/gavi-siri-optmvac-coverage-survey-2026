@@ -29,6 +29,6 @@
     @else
         <input id="c{{ $i }}-value" name="corrections[{{ $i }}][new_value]" class="form-control form-control-sm mb-2" value="{{ $value }}" @if ($field['type'] === 'date') type="date" @endif>
     @endif
-    @if ($suggested !== null)<div class="form-text mt-n1 mb-2">Pré-rempli avec la valeur lue sur la photo.</div>@endif
+    @if ($suggested !== null)<div class="form-text mt-n1 mb-2">Valeur lue sur la photo.</div>@endif
     @include('queries._correction-reason', ['i' => $i])
 </div>
