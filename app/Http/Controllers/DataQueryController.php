@@ -33,6 +33,7 @@ use App\Services\Quality\QueryWorkflow;
 use App\Services\Quality\RelatedFields;
 use App\Services\Quality\TeamVillageCheck;
 use App\Support\Filters;
+use App\Support\HouseholdCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -235,7 +236,14 @@ class DataQueryController extends Controller
         $proposed = $query->variable === $villageVar && $query->suggested_value !== null
             ? $villages->first(fn ($r) => (string) $r['name'] === (string) $query->suggested_value) : null;
 
+        $codeVar = Map::var('id_menage');
+        $codeCurrent = (string) ($clean->data[$codeVar] ?? '');
+
         return [
+            // Identifiant ménage, modifiable avec le village (il peut aussi être en cause).
+            'code_var' => $codeVar,
+            'code_current' => $codeCurrent,
+            'code_proposed' => $query->variable === $codeVar && $query->suggested_value !== null ? (string) $query->suggested_value : HouseholdCode::normalize($codeCurrent),
             'arr_selected' => $proposed ? (string) $proposed['extra']['parent'] : $arrCurrent,
             'village_selected' => $proposed ? (string) $proposed['name'] : $villageCurrent,
             'village_proposed' => $proposed ? (string) $proposed['name'] : null,

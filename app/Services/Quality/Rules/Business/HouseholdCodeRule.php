@@ -42,7 +42,14 @@ class HouseholdCodeRule extends BusinessRule implements PreparesDataset
 
         $parsed = HouseholdCode::parse($code);
         if (! $parsed) {
-            yield QueryCandidate::for($context->root, "Identifiant ménage « {$code} » non conforme : le ménage ne peut pas être rattaché à sa grappe", $variable, $code, $format);
+            $candidate = QueryCandidate::for($context->root, "Identifiant ménage « {$code} » non conforme : le ménage ne peut pas être rattaché à sa grappe", $variable, $code, $format);
+            // Identifiant reconnaissable mais mal écrit : forme correcte proposée (à vérifier avec le binôme).
+            if ($normalized = HouseholdCode::normalize($code)) {
+                $candidate->suggestedValue = $normalized;
+                $candidate->suggestedNote = 'Format corrigé';
+                $candidate->suggestion = "Corriger l'identifiant : {$normalized} (à vérifier avec le binôme).";
+            }
+            yield $candidate;
 
             return;
         }

@@ -240,7 +240,7 @@
                                     <div data-correction-rows>
                                         @if ($geoField)
                                             <div class="border rounded p-2 mb-2 bg-light-subtle" data-correction-row data-geo>
-                                                <div class="small fw-semibold mb-1">Cochez le bon arrondissement puis le bon village</div>
+                                                <div class="small fw-semibold mb-1">Cochez le bon arrondissement et le bon village ; corrigez l'identifiant ménage si besoin</div>
                                                 <input type="hidden" name="corrections[60][variable]" value="{{ $geoField['arr_var'] }}">
                                                 <input type="hidden" name="corrections[60][optional]" value="1">
                                                 <input type="hidden" name="corrections[60][group]" value="geo">
@@ -268,6 +268,18 @@
                                                         </div>
                                                     @endforeach
                                                 </div>
+                                                @if ($geoField['code_var'])
+                                                    {{-- Identifiant ménage : peut être en cause aussi (format, code village). --}}
+                                                    <input type="hidden" name="corrections[63][variable]" value="{{ $geoField['code_var'] }}">
+                                                    <input type="hidden" name="corrections[63][optional]" value="1">
+                                                    <input type="hidden" name="corrections[63][group]" value="geo">
+                                                    <label class="form-label small mb-0" for="hh-code">Identifiant ménage <span class="text-muted">(saisi : <code>{{ $geoField['code_current'] ?: '—' }}</code>)</span></label>
+                                                    <input id="hh-code" name="corrections[63][new_value]" class="form-control form-control-sm font-monospace mb-1" value="{{ $geoField['code_proposed'] ?? $geoField['code_current'] }}" maxlength="40">
+                                                    <div class="form-text mb-2">
+                                                        @if ($geoField['code_proposed'])<span class="badge text-bg-success-subtle text-success-emphasis border me-1">proposé</span>format corrigé, à vérifier avec le binôme. @endif
+                                                        Format : ZONE-VIL-NN[-Sx]-MMM, ex. TCH-KAP-01-S1-124.
+                                                    </div>
+                                                @endif
                                                 @include('queries._correction-reason', ['i' => 60])
                                             </div>
                                         @endif

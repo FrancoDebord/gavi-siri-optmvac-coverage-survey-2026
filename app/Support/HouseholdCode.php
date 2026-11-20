@@ -48,6 +48,28 @@ final class HouseholdCode
         ];
     }
 
+    /**
+     * Forme correcte d'un identifiant mal écrit mais reconnaissable : zone, village, grappe, sous-grappe facultative et
+     * numéro d'ordre, quels que soient les séparateurs (ex. « TCH-KAP-1-S-1-124 » → « TCH-KAP-01-S1-124 »).
+     * La lettre O saisie à la place du chiffre 0 dans les nombres est corrigée (« O24 » → « 024 »).
+     * Null si l'identifiant est déjà conforme ou n'est pas reconnaissable.
+     */
+    public static function normalize(?string $code): ?string
+    {
+        $value = mb_strtoupper(trim((string) $code));
+        if ($value === '' || self::parse($value) !== null) {
+            return null;
+        }
+        $digits = '[0-9O]';
+        if (! preg_match("/^([A-Z]{3})\\W*([A-Z]{3})\\W*({$digits}{1,2})\\W*(?:S\\W*({$digits}{1,2})\\W*)?({$digits}{1,4})$/", $value, $m)) {
+            return null;
+        }
+        $number = fn (string $part) => (int) str_replace('O', '0', $part);
+        $normalized = sprintf('%s-%s-%02d%s-%03d', $m[1], $m[2], $number($m[3]), $m[4] !== '' ? '-S'.$number($m[4]) : '', $number($m[5]));
+
+        return self::parse($normalized) !== null ? $normalized : null;
+    }
+
     /** Code de zone sanitaire (l1) associé au préfixe, d'après config/gavi.php. */
     public static function zoneCode(string $prefix): ?string
     {
