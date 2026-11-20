@@ -83,6 +83,17 @@
     <a class="{{ $link('queries.index', 'queries.index') }} {{ request()->routeIs('queries.show') ? 'active' : '' }}" href="{{ route('queries.index') }}"><i class="bi bi-list-check"></i><span class="label">Liste des queries
         @if ($myQueries = \App\Models\DataQuery::where('assigned_to', auth()->id())->whereIn('status', \App\Models\DataQuery::UNRESOLVED)->count())<span class="badge rounded-pill text-bg-primary ms-1" title="Queries qui vous sont assignées">{{ $myQueries }}</span>@endif
         @if ($myReviews = \App\Models\DataQuery::where('reviewer_id', auth()->id())->whereIn('status', \App\Models\DataQuery::RESPONSES)->count())<span class="badge rounded-pill text-bg-warning ms-1" title="Queries à valider par vous">{{ $myReviews }}</span>@endif</span></a>
+    {{-- Validation en deux temps : réponses des binômes à vérifier (superviseurs), puis validation finale (administrateur). --}}
+    @if (auth()->user()->hasRole(\App\Models\User::ROLE_SUPERVISOR) || auth()->user()->can('validate queries'))
+        @php($toCheck = \App\Models\DataQuery::visibleTo(auth()->user())->whereIn('status', \App\Models\DataQuery::RESPONSES)->count())
+        <a class="nav-link {{ request('resolution') === \App\Models\DataQuery::RESOLUTION_PENDING ? 'active' : '' }}" href="{{ route('queries.index', ['resolution' => \App\Models\DataQuery::RESOLUTION_PENDING]) }}"><i class="bi bi-person-check"></i><span class="label">À vérifier (superviseur)
+            @if ($toCheck)<span class="badge rounded-pill text-bg-warning ms-1">{{ $toCheck }}</span>@endif</span></a>
+    @endif
+    @can('validate queries')
+        @php($toFinalize = \App\Models\DataQuery::visibleTo(auth()->user())->whereIn('status', \App\Models\DataQuery::AWAITING_FINAL)->count())
+        <a class="nav-link {{ request('resolution') === \App\Models\DataQuery::RESOLUTION_SUPERVISED ? 'active' : '' }}" href="{{ route('queries.index', ['resolution' => \App\Models\DataQuery::RESOLUTION_SUPERVISED]) }}"><i class="bi bi-patch-check"></i><span class="label">Validation finale
+            @if ($toFinalize)<span class="badge rounded-pill text-bg-info ms-1">{{ $toFinalize }}</span>@endif</span></a>
+    @endcan
     <a class="{{ $link('observations.*') }}" href="{{ route('observations.index') }}"><i class="bi bi-binoculars"></i><span class="label">Observations de supervision</span></a>
     @can('validate queries')
         <a class="{{ $link('team-villages.*') }}" href="{{ route('team-villages.index') }}"><i class="bi bi-signpost-split"></i><span class="label">Villages des binômes

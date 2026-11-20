@@ -95,9 +95,9 @@ class TeamFieldWorkTest extends TestCase
         // Le binôme corrige directement : la réponse attend la validation.
         $this->actingAs($account)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
             ['variable' => 'visit_num', 'new_value' => '2', 'reason' => 'carnet'],
-        ]])->assertSessionHas('success', 'Réponse enregistrée : en attente de validation.');
+        ]])->assertSessionHas('success', 'Réponse enregistrée : elle part au superviseur de la zone pour vérification.');
         $this->assertSame(DataQuery::STATUS_CORRECTED, $query->fresh()->status);
-        $this->actingAs($account)->get(route('team.queries', ['resolution' => DataQuery::RESOLUTION_PENDING]))->assertSee('en attente de validation');
+        $this->actingAs($account)->get(route('team.queries', ['resolution' => DataQuery::RESOLUTION_PENDING]))->assertSee('À vérifier (superviseur)');
 
         // Le data manager confie la validation à un compte validateur, qui valide ; un autre validateur ne peut pas.
         $manager = User::factory()->create();
@@ -113,11 +113,16 @@ class TeamFieldWorkTest extends TestCase
         $this->assertSame(route('queries.index', ['a_valider' => 'moi']), $validator->homeRoute());
         $data = $this->actingAs($validator)->getJson(route('queries.datatable', ['draw' => 1, 'length' => 50, 'a_valider' => 'moi']))->json('data');
         $this->assertSame([$query->id], array_column($data, 'id'));
-        $this->actingAs($other)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED])->assertSessionHasErrors('status');
-        $this->actingAs($validator)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED])->assertSessionHasNoErrors();
+        // Le validateur désigné fait la vérification (première étape) ; un autre validateur ne peut pas,
+        // et la validation finale revient au data manager / à l'administrateur.
+        $this->actingAs($other)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_SUPERVISED])->assertSessionHasErrors('status');
+        $this->actingAs($validator)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED])->assertSessionHasErrors('status');
+        $this->actingAs($validator)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_SUPERVISED])->assertSessionHasNoErrors();
+        $this->assertSame($validator->id, $query->fresh()->supervised_by);
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED, 'password' => 'password'])->assertSessionHasNoErrors();
         $query->refresh();
         $this->assertSame(DataQuery::STATUS_VALIDATED, $query->status);
-        $this->assertSame($validator->id, $query->validated_by);
+        $this->assertSame($manager->id, $query->validated_by);
         $this->assertSame('2', Household::where('submission_uuid', 'uuid:1')->firstOrFail()->data['visit_num']);
     }
 

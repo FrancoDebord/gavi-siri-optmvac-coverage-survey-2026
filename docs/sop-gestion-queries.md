@@ -19,12 +19,12 @@ Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont e
 
 | Acteur | Rôle dans la procédure |
 |---|---|
-| Data manager | Lance le moteur, trie, affecte, valide ou rejette les réponses, décide « irrésoluble », rouvre, revoit les conflits. |
-| Superviseur | Affecte et répond aux queries de sa zone ; vérifie sur le terrain ; valide ou rouvre les queries dont la validation lui est confiée. |
+| Data manager | Lance le moteur, trie, affecte ; peut faire la vérification à la place du superviseur ; **validation finale** (à l'unité ou en bloc), rejet, « irrésoluble », réouverture, revue des conflits. |
+| Superviseur | Affecte et répond aux queries de sa zone ; **vérifie les réponses des binômes de sa zone** (photo, carnet, terrain) et les valide (première étape) ou les rejette. |
 | Validateur (compte dédié) | Valide ou rouvre les queries dont la validation lui est confiée ; arrive directement sur « À valider par moi ». |
 | Compte binôme | Se connecte avec l'identifiant `nom1.nom2` (noms des deux agents) et arrive sur ses queries. Il répond à toutes les queries de ses agents d'après la pièce source, sans attendre d'affectation. |
 | Investigateur principal | Suit les indicateurs ; approuve les écarts avant le gel final. |
-| Administrateur | Paramètres (affectation automatique, échéance, double validation), gel et dégel. |
+| Administrateur | **Validation finale** des réponses vérifiées (à l'unité ou en bloc), mêmes droits que le data manager ; paramètres (affectation automatique, échéance, double validation), gel et dégel. |
 
 ## 4. Définitions
 
@@ -83,9 +83,15 @@ Le data manager revoit ces corrections dans le registre (« À revoir »). Il pe
 - **les accepter**, à l'unité ou toutes à la fois ;
 - **les refuser**, avec un motif : la valeur précédente est rétablie et, si l'erreur revient, la query est rouverte et rendue à l'assigné.
 
-### 5.4 Validation (data manager, ou valideur désigné)
+### 5.4 Validation en deux temps
 
-La réponse de l'agent s'affiche pour lui « en attente de validation ». Le data manager ou l'administrateur peut confier la validation d'une query, ou de plusieurs à la fois depuis la liste, à un superviseur ou à un compte validateur. La personne désignée valide ou rouvre ; la règle de double validation s'applique à elle comme au data manager.
+**Étape 1 – Vérification du superviseur.** La réponse d'un binôme part directement chez le ou les superviseurs de sa zone (ou de sa commune) : menu **« À vérifier (superviseur) »**. Le superviseur contrôle la réponse sur la pièce source, puis :
+- **Valide** (« Valider (vérification du superviseur) ») : la query passe au statut « Validée par le superviseur » et part à la validation finale. Rien n'est encore appliqué à la base nettoyée.
+- ou **Rejette** (motif obligatoire) : la query revient au binôme et les corrections proposées sont rejetées.
+
+Un superviseur ne vérifie jamais sa propre réponse. L'administrateur et le data manager peuvent faire cette vérification. Le data manager peut aussi confier la vérification d'une query à une personne désignée (superviseur, validateur).
+
+**Étape 2 – Validation finale (administrateur, data manager).** Menu **« Validation finale »** : les réponses vérifiées par les superviseurs. Elle se fait à l'unité ou **en bloc** (sélection dans la liste, action « Validation finale et fermeture », une seule signature). L'administrateur peut aussi valider directement une réponse non vérifiée.
 
 1. Revue de chaque réponse : cohérence avec la pièce source et avec les autres données de la soumission.
 2. Décision :
@@ -140,3 +146,4 @@ Ils sont revus *[à compléter : fréquence, instance]*.
 | Version | Date | Modification | Auteur |
 |---|---|---|---|
 | 1.0 | 18/11/2026 | Création | *[à compléter]* |
+| 1.1 | 20/11/2026 | Validation en deux temps : vérification du superviseur de la zone, puis validation finale de l'administrateur (à l'unité ou en bloc) | *[à compléter]* |

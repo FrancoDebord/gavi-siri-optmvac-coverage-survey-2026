@@ -185,16 +185,19 @@
                                 <option value="">— Ne pas changer (commentaire seul) —</option>
                                 @foreach ([
                                     \App\Models\DataQuery::STATUS_JUSTIFIED => 'Réponse : valeur confirmée',
-                                    \App\Models\DataQuery::STATUS_VALIDATED => 'Valider la réponse et fermer',
+                                    \App\Models\DataQuery::STATUS_SUPERVISED => 'Valider (vérification du superviseur)',
+                                    \App\Models\DataQuery::STATUS_VALIDATED => 'Validation finale et fermeture',
                                     \App\Models\DataQuery::STATUS_OPEN => 'Rejeter la réponse / rouvrir',
                                     \App\Models\DataQuery::STATUS_UNRESOLVABLE => 'Déclarer irrésoluble',
                                 ] as $key => $label)
-                                    @if (in_array($key, \App\Models\DataQuery::RESPONSES, true) || auth()->user()->can('validate queries') || auth()->user()->can('review queries'))
+                                    @if (in_array($key, \App\Models\DataQuery::RESPONSES, true)
+                                        || (in_array($key, [\App\Models\DataQuery::STATUS_SUPERVISED, \App\Models\DataQuery::STATUS_OPEN], true) && auth()->user()->can('review queries'))
+                                        || auth()->user()->can('validate queries'))
                                         <option value="{{ $key }}" data-signature="{{ in_array($key, [\App\Models\DataQuery::STATUS_VALIDATED, \App\Models\DataQuery::STATUS_UNRESOLVABLE], true) ? '1' : '0' }}" data-from='@json(collect(\App\Models\DataQuery::TRANSITIONS)->filter(fn ($to) => in_array($key, $to, true))->keys()->values())'>{{ $label }}</option>
                                     @endif
                                 @endforeach
                             </select>
-                            <div class="form-text">Une correction (nouvelle valeur) se saisit sur la fiche de la query. Valeur confirmée, rejet et irrésoluble exigent un motif. Chaque query est contrôlée : les actions impossibles sont ignorées et listées.</div>
+                            <div class="form-text">Superviseurs : sélectionnez les réponses « À vérifier » puis « Valider (vérification du superviseur) ». Administrateur : filtrez « À valider (validation finale) », sélectionnez tout puis « Validation finale ». Une correction (nouvelle valeur) se saisit sur la fiche de la query. Valeur confirmée, rejet et irrésoluble exigent un motif. Chaque query est contrôlée : les actions impossibles sont ignorées et listées.</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="modal-comment">Justification / motif</label>

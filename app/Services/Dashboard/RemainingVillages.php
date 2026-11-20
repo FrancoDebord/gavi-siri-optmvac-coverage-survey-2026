@@ -58,7 +58,6 @@ final class RemainingVillages
                 'commune' => $v->commune?->name,
                 'teams' => $teamsOf[$v->id] ?? [],
                 'clusters' => $frame[$v->id]['clusters'] ?? 0,
-                'sub_clusters' => $frame[$v->id]['sub_clusters'] ?? 0,
                 'enumerated' => $frame[$v->id]['enumerated'] ?? 0,
                 'per_cluster' => $frame[$v->id]['per_cluster'] ?? [],
             ])
@@ -85,14 +84,13 @@ final class RemainingVillages
                 $teamsOf[$village->id][] = TeamVillageCheck::teamLabel($team);
             }
         }
-        // Base de sondage par village : nombre de grappes, sous-grappes prévues, ménages dénombrés de chaque grappe.
+        // Base de sondage par village : nombre de grappes ; pour chaque grappe, subdivisions prévues et ménages dénombrés.
         $frame = [];
         foreach (ClusterFrame::orderBy('cluster_number')->get(['village_ids', 'cluster_number', 'subdivisions', 'households_enumerated']) as $row) {
             foreach ($row->village_ids ?? [] as $id) {
                 $frame[$id]['clusters'] = ($frame[$id]['clusters'] ?? 0) + 1;
-                $frame[$id]['sub_clusters'] = ($frame[$id]['sub_clusters'] ?? 0) + max(1, (int) $row->subdivisions);
                 $frame[$id]['enumerated'] = ($frame[$id]['enumerated'] ?? 0) + (int) $row->households_enumerated;
-                $frame[$id]['per_cluster'][] = ['number' => (int) $row->cluster_number, 'enumerated' => (int) $row->households_enumerated];
+                $frame[$id]['per_cluster'][] = ['number' => (int) $row->cluster_number, 'subdivisions' => max(1, (int) $row->subdivisions), 'enumerated' => (int) $row->households_enumerated];
             }
         }
         $ids = $this->villageIds ?? array_unique([...array_keys($teamsOf), ...array_keys($frame), ...DB::table('team_village')->pluck('village_id')->all()]);

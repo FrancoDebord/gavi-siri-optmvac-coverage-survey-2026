@@ -175,7 +175,7 @@ class DataQueryController extends Controller
     public function show(DataQuery $query, SubmissionPhotos $photos): View
     {
         $this->authorize('view', $query);
-        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator', 'suggester', 'reviewer']);
+        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator', 'suggester', 'reviewer', 'supervisor']);
 
         $user = request()->user();
 
@@ -496,7 +496,8 @@ class DataQueryController extends Controller
         return back()->with('success', match (true) {
             $auto !== null && $auto['applied'] => 'Correction prise en compte : l\'erreur est levée.',
             $auto !== null => 'Correction enregistrée ; elle sera examinée par le data manager ('.$auto['reason'].').',
-            in_array($request->validated('status'), DataQuery::RESPONSES, true) => 'Réponse enregistrée : en attente de validation.',
+            in_array($request->validated('status'), DataQuery::RESPONSES, true) => 'Réponse enregistrée : elle part au superviseur de la zone pour vérification.',
+            $request->validated('status') === DataQuery::STATUS_SUPERVISED => 'Réponse vérifiée : elle part à l\'administrateur pour la validation finale.',
             default => 'Statut mis à jour : '.$query->fresh()->statusLabel().'.',
         });
     }

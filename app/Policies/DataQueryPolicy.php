@@ -44,7 +44,8 @@ class DataQueryPolicy
     /** Commenter : quiconque peut répondre, affecter ou valider. */
     public function comment(User $user, DataQuery $query): bool
     {
-        return $this->respond($user, $query) || $this->assign($user, $query) || $this->validate($user, $query);
+        return $this->respond($user, $query) || $this->assign($user, $query) || $this->validate($user, $query)
+            || (in_array($query->status, [...DataQuery::RESPONSES, ...DataQuery::AWAITING_FINAL], true) && $this->supervise($user, $query));
     }
 
     public function assign(User $user, DataQuery $query): bool
@@ -53,12 +54,31 @@ class DataQueryPolicy
     }
 
     /**
-     * Valider, rejeter, rouvrir, déclarer irrésoluble : data manager (revue indépendante), ou la personne à qui la
-     * validation de cette query est confiée (superviseur, validateur).
+     * Validation finale, rejet après vérification, réouverture, irrésoluble : administrateur et data manager.
      */
     public function validate(User $user, DataQuery $query): bool
     {
-        return ($user->can('validate queries') && $this->inScope($user, $query))
+        // Validation finale, irrésoluble, réouverture : administrateur et data manager seulement. La personne à qui la
+        // validation est confiée (superviseur, validateur) fait la vérification de première étape (supervise).
+        return $user->can('validate queries') && $this->inScope($user, $query);
+    }
+
+    /**
+     * Vérification du superviseur (première étape) : un superviseur de la zone ou de la commune, la personne à qui la
+     * validation est confiée, ou l'administrateur / le data manager. Jamais sa propre réponse (revue indépendante),
+     * sauf pour l'administrateur et le data manager.
+     */
+    public function supervise(User $user, DataQuery $query): bool
+    {
+        $central = $user->can('validate queries') && $this->inScope($user, $query);
+        if ($central) {
+            return true;
+        }
+        if ($query->responded_by !== null && (int) $query->responded_by === (int) $user->id) {
+            return false;
+        }
+
+        return ($user->hasRole(User::ROLE_SUPERVISOR) && $user->can('review queries') && $this->inScope($user, $query))
             || ($query->reviewer_id !== null && (int) $query->reviewer_id === (int) $user->id && $user->can('review queries'));
     }
 

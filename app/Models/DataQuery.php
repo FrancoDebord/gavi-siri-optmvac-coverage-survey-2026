@@ -38,6 +38,9 @@ class DataQuery extends Model
 
     public const STATUS_VALIDATED = 'validee';
 
+    /** Réponse vérifiée et validée par le superviseur : en attente de la validation finale (administrateur). */
+    public const STATUS_SUPERVISED = 'validee_superviseur';
+
     /** La donnée ne peut être ni corrigée ni confirmée (ménage injoignable, carnet perdu…). */
     public const STATUS_UNRESOLVABLE = 'irresoluble';
 
@@ -46,6 +49,7 @@ class DataQuery extends Model
         self::STATUS_SENT => 'Assignée',
         self::STATUS_JUSTIFIED => 'Valeur confirmée – en attente de validation',
         self::STATUS_CORRECTED => 'Correction proposée – en attente de validation',
+        self::STATUS_SUPERVISED => 'Validée par le superviseur – en attente de la validation finale',
         self::STATUS_VALIDATED => 'Fermée (validée)',
         self::STATUS_UNRESOLVABLE => 'Irrésoluble (fermée)',
     ];
@@ -55,23 +59,30 @@ class DataQuery extends Model
         self::STATUS_SENT => 'warning',
         self::STATUS_JUSTIFIED => 'secondary',
         self::STATUS_CORRECTED => 'dark',
+        self::STATUS_SUPERVISED => 'info',
         self::STATUS_VALIDATED => 'success',
         self::STATUS_UNRESOLVABLE => 'irresoluble',
     ];
 
     /**
      * Transitions autorisées du cycle de vie (l'affectation fait passer Ouverte ↔ Assignée, voir QueryWorkflow::assign).
-     * Réponse : Ouverte/Assignée → Valeur confirmée / Correction proposée. Validation (data manager) : réponse → Fermée,
-     * ou rejet → Ouverte (Assignée si un assigné existe). Irrésoluble : décision du data manager. Réouverture possible.
+     * Réponse du binôme : Ouverte/Assignée → Valeur confirmée / Correction proposée.
+     * Vérification du superviseur : réponse → Validée par le superviseur, ou rejet → Ouverte (retour au binôme).
+     * Validation finale (administrateur, data manager) : → Fermée, ou rejet → Ouverte. Ils peuvent aussi valider
+     * directement une réponse. Irrésoluble : décision de l'administrateur / data manager. Réouverture possible.
      */
     public const TRANSITIONS = [
         self::STATUS_OPEN => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED, self::STATUS_UNRESOLVABLE],
         self::STATUS_SENT => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED, self::STATUS_UNRESOLVABLE],
-        self::STATUS_JUSTIFIED => [self::STATUS_VALIDATED, self::STATUS_OPEN],
-        self::STATUS_CORRECTED => [self::STATUS_VALIDATED, self::STATUS_OPEN],
+        self::STATUS_JUSTIFIED => [self::STATUS_SUPERVISED, self::STATUS_VALIDATED, self::STATUS_OPEN],
+        self::STATUS_CORRECTED => [self::STATUS_SUPERVISED, self::STATUS_VALIDATED, self::STATUS_OPEN],
+        self::STATUS_SUPERVISED => [self::STATUS_VALIDATED, self::STATUS_OPEN],
         self::STATUS_VALIDATED => [self::STATUS_OPEN],
         self::STATUS_UNRESOLVABLE => [self::STATUS_OPEN],
     ];
+
+    /** En attente de la validation finale (administrateur, data manager). */
+    public const AWAITING_FINAL = [self::STATUS_SUPERVISED];
 
     /** Réponse de l'assigné (à valider). */
     public const RESPONSES = [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED];
@@ -87,13 +98,16 @@ class DataQuery extends Model
 
     public const RESOLUTION_PENDING = 'a_valider';
 
+    public const RESOLUTION_SUPERVISED = 'valide_superviseur';
+
     public const RESOLUTION_RESOLVED = 'resolu';
 
     public const RESOLUTION_UNRESOLVABLE = 'irresoluble';
 
     public const RESOLUTIONS = [
         self::RESOLUTION_UNRESOLVED => ['label' => 'Non résolu', 'statuses' => [self::STATUS_OPEN, self::STATUS_SENT]],
-        self::RESOLUTION_PENDING => ['label' => 'En attente de validation', 'statuses' => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED]],
+        self::RESOLUTION_PENDING => ['label' => 'À vérifier (superviseur)', 'statuses' => [self::STATUS_JUSTIFIED, self::STATUS_CORRECTED]],
+        self::RESOLUTION_SUPERVISED => ['label' => 'À valider (validation finale)', 'statuses' => [self::STATUS_SUPERVISED]],
         self::RESOLUTION_RESOLVED => ['label' => 'Résolu', 'statuses' => [self::STATUS_VALIDATED]],
         self::RESOLUTION_UNRESOLVABLE => ['label' => 'Irrésoluble', 'statuses' => [self::STATUS_UNRESOLVABLE]],
     ];
@@ -103,7 +117,7 @@ class DataQuery extends Model
         'child_id', 'team_id', 'submission_uuid', 'household_code', 'health_zone_id', 'commune_id', 'village_id',
         'cluster_id', 'collector_id', 'collection_date', 'variable', 'variable_label', 'instance_path', 'observed_value',
         'expected', 'message', 'suggestion', 'status', 'kind', 'assigned_to', 'assigned_by', 'assigned_at', 'due_on',
-        'responded_by', 'responded_at', 'validated_by', 'detected_at', 'last_detected_at',
+        'responded_by', 'responded_at', 'supervised_by', 'supervised_at', 'validated_by', 'detected_at', 'last_detected_at',
         'suggested_value', 'suggested_source', 'suggested_note', 'suggested_by', 'suggested_at',
         'reviewer_id', 'review_assigned_by', 'review_assigned_at',
         'resolved_at', 'closed_at', 'auto_closed',
@@ -220,6 +234,7 @@ class DataQuery extends Model
             'suggested_at' => 'datetime',
             'review_assigned_at' => 'datetime',
             'responded_at' => 'datetime',
+            'supervised_at' => 'datetime',
             'due_on' => 'date',
             'auto_closed' => 'boolean',
         ];
@@ -238,6 +253,12 @@ class DataQuery extends Model
     public function child(): BelongsTo
     {
         return $this->belongsTo(Child::class);
+    }
+
+    /** Superviseur qui a vérifié et validé la réponse (première étape). */
+    public function supervisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'supervised_by');
     }
 
     /** Binôme concerné en plus de celui de l'agent sélectionné (ex. binôme du compte ODK). */

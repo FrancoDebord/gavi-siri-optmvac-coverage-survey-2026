@@ -49,7 +49,8 @@
                             @endif
                         </dd>
                         <dt class="col-sm-4">Réponse</dt><dd class="col-sm-8">{{ $query->responder ? $query->responder->name.' · '.$query->responded_at?->format('d/m/Y H:i') : '—' }}</dd>
-                        <dt class="col-sm-4">Validation</dt><dd class="col-sm-8">{{ $query->validator ? $query->validator->name : ($query->reviewer ? 'confiée à '.$query->reviewer->name : '—') }} @if ($doubleValidation)<span class="badge text-bg-light border ms-1" title="Validation par une autre personne que l'auteur de la réponse, avec signature électronique">double validation</span>@endif</dd>
+                        <dt class="col-sm-4">Vérification superviseur</dt><dd class="col-sm-8">{{ $query->supervisor ? $query->supervisor->name.' · '.$query->supervised_at?->format('d/m/Y H:i') : ($query->status === \App\Models\DataQuery::STATUS_CORRECTED || $query->status === \App\Models\DataQuery::STATUS_JUSTIFIED ? 'en attente du superviseur de la zone' : '—') }}</dd>
+                        <dt class="col-sm-4">Validation finale</dt><dd class="col-sm-8">{{ $query->validator ? $query->validator->name : ($query->reviewer ? 'confiée à '.$query->reviewer->name : '—') }} @if ($doubleValidation)<span class="badge text-bg-light border ms-1" title="Validation par une autre personne que l'auteur de la réponse, avec signature électronique">double validation</span>@endif</dd>
                         <dt class="col-sm-4">Date de résolution</dt><dd class="col-sm-8">{{ $query->resolved_at?->format('d/m/Y H:i') ?? '—' }} @if ($query->auto_closed)<span class="badge text-bg-success">fermeture automatique</span>@endif</dd>
                     </dl>
                 </div>
@@ -153,11 +154,15 @@
         <div class="col-lg-5">
             @php
                 $user = auth()->user();
+                $awaitingFinal = $query->status === \App\Models\DataQuery::STATUS_SUPERVISED;
                 $options = collect(\App\Models\DataQuery::TRANSITIONS[$query->status] ?? [])
-                    ->filter(fn ($status) => in_array($status, \App\Models\DataQuery::RESPONSES, true) ? $user->can('respond', $query) : $user->can('validate', $query))
-                    ->mapWithKeys(fn ($status) => [$status => $status === \App\Models\DataQuery::STATUS_OPEN
-                        ? (in_array($query->status, \App\Models\DataQuery::RESPONSES, true) ? 'Rejeter la réponse (retour à l\'assigné)' : 'Rouvrir la query')
-                        : ($status === \App\Models\DataQuery::STATUS_VALIDATED ? 'Valider la réponse et fermer' : \App\Models\DataQuery::STATUSES[$status])]);
+                    ->filter(fn ($status) => \App\Services\Quality\QueryWorkflow::allowed($user, $query, $status))
+                    ->mapWithKeys(fn ($status) => [$status => match ($status) {
+                        \App\Models\DataQuery::STATUS_OPEN => in_array($query->status, [...\App\Models\DataQuery::RESPONSES, ...\App\Models\DataQuery::AWAITING_FINAL], true) ? 'Rejeter la réponse (retour au binôme)' : 'Rouvrir la query',
+                        \App\Models\DataQuery::STATUS_SUPERVISED => 'Valider (vérification du superviseur) → validation finale',
+                        \App\Models\DataQuery::STATUS_VALIDATED => $awaitingFinal ? 'Validation finale et fermeture' : 'Valider directement et fermer (sans vérification du superviseur)',
+                        default => \App\Models\DataQuery::STATUSES[$status],
+                    }]);
                 $needsSignature = $doubleValidation && $user->can('validate', $query);
             @endphp
 

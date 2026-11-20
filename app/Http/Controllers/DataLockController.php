@@ -28,7 +28,7 @@ class DataLockController extends Controller
             'locks' => DataLock::with(['user:id,name', 'export'])->latest('id')->get(),
             'pending' => [
                 'unresolved' => DataQuery::whereIn('status', DataQuery::UNRESOLVED)->count(),
-                'to_validate' => DataQuery::whereIn('status', DataQuery::RESPONSES)->count(),
+                'to_validate' => DataQuery::whereIn('status', [...DataQuery::RESPONSES, ...DataQuery::AWAITING_FINAL])->count(),
                 'proposed' => DataCorrection::where('status', DataCorrection::STATUS_PROPOSED)->count(),
                 'conflicts' => DataCorrection::where('status', DataCorrection::STATUS_CONFLICT)->count(),
             ],
@@ -65,7 +65,7 @@ class DataLockController extends Controller
                     'menages_exclus' => Household::withoutGlobalScope('included')->whereNotNull('excluded_at')->count(),
                     'corrections_validees' => DataCorrection::where('status', DataCorrection::STATUS_VALIDATED)->count(),
                     'queries_non_resolues' => DataQuery::whereIn('status', DataQuery::UNRESOLVED)->count(),
-                    'queries_a_valider' => DataQuery::whereIn('status', DataQuery::RESPONSES)->count(),
+                    'queries_a_valider' => DataQuery::whereIn('status', [...DataQuery::RESPONSES, ...DataQuery::AWAITING_FINAL])->count(),
                 ],
             ]);
         });
