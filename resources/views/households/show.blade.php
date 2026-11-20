@@ -43,7 +43,7 @@
                 <div class="list-group list-group-flush" style="max-height: 420px; overflow:auto">
                     @forelse ($household->queries as $query)
                         <a href="{{ route('queries.show', $query) }}" class="list-group-item list-group-item-action small">
-                            <div class="d-flex justify-content-between"><code>{{ $query->variable }}</code><span><x-severity-badge :severity="$query->severity" /> <x-status-badge :status="$query->status" /></span></div>
+                            <div class="d-flex justify-content-between"><span><strong>{{ $query->code }}</strong> <x-rule-badge :code="$query->rule_code" /> <code>{{ $query->variable }}</code></span><span><x-severity-badge :severity="$query->severity" /> <x-status-badge :status="$query->status" /></span></div>
                             <div class="text-truncate-2">{{ $query->message }}</div>
                         </a>
                     @empty

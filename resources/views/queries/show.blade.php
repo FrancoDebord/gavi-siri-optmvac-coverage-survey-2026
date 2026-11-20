@@ -14,7 +14,7 @@
             @include('queries._focus', ['focus' => $focus])
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>{{ $query->code }} · {{ $query->label ?? $query->rule_code }}</span>
+                    <span>{{ $query->code }} · {{ $query->label ?? $query->rule_code }} <x-rule-badge :code="$query->rule_code" :name="$query->rule?->name" class="ms-1" /></span>
                     <span class="text-nowrap"><x-severity-badge :severity="$query->severity" /> <x-status-badge :status="$query->status" /></span>
                 </div>
                 <div class="card-body">

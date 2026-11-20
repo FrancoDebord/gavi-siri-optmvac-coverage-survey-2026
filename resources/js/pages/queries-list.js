@@ -38,7 +38,12 @@ export default function queriesListPage() {
         },
         columns: [
             { data: 'id', orderable: false, render: (id) => (canProcess ? `<input type="checkbox" class="form-check-input row-select" value="${id}" ${selection.has(String(id)) ? 'checked' : ''} aria-label="Sélectionner">` : '') },
-            { data: 'code', className: 'text-nowrap fw-semibold', render: (v, t, row) => `<a href="${row.url}">${escapeHtml(v)}</a>` },
+            {
+                data: 'code',
+                className: 'text-nowrap fw-semibold',
+                render: (v, t, row) => `<a href="${row.url}">${escapeHtml(v)}</a>
+                    <div><span class="badge text-bg-light border font-monospace" title="Règle de qualité violée">${escapeHtml(row.rule_code)}</span></div>`,
+            },
             {
                 data: 'label',
                 orderable: false,

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DataQuery;
+use App\Models\User;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QualityEngine;
@@ -60,5 +61,24 @@ class RosterCountRulesTest extends TestCase
         $this->assertSame('cg[2]', $children->instance_path);
         $this->assertStringContainsString('Caregiver n°2 : 2 enfant(s) de moins de 5 ans déclaré(s) mais 1 saisi(s)', $children->message);
         $this->assertNotEmpty($children->suggestion);
+    }
+
+    public function test_quality_check_can_run_only_the_roster_rules(): void
+    {
+        $this->submit('TCH-SEB-01-002', ['num_slept_last_night' => '5', 'hh_caregivers_num' => '1'], 4, [[1, 1]]);
+        app(QualityEngine::class)->run('test');
+        $others = DataQuery::whereNotIn('rule_code', ['ROSTER_MEMBERS', 'ROSTER_CAREGIVERS', 'ROSTER_CHILDREN'])->whereIn('status', DataQuery::UNRESOLVED)->count();
+        DataQuery::where('rule_code', 'ROSTER_MEMBERS')->delete();
+
+        $this->artisan('gavi:run-quality-checks', ['--regles' => 'roster_members,ROSTER_CAREGIVERS'])->assertSuccessful();
+        $this->assertSame(1, DataQuery::where('rule_code', 'ROSTER_MEMBERS')->count(), 'règle demandée exécutée');
+        $this->assertSame($others, DataQuery::whereNotIn('rule_code', ['ROSTER_MEMBERS', 'ROSTER_CAREGIVERS', 'ROSTER_CHILDREN'])->whereIn('status', DataQuery::UNRESOLVED)->count(), 'autres règles ni fermées ni rouvertes');
+        $this->artisan('gavi:run-quality-checks', ['--regles' => 'INCONNUE'])->assertFailed();
+
+        // Code de la règle violée affiché sur la fiche de la query.
+        $admin = User::factory()->create();
+        $admin->assignRole(User::ROLE_ADMIN);
+        $this->actingAs($admin)->get(route('queries.show', DataQuery::where('rule_code', 'ROSTER_MEMBERS')->sole()))->assertOk()
+            ->assertSee('<i class="bi bi-shield-exclamation me-1"></i>ROSTER_MEMBERS', false);
     }
 }

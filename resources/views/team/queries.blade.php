@@ -67,6 +67,7 @@
                         <span>
                             <x-severity-badge :severity="$query->severity" />
                             <strong class="ms-1">{{ $query->code }}</strong>
+                            <x-rule-badge :code="$query->rule_code" class="ms-1" />
                             <span class="text-muted">· ménage {{ $query->household_code ?? '—' }}{{ $query->cluster ? ' · '.$query->cluster->code : '' }}</span>
                         </span>
                         <span class="small text-nowrap"><x-status-badge :status="$query->status" /> <span class="text-muted ms-1">{{ $query->collection_date?->format('d/m/Y') }}</span></span>

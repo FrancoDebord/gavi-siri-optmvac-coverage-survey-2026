@@ -11,6 +11,7 @@
 @else
     <div class="card mb-3 border-2 border-primary-subtle">
         <div class="card-body">
+            <div class="mb-2"><x-rule-badge :code="$query->rule_code" :name="$query->rule?->name" /></div>
             <div class="fw-semibold fs-6 mb-3"><i class="bi bi-exclamation-triangle text-danger me-1"></i>{{ $focus['problem'] }}</div>
             <dl class="row mb-0">
                 @if ($focus['variable'])

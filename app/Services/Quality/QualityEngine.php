@@ -55,8 +55,10 @@ class QualityEngine
 
     /**
      * @param  list<int>|null  $householdIds  vérification limitée à ces ménages (après une correction) ; null = tous
+     * @param  list<string>|null  $ruleCodes  règles à exécuter (ex. ['ROSTER_MEMBERS']) ; null = toutes les règles actives.
+     *                                        Seules les queries de ces règles peuvent être fermées automatiquement.
      */
-    public function run(string $trigger = 'manual', ?int $userId = null, ?array $householdIds = null): QualityRun
+    public function run(string $trigger = 'manual', ?int $userId = null, ?array $householdIds = null, ?array $ruleCodes = null): QualityRun
     {
         $run = QualityRun::create(['user_id' => $userId, 'trigger' => $trigger, 'status' => 'running', 'started_at' => now()]);
         $startedAt = now();
@@ -65,6 +67,9 @@ class QualityEngine
             $dictionary = $this->dictionary = Dictionary::current();
             $today = CarbonImmutable::today();
             $rules = $this->loadRules();
+            if ($ruleCodes !== null) {
+                $rules = array_values(array_filter($rules, fn ($r) => in_array($r[0]->code, $ruleCodes, true)));
+            }
             if ($householdIds !== null) {
                 // Vérification ciblée (correction) : les observations de supervision (paradonnées), qu'une correction
                 // ne change pas, restent à la passe complète ; leurs anomalies ne sont ni réévaluées ni fermées.
