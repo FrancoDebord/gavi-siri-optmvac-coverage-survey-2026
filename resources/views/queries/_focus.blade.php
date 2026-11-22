@@ -3,7 +3,7 @@
     <div class="small mt-1 d-flex flex-wrap gap-2 align-items-center">
         @if ($focus['member'])<span class="text-muted"><i class="bi bi-person me-1"></i>{{ $focus['member'] }}@if ($focus['uri']) · <code class="small">{{ \Illuminate\Support\Str::limit($focus['uri'], 24) }}</code>@endif</span>@endif
         @if ($focus['variable'])
-            <span>Saisi : <span class="badge text-bg-danger-subtle text-danger-emphasis border">{{ $focus['raw'] ?? '(vide)' }}</span></span>
+            <span>{{ $focus['whole_household'] ? 'Lu' : 'Saisi' }} : <span class="badge text-bg-danger-subtle text-danger-emphasis border text-wrap text-start">{{ $focus['raw'] ?? '(vide)' }}</span></span>
             @if ($focus['has_suggestion'])<span><i class="bi bi-arrow-right"></i> {{ $focus['is_ai'] ? 'IA' : ($focus['is_rule'] ? 'Proposé' : 'Photo') }} : <span class="badge {{ $focus['is_ai'] ? 'text-bg-info-subtle text-info-emphasis' : 'text-bg-success-subtle text-success-emphasis' }} border">{{ $focus['suggested'] }}</span></span>@endif
             @if ($focus['current'])<span class="text-muted">(corrigé : {{ $focus['current'] }})</span>@endif
         @endif
@@ -23,10 +23,18 @@
                     {{ $focus['member'] ?? 'Ménage' }} · ménage <strong>{{ $query->household_code ?? '—' }}</strong>
                     @if ($focus['uri'])<div class="small">URI du membre : <code class="user-select-all">{{ $focus['uri'] }}</code></div>@endif
                     @if ($focus['submission'])<div class="small">URI de la soumission : <code class="user-select-all">{{ $focus['submission'] }}</code></div>@endif
+                    <div class="small">Compte ODK : @if ($focus['submitter'])<code class="user-select-all">{{ $focus['submitter'] }}</code>@else<span class="text-muted">non renseigné</span>@endif</div>
                 </dd>
                 @if ($focus['variable'])
-                    <dt class="col-sm-4">Valeur saisie (ODK)</dt>
-                    <dd class="col-sm-8"><span class="badge fs-6 text-bg-danger-subtle text-danger-emphasis border">{{ $focus['raw'] ?? '(vide)' }}</span></dd>
+                    <dt class="col-sm-4">{{ $focus['whole_household'] ? 'Valeurs lues (ODK)' : 'Valeur saisie (ODK)' }}</dt>
+                    <dd class="col-sm-8">
+                        @if ($focus['whole_household'])
+                            <span class="fw-semibold text-danger-emphasis">{{ $focus['raw'] ?? '—' }}</span>
+                            <div class="small text-muted">Pour corriger : « Corriger une autre question », choisir le membre puis la question.</div>
+                        @else
+                            <span class="badge fs-6 text-bg-danger-subtle text-danger-emphasis border">{{ $focus['raw'] ?? '(vide)' }}</span>
+                        @endif
+                    </dd>
                     @if ($focus['current'])
                         <dt class="col-sm-4">Valeur actuelle (corrigée)</dt>
                         <dd class="col-sm-8"><span class="badge fs-6 text-bg-light border">{{ $focus['current'] }}</span></dd>

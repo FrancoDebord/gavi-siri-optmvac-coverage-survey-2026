@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\DataQuery;
 use App\Models\QualityRule;
+use App\Models\User;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\BeninRuleSet;
@@ -37,6 +38,35 @@ class BeninRulesTest extends TestCase
         $this->assertTrue(QualityRule::where('code', 'CRI_10')->value('is_active'));
         $this->assertSame(QualityRule::KIND_OBSERVATION, QualityRule::where('code', 'OBS_28')->value('kind'));
         $this->assertSame('repeat', QualityRule::where('code', 'MAJ_11')->value('scope'));
+    }
+
+    public function test_children_declared_versus_listed_shows_the_values_read_and_the_odk_account(): void
+    {
+        (new SubmissionProcessor)->process(new NormalizedSubmission('uuid:C', [
+            'today' => '2026-10-20', 'l1' => '1', 'l2' => '1', 'l3' => '1', 'village' => '41', 'fieldworker' => '46',
+            'household' => 'TCH-SEB-01-003', 'household_survey_status' => '0', 'c_low' => '12', 'c_high' => '35',
+        ], [
+            'smc_cov_roster_2023' => [
+                ['key' => null, 'data' => ['age_group' => '8'], 'repeats' => []],
+                ['key' => null, 'data' => ['age_group' => '0'], 'repeats' => []],
+            ],
+            'cg' => [
+                ['key' => null, 'data' => ['participation_agreed' => '1', 'caregiver_num_children' => '2', 'age_years' => '30'], 'repeats' => []],
+                ['key' => null, 'data' => ['participation_agreed' => '1', 'caregiver_num_children' => '1', 'age_years' => '25'], 'repeats' => []],
+            ],
+        ], [], submitter: 'binome-tch-01'), ['source_type' => 'demo']);
+        app(QualityEngine::class)->run('test');
+
+        $query = DataQuery::where('rule_code', 'MAJ_09')->firstOrFail();
+        $this->assertSame('3 enfant(s) déclaré(s) par les caregivers (caregiver n°1 : 2, caregiver n°2 : 1), mais liste des membres : 1 membre(s) de moins de 5 ans (n°2) sur 2.', $query->message);
+        $this->assertSame('Déclarés : 3 (caregiver n°1 : 2, caregiver n°2 : 1) · Liste des membres : 1 membre(s) de moins de 5 ans (n°2)', $query->observed_value);
+
+        $manager = User::factory()->create();
+        $manager->assignRole(User::ROLE_DATA_MANAGER);
+        $this->withoutVite()->actingAs($manager)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('Valeurs lues (ODK)')->assertSee('Déclarés : 3 (caregiver n°1 : 2, caregiver n°2 : 1)')
+            ->assertSee('Compte ODK')->assertSee('binome-tch-01')
+            ->assertDontSee('name="corrections[0][variable]" value="caregiver_num_children"', false);
     }
 
     public function test_household_with_errors_raises_the_expected_rules(): void

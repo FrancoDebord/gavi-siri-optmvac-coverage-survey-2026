@@ -371,7 +371,8 @@ class DataQueryController extends Controller
     {
         $dictionary = Dictionary::current();
         $definition = $query->variable ? $dictionary->variable($query->variable) : null;
-        if (! $query->household || ! $definition || ! $dictionary->isInput($definition)) {
+        if (! $query->household || ! $definition || ! $dictionary->isInput($definition)
+            || (($definition['repeat_name'] ?? null) && ! $query->instance_path)) {
             return null;
         }
         try {

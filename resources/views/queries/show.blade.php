@@ -146,6 +146,7 @@
                         <dt class="col-sm-4">Grappe</dt><dd class="col-sm-8">{{ $query->cluster ? $query->cluster->name.' ('.$query->cluster->code.')' : '—' }}</dd>
                         <dt class="col-sm-4">Agent / binôme</dt><dd class="col-sm-8">{{ $query->collector?->name ?? '—' }}{{ $query->collector?->team ? ' · '.$query->collector->team->label() : '' }}</dd>
                         <dt class="col-sm-4">ID ménage</dt><dd class="col-sm-8">{{ $query->household_code ?? '—' }}</dd>
+                        <dt class="col-sm-4">Compte ODK</dt><dd class="col-sm-8">{{ $query->household?->submitter ?? '—' }}</dd>
                         <dt class="col-sm-4">ID soumission</dt><dd class="col-sm-8"><code class="small">{{ $query->submission_uuid }}</code></dd>
                         @if ($query->child)
                             <dt class="col-sm-4">Enfant</dt><dd class="col-sm-8">n°{{ $query->child->position }} · {{ $query->child->sex === '1' ? 'fille' : ($query->child->sex === '0' ? 'garçon' : '—') }} · né(e) le {{ $query->child->date_of_birth?->format('d/m/Y') ?? '—' }} · {{ $query->child->age_months ?? '—' }} mois</dd>

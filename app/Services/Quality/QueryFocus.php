@@ -29,7 +29,13 @@ final class QueryFocus
         $household = $query->household;
         $raw = $current = null;
         $related = [];
-        if ($household && $query->variable) {
+        $definition = $query->variable ? $dictionary->variable($query->variable) : null;
+        // Question d'un membre (ex. nombre d'enfants de chaque caregiver) contrôlée sur tout le ménage : pas de valeur
+        // unique à lire, la règle donne le détail des valeurs lues.
+        $wholeHousehold = $definition && ($definition['repeat_name'] ?? null) && ! $query->instance_path;
+        if ($wholeHousehold) {
+            $raw = $query->observed_value;
+        } elseif ($household && $query->variable) {
             try {
                 $source = SourceSnapshot::of($household);
                 $clean = (new CorrectionApplier)->apply($source)[0];
@@ -51,7 +57,6 @@ final class QueryFocus
                 ->whereNotNull('expected')->latest('id')->first()
             : null;
 
-        $definition = $query->variable ? $dictionary->variable($query->variable) : null;
         $label = fn (?string $value) => self::label($dictionary, $definition, $value);
         $suggested = $query->suggested_source !== null ? (string) $query->suggested_value : $check?->expected;
         $source = $query->suggested_source !== null
@@ -64,7 +69,9 @@ final class QueryFocus
             'member' => $query->instance_path ? QueriesExport::memberLabel($query->instance_path) : null,
             'uri' => self::uri($query),
             'submission' => $query->submission_uuid,
-            'raw' => $label($raw),
+            'raw' => $wholeHousehold ? $raw : $label($raw),
+            'whole_household' => $wholeHousehold,
+            'submitter' => $household?->submitter,
             'current' => $current !== $raw ? $label($current) : null,
             'suggested' => $suggested !== null ? ($suggested === '' ? '(vide)' : $label($suggested)) : null,
             'has_suggestion' => $suggested !== null,
