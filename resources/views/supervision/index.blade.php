@@ -56,6 +56,23 @@
         </div>
     </div>
 
+    @if ($ruleCounts->isNotEmpty())
+        {{-- Queries à traiter de la zone par code de règle : ouvre la liste filtrée sur ce code. --}}
+        <form method="GET" action="{{ route('queries.index') }}" class="card mb-3">
+            <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+                @foreach ($incidentFilter + ['status' => 'non_resolues'] as $key => $value)<input type="hidden" name="{{ $key }}" value="{{ $value }}">@endforeach
+                <label class="small fw-semibold mb-0" for="sup-rule"><i class="bi bi-funnel me-1"></i>Queries à traiter par code</label>
+                <select id="sup-rule" name="rule_code" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    <option value="">Tous les codes ({{ $fmt($ruleCounts->sum()) }})</option>
+                    @foreach ($ruleCounts as $code => $n)
+                        <option value="{{ $code }}">{{ $code }} – {{ \Illuminate\Support\Str::limit($ruleNames[$code] ?? $code, 40) }} ({{ $fmt($n) }})</option>
+                    @endforeach
+                </select>
+                <button class="btn btn-sm btn-outline-primary">Voir</button>
+            </div>
+        </form>
+    @endif
+
     <div class="row g-3 mb-3">
         <div class="col-xl-8">
             <x-chart-card title="Évolution de la collecte" canvas="chart-supervision-daily" size="chart-sm"

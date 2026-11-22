@@ -306,6 +306,20 @@ class InvestigatorTest extends TestCase
         $this->assertSame(['Sébou'], array_map(fn ($v) => Str::ascii($v) === 'Sebou' ? 'Sébou' : $v, $villages));
     }
 
+    public function test_supervisor_space_filters_queries_by_rule_code(): void
+    {
+        $supTch = $this->user(User::ROLE_SUPERVISOR, ['health_zone_id' => $this->tchaourou->id]);
+        $codes = DataQuery::where('health_zone_id', $this->tchaourou->id)->whereIn('status', DataQuery::UNRESOLVED)
+            ->selectRaw('rule_code, count(*) as n')->groupBy('rule_code')->pluck('n', 'rule_code');
+        $this->assertNotEmpty($codes);
+        [$code, $n] = [$codes->keys()->first(), $codes->first()];
+
+        $this->actingAs($supTch)->get(route('supervision.index'))->assertOk()
+            ->assertSee('Queries à traiter par code')->assertSee('name="rule_code"', false)
+            ->assertSee('<option value="'.$code.'">'.$code.' – ', false)->assertSee('('.$n.')')
+            ->assertSee('name="health_zone_id" value="'.$this->tchaourou->id.'"', false);
+    }
+
     public function test_messages_reach_the_right_supervisors(): void
     {
         $pi = $this->user(User::ROLE_PI);
