@@ -32,7 +32,7 @@
                     <div style="font-weight:bold; font-size:10px">
                         {{ $firstDay->equalTo($lastDay) ? 'le '.$firstDay->format('d/m/Y') : 'du '.$firstDay->format('d/m/Y').' au '.$lastDay->format('d/m/Y') }}
                     </div>
-                    <div class="muted">{{ $collectionDays }} jour{{ $collectionDays > 1 ? 's' : '' }} de collecte</div>
+                    <div class="muted">{{ $collectionDays }} jour{{ $collectionDays > 1 ? 's' : '' }} de collecte (jours de synchronisation des données)</div>
                 @else
                     <div class="muted">Aucun ménage sur la période</div>
                 @endif

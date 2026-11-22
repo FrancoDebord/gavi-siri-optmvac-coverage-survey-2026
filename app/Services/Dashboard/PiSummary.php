@@ -120,20 +120,21 @@ class PiSummary
     }
 
     /**
-     * Première et dernière date de collecte des ménages retenus (null si aucun ménage), et nombre de jours de collecte.
+     * Dates de collecte des ménages retenus (null si aucun ménage) : première date d'entretien, dernière date de
+     * synchronisation (envoi de la soumission au serveur ODK, heure locale) et nombre de jours où des données ont été
+     * synchronisées. Soumission sans date d'envoi : sa date d'entretien.
      *
      * @return array{0: CarbonImmutable|null, 1: CarbonImmutable|null, 2: int}
      */
     public function collectionDates(): array
     {
-        $row = $this->households()->selectRaw('min(households.interview_date) as first_day, max(households.interview_date) as last_day,
-                count(distinct date(households.interview_date)) as days')->first();
+        $synced = 'date(coalesce(households.submitted_at, households.interview_date))';
+        $row = $this->households()->selectRaw("min(households.interview_date) as first_day, max({$synced}) as last_day,
+                count(distinct {$synced}) as days")->first();
+        $first = $row?->first_day ? CarbonImmutable::parse($row->first_day)->startOfDay() : null;
+        $last = $row?->last_day ? CarbonImmutable::parse($row->last_day)->startOfDay() : null;
 
-        return [
-            $row?->first_day ? CarbonImmutable::parse($row->first_day)->startOfDay() : null,
-            $row?->last_day ? CarbonImmutable::parse($row->last_day)->startOfDay() : null,
-            (int) ($row?->days ?? 0),
-        ];
+        return [$first && $last && $first->greaterThan($last) ? $last : $first, $last, (int) ($row?->days ?? 0)];
     }
 
     /**

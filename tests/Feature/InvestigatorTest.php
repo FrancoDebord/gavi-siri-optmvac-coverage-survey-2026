@@ -141,6 +141,19 @@ class InvestigatorTest extends TestCase
         $this->actingAs($reader)->get(route('investigator.index'))->assertRedirect(route('dashboard'));
     }
 
+    public function test_summary_dates_use_the_last_synchronisation_and_the_synchronisation_days(): void
+    {
+        // Collectés hier et aujourd'hui, mais tous synchronisés le même jour, demain : 1 jour de synchronisation.
+        Household::query()->update(['submitted_at' => now()->addDay()->setTime(18, 30)]);
+        $response = $this->actingAs($this->user(User::ROLE_PI))->get(route('investigator.summary'))->assertOk();
+
+        [$first, $last, $days] = [$response->viewData('firstDay'), $response->viewData('lastDay'), $response->viewData('collectionDays')];
+        $this->assertSame(now()->subDay()->toDateString(), $first->toDateString());
+        $this->assertSame(now()->addDay()->toDateString(), $last->toDateString());
+        $this->assertSame(1, $days);
+        $response->assertSee('1 jour de collecte (jours de synchronisation des données)');
+    }
+
     public function test_summary_report_by_zone_team_and_date_with_decisions(): void
     {
         $pi = $this->user(User::ROLE_PI);

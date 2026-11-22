@@ -54,7 +54,7 @@
                                 du {{ $firstDay->format('d/m/Y') }} au {{ $lastDay->format('d/m/Y') }}
                             @endif
                         </div>
-                        <div class="small text-muted">{{ $collectionDays }} jour{{ $collectionDays > 1 ? 's' : '' }} de collecte</div>
+                        <div class="small text-muted">{{ $collectionDays }} jour{{ $collectionDays > 1 ? 's' : '' }} de collecte (jours de synchronisation des données)</div>
                     @else
                         <div class="fw-semibold text-muted">Aucun ménage sur la période</div>
                     @endif
