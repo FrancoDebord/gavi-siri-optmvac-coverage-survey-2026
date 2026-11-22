@@ -134,10 +134,16 @@ class DataQueryController extends Controller
                 'clusters.name as cluster', 'collectors.name as collector', 'assignees.name as assignee', 'reviewers.name as reviewer',
             ]);
 
+        // Barre de progression : mêmes filtres, tous statuts de résolution confondus.
+        $extra = ['status' => null, 'resolution' => null, 'reviewer' => null, 'overdue' => null, 'code' => null] + QueryDashboardController::extra($request);
+        $byStatus = (new QueryStats(Filters::fromRequest($request), $extra))->queries()->selectRaw('data_queries.status, count(*) as n')
+            ->groupBy('data_queries.status')->pluck('n', 'status');
+
         return response()->json([
             'draw' => $request->integer('draw'),
             'recordsTotal' => $total,
             'recordsFiltered' => $filtered,
+            'progress' => collect(DataQuery::RESOLUTIONS)->map(fn ($r) => (int) collect($r['statuses'])->sum(fn ($s) => $byStatus[$s] ?? 0)),
             'data' => $rows->map(fn ($q) => [
                 'id' => $q->id,
                 'code' => DataQuery::codeFor($q->id),

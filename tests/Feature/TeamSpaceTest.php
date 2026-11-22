@@ -97,7 +97,8 @@ class TeamSpaceTest extends TestCase
         $this->actingAs($account)->get(route('households.photo', [$other, 'x.jpg']))->assertForbidden();
 
         // Queries : liste et fiche détaillée en lecture seule.
-        $queries = $this->actingAs($account)->get(route('team.queries'))->assertOk()->viewData('queries');
+        $queries = $this->actingAs($account)->get(route('team.queries'))->assertOk()
+            ->assertSee('Progression de la résolution des erreurs par le binôme')->assertSee('data-progress-answered', false)->viewData('queries');
         $this->assertGreaterThan(0, $queries->total());
         $this->assertTrue(collect($queries->items())->every(fn ($q) => in_array($q->household_code, ['TCH-SEB-01-001', 'TCH-SEB-01-002', 'TCH-SEB-02-001'], true)));
         $query = $queries->items()[0];

@@ -98,6 +98,8 @@
             @foreach ($variables as $variable)<option value="{{ $variable }}">@endforeach
         </datalist>
 
+        <x-query-progress title="Progression de la résolution des erreurs par les binômes (filtres appliqués, tous statuts)" />
+
         <div id="bulk-bar" class="alert alert-primary d-flex align-items-center justify-content-between py-2 d-none">
             <span><strong data-count>0</strong> query(s) sélectionnée(s)</span>
             <span class="d-flex gap-2">

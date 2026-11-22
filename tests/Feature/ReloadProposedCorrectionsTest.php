@@ -74,6 +74,20 @@ class ReloadProposedCorrectionsTest extends TestCase
         $this->assertSame(DataQuery::STATUS_VALIDATED, $dependent->fresh()->status);
     }
 
+    public function test_progress_bar_counts_every_resolution_status_with_the_list_filters(): void
+    {
+        // Liste « À vérifier » : la barre compte toutes les queries (pas seulement celles du filtre de résolution).
+        $json = $this->actingAs($this->agent)->getJson(route('queries.datatable', ['draw' => 1, 'length' => 10, 'resolution' => DataQuery::RESOLUTION_PENDING]))->assertOk()->json();
+        $this->assertSame(1, $json['recordsFiltered']);
+        $total = DataQuery::count();
+        $this->assertSame($total, array_sum($json['progress']));
+        $this->assertSame(1, $json['progress'][DataQuery::RESOLUTION_PENDING]);
+        $this->assertSame($total - 1, $json['progress'][DataQuery::RESOLUTION_UNRESOLVED]);
+
+        $this->actingAs($this->agent)->get(route('queries.index', ['resolution' => DataQuery::RESOLUTION_PENDING]))->assertOk()
+            ->assertSee('data-query-progress', false)->assertSee('Progression de la résolution des erreurs par les binômes');
+    }
+
     public function test_refused_correction_sends_the_dependent_query_back(): void
     {
         $this->actingAs($this->agent)->post(route('queries.reload', $this->dependent))->assertSessionHas('success');

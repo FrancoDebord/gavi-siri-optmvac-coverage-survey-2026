@@ -7,6 +7,24 @@ import { postJson, toast } from '../lib/http';
  * Liste détaillée des queries (DataTables côté serveur) avec actions rapides :
  * changement de statut (unitaire ou groupé) et commentaire.
  */
+// Barre de progression (composant query-progress) : nombre de queries par statut de résolution, mêmes filtres que le tableau.
+function renderProgress(counts) {
+    const box = document.querySelector('[data-query-progress]');
+    if (!box || !counts) return;
+    const total = Object.values(counts).reduce((sum, n) => sum + Number(n), 0);
+    const pct = (n) => (total ? Math.round((n * 1000) / total) / 10 : 0);
+    const answered = total - Number(counts.non_resolu ?? 0);
+    const closed = Number(counts.resolu ?? 0) + Number(counts.irresoluble ?? 0);
+    box.querySelectorAll('[data-segment]').forEach((segment) => {
+        segment.style.width = `${pct(Number(counts[segment.dataset.segment] ?? 0))}%`;
+    });
+    box.querySelectorAll('[data-count]').forEach((el) => {
+        el.textContent = counts[el.dataset.count] ?? 0;
+    });
+    box.querySelector('[data-progress-answered]').textContent = `${answered} / ${total} (${pct(answered)} %)`;
+    box.querySelector('[data-progress-closed]').textContent = `${closed} (${pct(closed)} %)`;
+}
+
 export default function queriesListPage() {
     const root = document.getElementById('queries-list');
     const table = document.getElementById('queries-table');
@@ -33,7 +51,10 @@ export default function queriesListPage() {
             });
             fetch(`${root.dataset.url}?${params}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
                 .then((r) => r.json())
-                .then(callback)
+                .then((json) => {
+                    renderProgress(json.progress);
+                    callback(json);
+                })
                 .catch(() => callback({ draw: request.draw, data: [], recordsTotal: 0, recordsFiltered: 0 }));
         },
         columns: [

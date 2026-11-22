@@ -27,6 +27,8 @@
         </div>
     @endif
 
+    <x-query-progress :counts="$resolutionCounts" :title="'Progression de la résolution des erreurs par le binôme '.$team->code" />
+
     <div class="alert alert-info small d-flex gap-2">
         <i class="bi bi-lightbulb"></i>
         <div>Ouvrez la query et vérifiez sur le carnet ou la photo. Puis <strong>Corriger</strong> (bonne valeur) ou <strong>Valeur confirmée</strong> (si elle est juste, avec la source). Ne modifiez rien dans ODK.</div>
