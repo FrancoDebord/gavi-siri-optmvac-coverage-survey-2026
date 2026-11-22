@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\DataQuery;
+use App\Support\MultipleChoice;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -12,6 +13,21 @@ class QueryStatusRequest extends FormRequest
     {
         // Droits vérifiés sur la query elle-même (politique : assigné, équipe de traitement, data manager).
         return true;
+    }
+
+    /** Choix multiple : les cases cochées deviennent une valeur ODK (« rr-bj opv-bj »). */
+    protected function prepareForValidation(): void
+    {
+        $corrections = $this->input('corrections');
+        if (! is_array($corrections)) {
+            return;
+        }
+        foreach ($corrections as $i => $correction) {
+            if (is_array($correction) && is_array($correction['new_value'] ?? null)) {
+                $corrections[$i]['new_value'] = MultipleChoice::join($correction['new_value']);
+            }
+        }
+        $this->merge(['corrections' => $corrections]);
     }
 
     public function rules(): array

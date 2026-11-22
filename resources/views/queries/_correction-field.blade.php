@@ -14,12 +14,26 @@
         <input type="hidden" name="corrections[{{ $i }}][optional]" value="1">
         <input type="hidden" name="corrections[{{ $i }}][group]" value="paire">
     @endif
-    <div class="small mb-1">
-        @if ($paired)<strong>{{ $field['short_label'] ?? $field['label'] }}</strong> · @endif<code>{{ $field['variable'] }}</code>{{ $path ? ' · '.\App\Exports\QueriesExport::memberLabel($path) : '' }}
-    </div>
+    {{-- Question à corriger, en clair : libellé du formulaire, puis variable et membre. --}}
+    <div class="small text-muted">Question à corriger</div>
+    <div class="fw-semibold small">{{ $field['question'] ?? $field['label'] ?? $field['variable'] }}</div>
+    <div class="small mb-1"><code>{{ $field['variable'] }}</code>{{ $path ? ' · '.\App\Exports\QueriesExport::memberLabel($path) : '' }}</div>
     <div class="small text-muted mb-2">Valeur actuelle : <strong>{{ \App\Models\DataCorrection::displayFor($field['variable'], $field['current']) }}</strong>@if ($field['source'] !== $field['current']) · reçue d'ODK : {{ \App\Models\DataCorrection::displayFor($field['variable'], $field['source']) }}@endif</div>
     <label class="form-label small mb-0" for="c{{ $i }}-value">Nouvelle valeur</label>
-    @if ($field['choices'] && $field['type'] === 'select_one')
+    @if ($field['choices'] && str_starts_with($field['type'], 'select_multiple'))
+        {{-- Choix multiple : cocher une ou plusieurs réponses (rien de coché = vide). --}}
+        @php $checked = \App\Support\MultipleChoice::split((string) $value, $field['choices']); @endphp
+        <input type="hidden" name="corrections[{{ $i }}][new_value][]" value="">
+        <div class="border rounded bg-body px-2 py-1 mb-2" id="c{{ $i }}-value">
+            <div class="form-text mt-0 mb-1">Une ou plusieurs réponses possibles.</div>
+            @foreach ($field['choices'] as $code => $label)
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="corrections[{{ $i }}][new_value][]" id="c{{ $i }}-{{ $loop->index }}" value="{{ $code }}" @checked(in_array((string) $code, $checked, true))>
+                    <label class="form-check-label small" for="c{{ $i }}-{{ $loop->index }}">{{ strip_tags((string) $label) }} <code class="text-muted">{{ $code }}</code></label>
+                </div>
+            @endforeach
+        </div>
+    @elseif ($field['choices'] && str_starts_with($field['type'], 'select_one'))
         <select id="c{{ $i }}-value" name="corrections[{{ $i }}][new_value]" class="form-select form-select-sm mb-2">
             <option value="">(vide)</option>
             @foreach ($field['choices'] as $code => $label)

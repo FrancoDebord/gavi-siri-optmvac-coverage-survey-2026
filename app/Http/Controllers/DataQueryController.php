@@ -27,6 +27,7 @@ use App\Services\Dashboard\QueryStats;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Dictionary\VariableMap as Map;
 use App\Services\Export\DatasetExporter;
+use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QueryFocus;
 use App\Services\Quality\QueryWorkflow;
@@ -386,10 +387,11 @@ class DataQueryController extends Controller
             'variable' => $query->variable,
             'path' => $query->instance_path,
             'label' => $query->variable_label,
+            'question' => $query->variable_label ?: self::questionLabel($definition),
             'current' => CorrectionApplier::normalize($current),
             'source' => CorrectionApplier::normalize($original),
             'type' => $definition['base_type'],
-            'choices' => $definition['list_name'] ? ($dictionary->choices($definition['list_name']) ?? []) : [],
+            'choices' => self::choicesFor($dictionary, $definition, $clean, $query->instance_path),
             'suggested' => $suggested,
             'short_label' => RelatedFields::label($query->variable),
             // Autres questions en cause (ex. VPO 2 pour « VPO 3 avant VPO 2 ») : l'agent choisit celle qui est fausse.
@@ -397,10 +399,11 @@ class DataQueryController extends Controller
                 $definition = $dictionary->variable($field['variable']);
 
                 return $field + [
+                    'question' => self::questionLabel($definition),
                     'current' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $field['variable'], $query->instance_path)),
                     'source' => CorrectionApplier::normalize(SubmissionPaths::get($source, $field['variable'], $query->instance_path)),
                     'type' => $definition['base_type'],
-                    'choices' => $definition['list_name'] ? ($dictionary->choices($definition['list_name']) ?? []) : [],
+                    'choices' => self::choicesFor($dictionary, $definition, $clean, $query->instance_path),
                 ];
             })->all(),
         ];
@@ -410,6 +413,36 @@ class DataQueryController extends Controller
         ], array_merge([$field], $field['related'])) : [];
 
         return $field;
+    }
+
+    /** Libellé de la question dans le formulaire, sans balises (« 52. L'enfant a-t-il déjà reçu… »). */
+    private static function questionLabel(?array $definition): ?string
+    {
+        $label = trim(preg_replace('/\s+/', ' ', strip_tags((string) ($definition['label'] ?? ''))));
+
+        return $label !== '' ? $label : null;
+    }
+
+    /**
+     * Choix proposés pour corriger une question : ceux du dictionnaire, restreints comme dans le formulaire quand la
+     * question a un filtre simple « colonne=${variable} » (ex. campagnes du pays : country=${country}).
+     *
+     * @return array<string, mixed> code => libellé
+     */
+    private static function choicesFor(Dictionary $dictionary, array $definition, NormalizedSubmission $clean, ?string $path): array
+    {
+        $choices = $definition['list_name'] ? ($dictionary->choices($definition['list_name']) ?? []) : [];
+        if (! $choices || ! preg_match('/^\s*(\w+)\s*=\s*\$\{(\w+)\}\s*$/', (string) ($definition['choice_filter'] ?? ''), $m)) {
+            return $choices;
+        }
+        $value = SubmissionPaths::get($clean, $m[2], $path) ?? $clean->data[$m[2]] ?? null;
+        if ($value === null || $value === '') {
+            return $choices;
+        }
+        $kept = collect($dictionary->choiceRows($definition['list_name']))
+            ->filter(fn (array $row) => (string) ($row['extra'][$m[1]] ?? '') === (string) $value)->pluck('name')->all();
+
+        return $kept ? array_intersect_key($choices, array_flip($kept)) : $choices;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Services\Quality\Expression;
 
+use App\Support\MultipleChoice;
 use Carbon\CarbonImmutable;
 use Closure;
 use Throwable;
@@ -191,7 +192,7 @@ class ExpressionEvaluator
             case 'once':
                 return $arg(0);
             case 'selected':
-                return in_array(self::toString($arg(1)), self::splitMultiple($arg(0)), true);
+                return in_array(MultipleChoice::compact(self::toString($arg(1))), self::splitMultiple($arg(0)), true);
             case 'count-selected':
                 return (float) count(self::splitMultiple($arg(0)));
             case 'selected-at':
@@ -347,6 +348,6 @@ class ExpressionEvaluator
             return array_values(array_map('strval', $value));
         }
 
-        return array_values(array_filter(preg_split('/\s+/', trim(self::toString($value))), fn ($v) => $v !== ''));
+        return MultipleChoice::split(self::toString($value)); // « opv - bj » = « opv-bj »
     }
 }

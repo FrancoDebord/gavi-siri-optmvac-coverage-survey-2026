@@ -32,7 +32,7 @@ class Dictionary
         foreach (FormVariable::where('form_version_id', $formVersion->id)->orderBy('position')->get() as $variable) {
             $row = $variable->only([
                 'name', 'type', 'base_type', 'list_name', 'label', 'required', 'constraint',
-                'constraint_message', 'relevant', 'calculation', 'group_path', 'repeat_name', 'position',
+                'constraint_message', 'relevant', 'calculation', 'group_path', 'repeat_name', 'position', 'choice_filter',
             ]);
             if (in_array($variable->base_type, ['begin group', 'begin repeat'], true)) {
                 $this->groups[$variable->name] = $row;

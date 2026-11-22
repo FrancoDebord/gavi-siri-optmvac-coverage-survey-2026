@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasGeographicScope;
+use App\Services\Dictionary\Dictionary;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * Query de données (valeur suspecte à corriger ou confirmer), selon un cycle conforme aux BPC/GCP :
@@ -215,6 +217,37 @@ class DataQuery extends Model
     public function resolution(): string
     {
         return self::resolutionOf($this->status);
+    }
+
+    /**
+     * Valeurs observées lisibles, une par question (« var = valeur ; var2 = valeur ») : libellé de la question et
+     * libellé du choix. Null quand la valeur observée n'a pas cette forme.
+     *
+     * @return list<array{variable: string, label: string, value: string}>|null
+     */
+    public function observedLines(): ?array
+    {
+        if ($this->observed_value === null || ! str_contains($this->observed_value, ' = ')) {
+            return null;
+        }
+        $dictionary = Dictionary::current();
+        $lines = [];
+        foreach (explode(' ; ', $this->observed_value) as $part) {
+            if (! preg_match('/^(\w+) = (.*)$/s', $part, $m) || ! ($definition = $dictionary->variable($m[1]))) {
+                return null;
+            }
+            $label = trim(preg_replace('/\s+/', ' ', strip_tags((string) $definition['label'])));
+            $value = $m[2] === '∅' ? null : $m[2];
+            $lines[] = ['variable' => $m[1], 'label' => Str::limit($label !== '' ? $label : $m[1], 110), 'value' => DataCorrection::displayFor($m[1], $value)];
+        }
+
+        return $lines;
+    }
+
+    /** Valeur attendue à afficher : jamais une expression de règle (« Condition fausse : ${…} and … »). */
+    public function expectedForDisplay(): ?string
+    {
+        return $this->expected === null || str_starts_with($this->expected, 'Condition fausse') ? null : $this->expected;
     }
 
     public function resolutionLabel(): string

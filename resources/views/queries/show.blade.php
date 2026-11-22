@@ -20,6 +20,14 @@
                 <div class="card-body">
                     <h2 class="h6 text-muted mb-1">Description de l'erreur</h2>
                     <p class="fs-6">{{ $query->message }}</p>
+                    @if ($query->variable)
+                        {{-- Question à corriger : libellé du formulaire, nom de la variable et membre concerné. --}}
+                        <div class="border-start border-4 border-primary bg-primary-subtle rounded-end px-3 py-2 mb-3">
+                            <div class="small text-muted">Question à vérifier / corriger</div>
+                            <div class="fw-semibold">{{ $query->variable_label ?? $query->variable }}</div>
+                            <div class="small"><code>{{ $query->variable }}</code>{{ $query->instance_path ? ' · '.\App\Exports\QueriesExport::memberLabel($query->instance_path) : '' }}</div>
+                        </div>
+                    @endif
                     @if ($query->suggestion)
                         <div class="alert alert-info small d-flex gap-2">
                             <i class="bi bi-lightbulb text-primary"></i>
@@ -29,11 +37,21 @@
                     <dl class="row small mb-0">
                         <dt class="col-sm-4">Code</dt><dd class="col-sm-8 fw-semibold">{{ $query->code }}</dd>
                         <dt class="col-sm-4">Statut de résolution</dt><dd class="col-sm-8">{{ $query->resolutionLabel() }} <span class="text-muted">({{ $query->statusLabel() }})</span></dd>
-                        <dt class="col-sm-4">Règle</dt><dd class="col-sm-8"><span class="badge text-bg-light border">{{ $query->rule_code }}</span> {{ $query->rule?->description }}</dd>
-                        <dt class="col-sm-4">Variable</dt><dd class="col-sm-8"><code>{{ $query->variable ?? '—' }}</code> @if ($query->variable_label)<div>{{ $query->variable_label }}</div>@endif</dd>
+                        <dt class="col-sm-4">Règle</dt><dd class="col-sm-8"><span class="badge text-bg-light border">{{ $query->rule_code }}</span> {{ $query->rule?->name }}</dd>
                         <dt class="col-sm-4">Membre concerné</dt><dd class="col-sm-8">{{ \App\Exports\QueriesExport::memberLabel($query->instance_path) }}</dd>
-                        <dt class="col-sm-4">Valeur observée</dt><dd class="col-sm-8">{{ $query->observed_value ?? '—' }}</dd>
-                        <dt class="col-sm-4">Attendu</dt><dd class="col-sm-8">{{ $query->expected ?? '—' }}</dd>
+                        <dt class="col-sm-4">Valeur(s) saisie(s)</dt>
+                        <dd class="col-sm-8">
+                            @if ($lines = $query->observedLines())
+                                @foreach ($lines as $line)
+                                    <div>{{ $line['label'] }} : <strong>{{ $line['value'] }}</strong> <code class="text-muted">{{ $line['variable'] }}</code></div>
+                                @endforeach
+                            @else
+                                {{ $query->observed_value !== null && $query->variable ? \App\Models\DataCorrection::displayFor($query->variable, $query->observed_value) : ($query->observed_value ?? '—') }}
+                            @endif
+                        </dd>
+                        @if ($query->expectedForDisplay())
+                            <dt class="col-sm-4">Attendu</dt><dd class="col-sm-8">{{ $query->expectedForDisplay() }}</dd>
+                        @endif
                         <dt class="col-sm-4">Date de génération</dt><dd class="col-sm-8">{{ $query->detected_at->format('d/m/Y H:i') }} · dernière détection {{ $query->last_detected_at->format('d/m/Y H:i') }}</dd>
                         <dt class="col-sm-4">Assignée à</dt>
                         <dd class="col-sm-8">

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Dictionary\Dictionary;
+use App\Support\MultipleChoice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -138,7 +139,8 @@ class DataCorrection extends Model
         if (! $definition || ! $definition['list_name'] || ! str_starts_with((string) $definition['base_type'], 'select')) {
             return $value;
         }
-        $codes = str_starts_with((string) $definition['base_type'], 'select_multiple') ? preg_split('/\s+/', trim($value)) : [$value];
+        $codes = str_starts_with((string) $definition['base_type'], 'select_multiple')
+            ? MultipleChoice::split($value, $dictionary->choices($definition['list_name'])) : [$value];
 
         return implode(' ; ', array_map(function ($code) use ($dictionary, $definition) {
             $label = trim(preg_replace('/\s+/', ' ', strip_tags((string) $dictionary->choiceLabel($definition['list_name'], (string) $code))));
@@ -160,7 +162,7 @@ class DataCorrection extends Model
         }
         $labels = array_filter(array_map(
             fn ($code) => trim(preg_replace('/\s+/', ' ', strip_tags((string) $dictionary->choiceLabel($definition['list_name'], (string) $code)))),
-            str_starts_with((string) $definition['base_type'], 'select_multiple') ? preg_split('/\s+/', trim($value)) : [$value],
+            str_starts_with((string) $definition['base_type'], 'select_multiple') ? MultipleChoice::split($value, $dictionary->choices($definition['list_name'])) : [$value],
         ));
 
         return $labels ? implode(' ; ', $labels) : null;

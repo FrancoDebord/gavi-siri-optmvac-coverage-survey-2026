@@ -129,7 +129,29 @@ export default function queryShowPage() {
         }
         const slot = row.querySelector('[data-value-slot]');
         const name = `corrections[${index}][new_value]`;
-        if (variable?.choices?.length) {
+        const compact = (code) => String(code).trim().replace(/\s+-\s+/g, '-');
+        if (variable?.choices?.length && variable.type.startsWith('select_multiple')) {
+            // Choix multiple : une ou plusieurs cases (rien de coché = vide).
+            const checked = compact(current ?? '').split(/\s+/).filter(Boolean);
+            const box = document.createElement('div');
+            box.className = 'border rounded bg-body px-2 py-1 mb-2';
+            const empty = document.createElement('input');
+            Object.assign(empty, { type: 'hidden', name: `${name}[]`, value: '' });
+            box.append(empty);
+            variable.choices.forEach((c, k) => {
+                const wrap = document.createElement('div');
+                wrap.className = 'form-check';
+                const input = document.createElement('input');
+                Object.assign(input, { type: 'checkbox', name: `${name}[]`, value: c.code, id: `c${index}-${k}`, className: 'form-check-input', checked: checked.includes(compact(c.code)) });
+                const lbl = document.createElement('label');
+                lbl.className = 'form-check-label small';
+                lbl.htmlFor = input.id;
+                lbl.textContent = `${c.label} (${c.code})`;
+                wrap.append(input, lbl);
+                box.append(wrap);
+            });
+            slot.replaceChildren(box);
+        } else if (variable?.choices?.length) {
             const select = document.createElement('select');
             select.name = name;
             select.className = 'form-select form-select-sm mb-2';

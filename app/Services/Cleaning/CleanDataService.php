@@ -15,6 +15,7 @@ use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QualityEngine;
 use App\Services\Quality\Rules\Dictionary\TypeRule;
 use App\Support\DashboardCache;
+use App\Support\MultipleChoice;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -167,8 +168,9 @@ class CleanDataService
             throw new InvalidArgumentException("Correction {$n} : valeur « {$value} » incompatible avec le type « {$type} » de « {$definition['name']} ».");
         }
         if (in_array($type, ['select_one', 'select_multiple', 'select_one_from_file', 'select_multiple_from_file'], true) && $definition['list_name']) {
-            $choices = array_map('strval', array_keys($dictionary->choices($definition['list_name']) ?? []));
-            $values = str_starts_with($type, 'select_multiple') ? preg_split('/\s+/', $value) : [$value];
+            $list = $dictionary->choices($definition['list_name']) ?? [];
+            $choices = array_map('strval', array_keys($list));
+            $values = str_starts_with($type, 'select_multiple') ? MultipleChoice::split($value, $list) : [$value];
             foreach ($values as $item) {
                 if (! in_array($item, $choices, true)) {
                     throw new InvalidArgumentException("Correction {$n} : « {$item} » n'est pas un choix de « {$definition['name']} » (".implode(', ', $choices).').');

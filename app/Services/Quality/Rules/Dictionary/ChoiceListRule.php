@@ -2,10 +2,10 @@
 
 namespace App\Services\Quality\Rules\Dictionary;
 
-use App\Services\Quality\Expression\ExpressionEvaluator;
 use App\Services\Quality\QueryCandidate;
 use App\Services\Quality\Scope;
 use App\Services\Quality\SubmissionContext;
+use App\Support\MultipleChoice;
 
 class ChoiceListRule extends DictionaryRule
 {
@@ -25,8 +25,9 @@ class ChoiceListRule extends DictionaryRule
         if (array_key_exists(trim((string) $value), $choices)) {
             return null; // nom de choix contenant des espaces (ex. « opv - bj »)
         }
+        // Choix multiple : plusieurs codes cochés (« rr-bj opv-bj »), un code peut s'écrire « opv - bj » dans la liste.
         $values = str_starts_with($variable['base_type'], 'select_multiple')
-            ? ExpressionEvaluator::splitMultiple($value)
+            ? MultipleChoice::split($value, $choices)
             : [trim((string) $value)];
 
         $invalid = array_values(array_filter($values, fn ($v) => ! array_key_exists($v, $choices)));

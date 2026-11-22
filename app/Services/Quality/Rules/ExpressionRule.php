@@ -35,7 +35,7 @@ class ExpressionRule implements QualityRuleInterface
 
             $observed = $variables === [] ? null : implode(' ; ', array_map(fn ($v) => $v.' = '.(is_array($scope->get($v)) ? json_encode($scope->get($v)) : ($scope->get($v) ?? '∅')), $variables));
 
-            yield QueryCandidate::for($scope, ($scope->level === 'household' ? '' : $scope->label().' : ').($rule->message ?: $rule->name), $variable, $observed, 'Condition fausse : '.$rule->expression);
+            yield QueryCandidate::for($scope, ($scope->level === 'household' ? '' : $scope->label().' : ').($rule->message ?: $rule->name), $variable, $observed);
         }
     }
 }
