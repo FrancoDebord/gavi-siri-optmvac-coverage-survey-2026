@@ -51,6 +51,14 @@
                     <option value="{{ $key }}" @selected(request('severite') === $key)>{{ $label }}</option>
                 @endforeach
             </select>
+            @if ($ruleOptions->count() > 1 || request()->filled('regle'))
+                <select name="regle" class="form-select form-select-sm w-auto" onchange="this.form.submit()" aria-label="Code de la règle">
+                    <option value="">Tous les codes</option>
+                    @foreach ($ruleOptions as $code => $name)
+                        <option value="{{ $code }}" @selected(request('regle') === $code)>{{ $code }} – {{ \Illuminate\Support\Str::limit($name, 40) }}</option>
+                    @endforeach
+                </select>
+            @endif
             <input type="search" name="q" value="{{ request('q') }}" class="form-control form-control-sm w-auto" placeholder="N° query, ménage ou texte…" aria-label="Recherche">
         </form>
     </div>

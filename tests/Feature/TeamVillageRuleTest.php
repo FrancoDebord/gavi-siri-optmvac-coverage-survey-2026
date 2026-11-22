@@ -123,6 +123,13 @@ class TeamVillageRuleTest extends TestCase
         $submitting->assignRole(User::ROLE_TEAM);
         $this->actingAs($submitting)->get(route('team.queries'))->assertOk()->assertSee('TCH-WAR-04-S1-050');
         $this->actingAs($submitting)->get(route('queries.show', $query))->assertOk();
+        // Filtre par code de règle (codes des queries du binôme).
+        $codes = DataQuery::where('team_id', $kora->id)->distinct()->pluck('rule_code');
+        if ($codes->count() > 1) {
+            $this->actingAs($submitting)->get(route('team.queries'))->assertSee('name="regle"', false)->assertSee('<option value="TEAM_VILLAGE"', false);
+        }
+        $this->actingAs($submitting)->get(route('team.queries', ['regle' => 'TEAM_VILLAGE']))->assertOk()->assertSee('TCH-WAR-04-S1-050');
+        $this->actingAs($submitting)->get(route('team.queries', ['regle' => 'CODE_INEXISTANT']))->assertOk()->assertDontSee('TCH-WAR-04-S1-050');
         $other = User::factory()->create(['team_id' => Team::where('code', '38-39')->value('id')]);
         $other->assignRole(User::ROLE_TEAM);
         $this->actingAs($other)->get(route('team.queries'))->assertOk()->assertDontSee('TCH-WAR-04-S1-050');

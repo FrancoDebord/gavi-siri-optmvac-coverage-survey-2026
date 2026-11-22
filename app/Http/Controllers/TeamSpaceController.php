@@ -126,12 +126,16 @@ class TeamSpaceController extends Controller
         $queries = (clone $base)->with(['collector:id,name', 'cluster:id,code'])
             ->when(isset(DataQuery::RESOLUTIONS[$resolution]), fn ($q) => $q->whereIn('status', DataQuery::RESOLUTIONS[$resolution]['statuses']))
             ->when($request->filled('severite'), fn ($q) => $q->where('severity', $request->input('severite')))
+            ->when($request->filled('regle'), fn ($q) => $q->where('rule_code', $request->input('regle')))
             // Numéro de query (Q-000123), ID ménage ou texte de l'erreur.
             ->search($request->input('q'))
             ->orderByRaw("case severity when 'critique' then 0 when 'majeure' then 1 else 2 end")->orderByDesc('collection_date')->orderByDesc('id')
             ->paginate(30)->withQueryString();
 
         $counts = (clone $base)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
+        // Codes de règle des queries du binôme (filtre), avec le nom de la règle.
+        $ruleCodes = (clone $base)->distinct()->orderBy('rule_code')->pluck('rule_code');
+        $ruleNames = QualityRule::whereIn('code', $ruleCodes)->pluck('name', 'code');
 
         $dictionary = Dictionary::current();
         $queries->getCollection()->load(['household', 'child']);
@@ -144,6 +148,7 @@ class TeamSpaceController extends Controller
             'resolution' => $resolution,
             'resolutionCounts' => collect(DataQuery::RESOLUTIONS)->map(fn ($r) => collect($r['statuses'])->sum(fn ($s) => $counts[$s] ?? 0)),
             'severities' => QualityRule::SEVERITIES,
+            'ruleOptions' => $ruleCodes->mapWithKeys(fn ($code) => [$code => $ruleNames[$code] ?? $code]),
         ]);
     }
 
