@@ -47,8 +47,25 @@ final class NormalizedSubmission
         return $found;
     }
 
+    /**
+     * Empreinte du contenu, indépendante de l'ordre des champs : MySQL réordonne les clés des colonnes JSON, une
+     * soumission relue depuis la base doit garder l'empreinte de celle reçue d'ODK (sinon chaque synchronisation
+     * la croit modifiée). L'ordre des instances de repeat (listes) est conservé.
+     */
     public function hash(): string
     {
-        return hash('sha256', json_encode([$this->data, $this->repeats, $this->reviewState]));
+        return hash('sha256', json_encode([self::canonical($this->data), self::canonical($this->repeats), $this->reviewState]));
+    }
+
+    private static function canonical(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return array_map(self::canonical(...), $value);
     }
 }

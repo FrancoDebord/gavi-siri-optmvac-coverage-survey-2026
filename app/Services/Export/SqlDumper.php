@@ -32,7 +32,9 @@ class SqlDumper
             fwrite($handle, "PRAGMA foreign_keys=OFF;\nBEGIN TRANSACTION;\n\n");
         }
 
-        $tables = collect(Schema::getTableListing(schemaQualified: false))->reject(fn ($t) => in_array($t, self::SKIPPED, true) || str_starts_with($t, 'sqlite_'))->sort()->values();
+        // MySQL : seulement les tables de la base de l'application (un hébergement peut en avoir plusieurs).
+        $schema = DB::connection()->getDriverName() === 'sqlite' ? null : DB::connection()->getDatabaseName();
+        $tables = collect(Schema::getTableListing(schema: $schema, schemaQualified: false))->reject(fn ($t) => in_array($t, self::SKIPPED, true) || str_starts_with($t, 'sqlite_'))->sort()->values();
         foreach ($tables as $table) {
             $quoted = $driver === 'mysql' ? "`{$table}`" : "\"{$table}\"";
             fwrite($handle, "-- Table {$table}\nDROP TABLE IF EXISTS {$quoted};\n");

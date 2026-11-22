@@ -201,10 +201,11 @@ class DataExportTest extends TestCase
         $this->assertSame(DataExport::STATUS_DONE, $export->status, (string) $export->error);
         $this->assertFalse($this->zip($export)->getFromName('base.sql'), 'Illisible sans le mot de passe');
         $sql = $this->zip($export, $secret)->getFromName('base.sql');
-        $this->assertStringContainsString('CREATE TABLE "households"', $sql);
-        $this->assertStringContainsString('INSERT INTO "households"', $sql);
+        // Guillemets SQLite (") ou MySQL (`) selon la base.
+        $this->assertMatchesRegularExpression('/CREATE TABLE ["`]households["`]/', $sql);
+        $this->assertMatchesRegularExpression('/INSERT INTO ["`]households["`]/', $sql);
         $this->assertStringContainsString('uuid:2', $sql);
-        $this->assertStringNotContainsString('INSERT INTO "sessions"', $sql);
+        $this->assertDoesNotMatchRegularExpression('/INSERT INTO ["`]sessions["`]/', $sql);
         $this->assertStringNotContainsString($secret, json_encode($export->toArray()));
     }
 
