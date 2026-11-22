@@ -125,6 +125,7 @@ class PhotoReader
         Lisez sur les photos la vraie valeur de cette question et donnez {$format}.{$choices}
         Ne déduisez rien : si la valeur n'est pas lisible ou n'apparaît sur aucune photo, répondez found=false et value=null.
         Pour une date, attention à l'ordre jour/mois sur les documents béninois (JJ/MM/AAAA).
+        Un carnet portant le cachet « Enfant complètement vacciné » signifie que l'enfant a reçu tous les vaccins, même si les cases sont vides : à la question « vaccin reçu ? », répondez alors « Oui » (une date vide reste introuvable), et signalez le cachet dans la note.
         TXT;
     }
 

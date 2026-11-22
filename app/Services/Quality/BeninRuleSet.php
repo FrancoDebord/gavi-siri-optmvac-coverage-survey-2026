@@ -42,6 +42,12 @@ final class BeninRuleSet
         'AVT-01' => 'Avertissement sans correction : liste des vaccins d\'un même contact à préciser.',
     ];
 
+    public const MAJ_32_SUGGESTION = 'Vérifier avec le caregiver la date de naissance et la dose déclarée ({attendu}) : corriger celle qui est fausse.';
+
+    public const MAJ_34_SUGGESTION = 'Relire le carnet : s\'il porte le cachet « Enfant complètement vacciné », l\'enfant a reçu toutes les doses (laisser « Oui » et justifier). Sinon corriger la réponse de revue, la carte ou le rappel.';
+
+    public const MAJ_37_SUGGESTION = 'Relire sur la carte CPS les dates des cycles en cause et corriger celle(s) qui sont fausses (jour et mois inversés, année).';
+
     /** Tranche d'âge cible de l'enfant (âge en mois entre c_low et c_high du ménage). */
     private const ELIGIBLE = '${age_months_est} >= ${c_low} and ${age_months_est} <= ${c_high}';
 
@@ -124,21 +130,18 @@ final class BeninRuleSet
             'MAJ_31' => self::expr('Rappel : dose reçue sans la précédente', 'majeure', 'child', 'penta1_rec,penta2_rec,penta3_rec',
                 $doses([['opv1', 'opv2', 'opv3'], ['penta1', 'penta2', 'penta3'], ['pcv1', 'pcv2', 'pcv3'], ['rota1', 'rota2', 'rota3'], ['rtss1', 'rtss2', 'rtss3', 'rtss4']], '_rec'),
                 'Rappel incohérent entre les doses.', 'Revoir le rappel avec le caregiver.'),
-            'MAJ_32' => self::expr('Rappel : dose impossible pour l\'âge', 'majeure', 'child', 'age_months_est,measmth9,measmth15,rtss4_rec',
-                '(${measmth9} = 1 and ${age_months_est} < 9) or (${measmth15} = 1 and ${age_months_est} < 15) or ((${penta3_rec} = 1 or ${opv3_rec} = 1 or ${pcv3_rec} = 1) and ${age_months_est} < 3) or (${rtss1_rec} = 1 and ${age_months_est} < 5) or (${rtss4_rec} = 1 and ((${l1} = 2 and ${age_months_est} < 15) or (${l1} = 1 and ${age_months_est} < 18)))',
-                'Enfant trop jeune pour cette dose.', 'Vérifier l\'âge de l\'enfant ou la réponse.'),
-            'MAJ_34' => self::expr('Revue « 3 doses de VAP » incohérente', 'majeure', 'child', 'three_MV_doses,mal3,rtss3_rec,age_months_est',
-                '${three_MV_doses} = 1 and (${mal3} = 0 or ${rtss3_rec} = 0 or ${age_months_est} < 7)',
-                '« 3 doses de VAP » contredit la carte, le rappel ou l\'âge.', 'Corriger la réponse de revue.'),
+            'MAJ_32' => self::code('Rappel : dose impossible pour l\'âge', 'majeure', 'child', 'age_months_est,measmth9,measmth15,penta3_rec,opv3_rec,pcv3_rec,rtss1_rec,rtss4_rec',
+                Business\RecallDoseAgeRule::class, 'Enfant trop jeune pour la dose déclarée au rappel (vaccin et dose précisés).', self::MAJ_32_SUGGESTION),
+            'MAJ_34' => self::code('Revue « 3 doses de VAP » incohérente', 'majeure', 'child', 'three_MV_doses,mal3,rtss3_rec,age_months_est',
+                Business\MalariaThreeDosesReviewRule::class, '« 3 doses de VAP » contredit la carte, le rappel ou l\'âge (carnet « Enfant complètement vacciné » : pas de query).', self::MAJ_34_SUGGESTION),
             'MAJ_35' => self::expr('Revue de 2e année incohérente', 'majeure', 'child', 'all_y2_doses,fourth_MV_dose,meas2,mal4,age_months_est',
                 '(${all_y2_doses} = 1 and (${meas2} = 0 or ${age_months_est} < 15)) or (${fourth_MV_dose} = 1 and (${mal4} = 0 or ${rtss4_rec} = 0 or (${l1} = 2 and ${age_months_est} < 15) or (${l1} = 1 and ${age_months_est} < 18)))',
                 'Revue de 2e année contredite par la carte ou l\'âge.', 'Corriger la réponse de revue.'),
             'MAJ_36' => self::expr('Question de 2e année posée trop tôt', 'majeure', 'child', 'age_months_est,all_y2_doses,fourth_MV_dose',
                 '${age_months_est} < 12 and ((${all_y2_doses} = 0 or ${all_y2_doses} = 1) or (${fourth_MV_dose} = 0 or ${fourth_MV_dose} = 1))',
                 'Enfant de moins de 12 mois : répondre « N/A ».', 'Corriger en « N/A ».'),
-            'MAJ_37' => self::expr('Cycles CPS dans le désordre', 'majeure', 'child', 'date_1,date_2,date_3,date_4,date_5',
-                '${date_2} <= ${date_1} or ${date_3} <= ${date_2} or ${date_4} <= ${date_3} or ${date_5} <= ${date_4}',
-                'Dates des cycles CPS dans le désordre.', 'Relire la carte CPS et corriger.'),
+            'MAJ_37' => self::code('Cycles CPS dans le désordre', 'majeure', 'child', 'date_1,date_2,date_3,date_4,date_5', Business\SmcCycleOrderRule::class,
+                'Dates des cycles CPS dans le désordre (toutes les dates listées, cycles en cause précisés).', self::MAJ_37_SUGGESTION),
             'MAJ_38' => self::expr('Cycles CPS trop rapprochés', 'majeure', 'child', 'date_1,date_2,date_3,date_4,date_5',
                 implode(' or ', array_map(fn ($k) => "(\${date_{$k}} - \${date_".($k - 1)."} > 0 and \${date_{$k}} - \${date_".($k - 1).'} < 21)', range(2, 5))),
                 'Deux cycles CPS à moins de 3 semaines.', 'Relire la carte CPS et corriger.'),

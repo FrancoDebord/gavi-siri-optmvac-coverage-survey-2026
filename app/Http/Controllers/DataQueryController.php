@@ -371,43 +371,51 @@ class DataQueryController extends Controller
     {
         $dictionary = Dictionary::current();
         $definition = $query->variable ? $dictionary->variable($query->variable) : null;
-        if (! $query->household || ! $definition || ! $dictionary->isInput($definition)
-            || (($definition['repeat_name'] ?? null) && ! $query->instance_path)) {
+        if (! $query->household || ! $definition || (($definition['repeat_name'] ?? null) && ! $query->instance_path)) {
             return null;
         }
+        // Variable calculée (ex. âge en mois) : on corrige à la place les questions en cause (date de naissance, rappel…).
+        $computed = ! $dictionary->isInput($definition);
         try {
             $clean = app(CleanDataService::class)->cleanSubmission($query->household);
             $source = SourceSnapshot::of($query->household);
-            $current = SubmissionPaths::get($clean, $query->variable, $query->instance_path);
-            $original = SubmissionPaths::get($source, $query->variable, $query->instance_path);
-        } catch (InvalidArgumentException) {
-            return null;
-        }
-
-        $field = [
-            'variable' => $query->variable,
-            'path' => $query->instance_path,
-            'label' => $query->variable_label,
-            'question' => $query->variable_label ?: self::questionLabel($definition),
-            'current' => CorrectionApplier::normalize($current),
-            'source' => CorrectionApplier::normalize($original),
-            'type' => $definition['base_type'],
-            'choices' => self::choicesFor($dictionary, $definition, $clean, $query->instance_path),
-            'suggested' => $suggested,
-            'short_label' => RelatedFields::label($query->variable),
-            // Autres questions en cause (ex. VPO 2 pour « VPO 3 avant VPO 2 ») : l'agent choisit celle qui est fausse.
-            'related' => collect(RelatedFields::for($query, $clean))->map(function (array $field) use ($dictionary, $clean, $source, $query) {
+            $related = collect(RelatedFields::for($query, $clean))->map(function (array $field) use ($dictionary, $clean, $source, $query) {
                 $definition = $dictionary->variable($field['variable']);
 
                 return $field + [
+                    'path' => $query->instance_path,
                     'question' => self::questionLabel($definition),
                     'current' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $field['variable'], $query->instance_path)),
                     'source' => CorrectionApplier::normalize(SubmissionPaths::get($source, $field['variable'], $query->instance_path)),
                     'type' => $definition['base_type'],
                     'choices' => self::choicesFor($dictionary, $definition, $clean, $query->instance_path),
                 ];
-            })->all(),
-        ];
+            })->all();
+            if ($computed) {
+                if ($related === []) {
+                    return null;
+                }
+                $field = array_shift($related) + ['suggested' => null];
+                $field['label'] = $field['question'];
+            } else {
+                $field = [
+                    'variable' => $query->variable,
+                    'path' => $query->instance_path,
+                    'label' => $query->variable_label,
+                    'question' => $query->variable_label ?: self::questionLabel($definition),
+                    'current' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $query->variable, $query->instance_path)),
+                    'source' => CorrectionApplier::normalize(SubmissionPaths::get($source, $query->variable, $query->instance_path)),
+                    'type' => $definition['base_type'],
+                    'choices' => self::choicesFor($dictionary, $definition, $clean, $query->instance_path),
+                    'suggested' => $suggested,
+                    'short_label' => RelatedFields::label($query->variable),
+                ];
+            }
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+        // Autres questions en cause (ex. VPO 2 pour « VPO 3 avant VPO 2 ») : l'agent choisit celle qui est fausse.
+        $field['related'] = $related;
         // Choix « quelle valeur est fausse » : la question de la query puis les autres, valeur lisible (date jj/mm/aaaa).
         $field['pair'] = $field['related'] ? array_map(fn (array $f) => $f + [
             'display' => ($f['type'] === 'date' ? SubmissionProcessor::date($f['current'])?->format('d/m/Y') : null) ?? DataCorrection::displayFor($f['variable'], $f['current']),
