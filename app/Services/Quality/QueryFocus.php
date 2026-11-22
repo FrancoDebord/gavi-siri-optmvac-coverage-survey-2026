@@ -10,6 +10,7 @@ use App\Services\Cleaning\CorrectionApplier;
 use App\Services\Cleaning\SourceSnapshot;
 use App\Services\Cleaning\SubmissionPaths;
 use App\Services\Dictionary\Dictionary;
+use App\Support\MultipleChoice;
 use Throwable;
 
 /**
@@ -99,14 +100,19 @@ final class QueryFocus
         return null;
     }
 
-    /** Valeur avec le libellé du choix (ex. « 2 – Visite 2 »). */
+    /**
+     * Valeur avec le libellé du choix (ex. « 2 – Visite 2 », « 41 – Sébou ») : listes du formulaire et listes chargées
+     * depuis un fichier (villages, arrondissements, agents).
+     */
     private static function label(Dictionary $dictionary, ?array $definition, ?string $value): ?string
     {
         if ($value === null) {
             return null;
         }
-        if ($definition && $definition['list_name'] && in_array($definition['base_type'], ['select_one', 'select_multiple'], true)) {
-            $labels = array_map(fn ($code) => $code.' – '.trim(strip_tags((string) ($dictionary->choiceLabel($definition['list_name'], $code) ?? '?'))), preg_split('/\s+/', $value));
+        if ($definition && $definition['list_name'] && str_starts_with((string) $definition['base_type'], 'select_')) {
+            $choices = $dictionary->choices($definition['list_name']) ?? [];
+            $codes = str_starts_with((string) $definition['base_type'], 'select_multiple') ? MultipleChoice::split($value, $choices) : [trim($value)];
+            $labels = array_map(fn ($code) => $code.' – '.trim(preg_replace('/\s+/', ' ', strip_tags((string) ($dictionary->choiceLabel($definition['list_name'], $code) ?? '?')))), $codes);
 
             return implode(' ; ', $labels);
         }

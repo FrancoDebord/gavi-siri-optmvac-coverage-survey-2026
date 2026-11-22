@@ -79,7 +79,10 @@ class TeamVillageRuleTest extends TestCase
         $admin->assignRole(User::ROLE_ADMIN);
         $this->actingAs($admin)->get(route('queries.show', $wrong))->assertOk()
             ->assertSee('proposé')
-            ->assertSee('id="vil-'.$wariMaro->code.'" value="'.$wariMaro->code.'" checked', false);
+            ->assertSee('id="vil-'.$wariMaro->code.'" value="'.$wariMaro->code.'" checked', false)
+            // Valeurs saisie et suggérée : code et nom du village.
+            ->assertSeeInOrder(['Valeur saisie (ODK)', $this->village('Bétérou')->code.' – '.$this->village('Bétérou')->name,
+                'Valeur suggérée', $wariMaro->code.' – '.$wariMaro->name]);
 
         // Village corrigé : la query se ferme au passage suivant du moteur.
         $this->actingAs($admin)->post(route('queries.status', $wrong), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
