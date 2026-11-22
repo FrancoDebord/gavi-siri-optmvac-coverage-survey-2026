@@ -189,6 +189,8 @@ class DataQueryController extends Controller
             'query' => $query,
             'focus' => $focus,
             'corrections' => DataCorrection::where('data_query_id', $query->id)->with(['proposer:id,name', 'decider:id,name'])->latest('id')->get(),
+            'pendingCorrections' => $query->household_id ? DataCorrection::where('household_id', $query->household_id)->where('status', DataCorrection::STATUS_PROPOSED)
+                ->where('variable', '!=', DataCorrection::EXCLUSION)->count() : 0,
             'correctionField' => $user->can('respond', $query) && ! $geo && ! $agent ? $this->correctionField($query, $focus['suggested_value']) : null,
             'geoField' => $user->can('respond', $query) ? $geo : null,
             'agentField' => $agent,
@@ -371,24 +373,25 @@ class DataQueryController extends Controller
     {
         $dictionary = Dictionary::current();
         $definition = $query->variable ? $dictionary->variable($query->variable) : null;
-        if (! $query->household || ! $definition || (($definition['repeat_name'] ?? null) && ! $query->instance_path)) {
+        if (! $query->household || ! $definition) {
             return null;
         }
-        // Variable calculée (ex. âge en mois) : on corrige à la place les questions en cause (date de naissance, rappel…).
-        $computed = ! $dictionary->isInput($definition);
+        // Variable calculée (ex. âge en mois), ou question d'un membre contrôlée sur tout le ménage (ex. enfants déclarés
+        // par chaque caregiver) : on corrige à la place les questions en cause, chacune dans son membre.
+        $computed = ! $dictionary->isInput($definition) || (($definition['repeat_name'] ?? null) && ! $query->instance_path);
         try {
             $clean = app(CleanDataService::class)->cleanSubmission($query->household);
             $source = SourceSnapshot::of($query->household);
             $related = collect(RelatedFields::for($query, $clean))->map(function (array $field) use ($dictionary, $clean, $source, $query) {
                 $definition = $dictionary->variable($field['variable']);
+                $path = $field['path'] ?? $query->instance_path;
 
-                return $field + [
-                    'path' => $query->instance_path,
+                return ['path' => $path] + $field + [
                     'question' => self::questionLabel($definition),
-                    'current' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $field['variable'], $query->instance_path)),
-                    'source' => CorrectionApplier::normalize(SubmissionPaths::get($source, $field['variable'], $query->instance_path)),
+                    'current' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $field['variable'], $path)),
+                    'source' => CorrectionApplier::normalize(SubmissionPaths::get($source, $field['variable'], $path)),
                     'type' => $definition['base_type'],
-                    'choices' => self::choicesFor($dictionary, $definition, $clean, $query->instance_path),
+                    'choices' => self::choicesFor($dictionary, $definition, $clean, $path),
                 ];
             })->all();
             if ($computed) {
@@ -396,6 +399,7 @@ class DataQueryController extends Controller
                     return null;
                 }
                 $field = array_shift($related) + ['suggested' => null];
+                $field['short_label'] = $field['label'];
                 $field['label'] = $field['question'];
             } else {
                 $field = [
@@ -690,6 +694,31 @@ class DataQueryController extends Controller
         }, $request->user());
 
         return response()->json(self::bulkResult($done, $errors, 'mise(s) à jour'));
+    }
+
+    /**
+     * Recharge les données du ménage avec les corrections proposées : les queries dont l'erreur disparaît suivent
+     * la correction (fermées à sa validation). Seules les queries auxquelles l'utilisateur peut répondre changent.
+     */
+    public function reload(Request $request, DataQuery $query, CleanDataService $cleaning): RedirectResponse
+    {
+        $this->authorize('comment', $query);
+        abort_unless($query->household, 404);
+        try {
+            $result = $cleaning->reloadProposed($query->household, $request->user());
+        } catch (InvalidArgumentException $e) {
+            return back()->with('danger', $e->getMessage());
+        }
+        AuditLog::record('queries.rechargement', $query, ['resolues' => count($result['resolved'])]);
+        if ($result['origins'] === 0) {
+            return back()->with('info', 'Aucune correction en attente sur ce ménage : rien à recharger.');
+        }
+        if ($result['resolved'] === []) {
+            return back()->with('info', 'Données rechargées : aucune autre query n\'est résolue par les corrections proposées.');
+        }
+
+        return back()->with('success', sprintf('Données rechargées : %d query(s) résolue(s) par les corrections proposées (%s). Elles seront fermées à la validation de la correction.',
+            count($result['resolved']), implode(', ', array_map(fn ($r) => $r['query']->code, $result['resolved']))));
     }
 
     public function run(Request $request): RedirectResponse

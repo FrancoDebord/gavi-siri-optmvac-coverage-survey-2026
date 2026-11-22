@@ -34,21 +34,27 @@ final class QueryFocus
         // Question d'un membre (ex. nombre d'enfants de chaque caregiver) contrôlée sur tout le ménage : pas de valeur
         // unique à lire, la règle donne le détail des valeurs lues.
         $wholeHousehold = $definition && ($definition['repeat_name'] ?? null) && ! $query->instance_path;
-        if ($wholeHousehold) {
-            $raw = $query->observed_value;
-        } elseif ($household && $query->variable) {
+        if ($household && $query->variable) {
             try {
                 $source = SourceSnapshot::of($household);
                 $clean = (new CorrectionApplier)->apply($source)[0];
-                $raw = CorrectionApplier::normalize(SubmissionPaths::get($source, $query->variable, $query->instance_path));
-                $current = CorrectionApplier::normalize(SubmissionPaths::get($clean, $query->variable, $query->instance_path));
-                // Autres valeurs comparées par la règle (ex. VPO 2 pour « VPO 3 avant VPO 2 ») : l'erreur peut venir d'elles.
+                if ($wholeHousehold) {
+                    $raw = $query->observed_value;
+                } else {
+                    $raw = CorrectionApplier::normalize(SubmissionPaths::get($source, $query->variable, $query->instance_path));
+                    $current = CorrectionApplier::normalize(SubmissionPaths::get($clean, $query->variable, $query->instance_path));
+                }
+                // Autres valeurs comparées par la règle (ex. VPO 2 pour « VPO 3 avant VPO 2 », nombre d'enfants de chaque
+                // caregiver) : l'erreur peut venir d'elles.
                 foreach (RelatedFields::for($query, $clean) as $field) {
-                    $related[] = $field + ['value' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $field['variable'], $query->instance_path))];
+                    $related[] = $field + ['value' => CorrectionApplier::normalize(SubmissionPaths::get($clean, $field['variable'], $field['path'] ?? $query->instance_path))];
                 }
             } catch (Throwable) {
-                $raw = $current = CorrectionApplier::normalize($query->observed_value);
+                $raw = $wholeHousehold ? $query->observed_value : CorrectionApplier::normalize($query->observed_value);
+                $current = $wholeHousehold ? null : $raw;
             }
+        } elseif ($wholeHousehold) {
+            $raw = $query->observed_value;
         }
 
         // Valeur lue sur la photo : vérification enregistrée pour ce champ ('' = doit être vide).

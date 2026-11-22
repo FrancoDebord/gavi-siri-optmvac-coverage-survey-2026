@@ -156,6 +156,11 @@ class QueryWorkflow
                 // Rejet, réouverture ou irrésoluble : les corrections proposées sont rejetées (conservées au registre).
                 // Vérification du superviseur : elles restent proposées jusqu'à la validation finale.
                 $this->cleaning->decide($query, false, $user, $signed, $comment);
+                $this->cleaning->releaseDependents($query, $user, 'La correction proposée dans la query d\'origine a été refusée');
+            }
+            // Query qui suivait la correction d'une autre : le lien tombe si elle est traitée autrement.
+            if ($query->resolved_by_query_id && ! in_array($status, [DataQuery::STATUS_SUPERVISED, DataQuery::STATUS_VALIDATED], true)) {
+                $query->resolved_by_query_id = null;
             }
             // Rejet ou réouverture : la query revient à son assigné s'il y en a un.
             $status = $status === DataQuery::STATUS_OPEN && $query->assigned_to ? DataQuery::STATUS_SENT : $status;

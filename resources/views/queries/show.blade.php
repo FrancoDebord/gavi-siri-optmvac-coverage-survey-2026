@@ -67,6 +67,10 @@
                             @endif
                         </dd>
                         <dt class="col-sm-4">Réponse</dt><dd class="col-sm-8">{{ $query->responder ? $query->responder->name.' · '.$query->responded_at?->format('d/m/Y H:i') : '—' }}</dd>
+                        @if ($query->resolvedBy)
+                            <dt class="col-sm-4">Résolue par</dt>
+                            <dd class="col-sm-8">la correction proposée dans <a href="{{ route('queries.show', $query->resolvedBy) }}">{{ $query->resolvedBy->code }}</a> <span class="text-muted small">(fermée à sa validation, renvoyée si elle est refusée)</span></dd>
+                        @endif
                         <dt class="col-sm-4">Vérification superviseur</dt><dd class="col-sm-8">{{ $query->supervisor ? $query->supervisor->name.' · '.$query->supervised_at?->format('d/m/Y H:i') : ($query->status === \App\Models\DataQuery::STATUS_CORRECTED || $query->status === \App\Models\DataQuery::STATUS_JUSTIFIED ? 'en attente du superviseur de la zone' : '—') }}</dd>
                         <dt class="col-sm-4">Validation finale</dt><dd class="col-sm-8">{{ $query->validator ? $query->validator->name : ($query->reviewer ? 'confiée à '.$query->reviewer->name : '—') }} @if ($doubleValidation)<span class="badge text-bg-light border ms-1" title="Validation par une autre personne que l'auteur de la réponse, avec signature électronique">double validation</span>@endif</dd>
                         <dt class="col-sm-4">Date de résolution</dt><dd class="col-sm-8">{{ $query->resolved_at?->format('d/m/Y H:i') ?? '—' }} @if ($query->auto_closed)<span class="badge text-bg-success">fermeture automatique</span>@endif</dd>
@@ -239,6 +243,18 @@
                 @endunless
             @endcan
 
+            @if ($pendingCorrections > 0 && $user->can('comment', $query))
+                <div class="card mb-3 border-primary-subtle">
+                    <div class="card-body">
+                        <div class="small mb-2"><i class="bi bi-arrow-repeat me-1"></i><strong>{{ $pendingCorrections }} correction(s) proposée(s)</strong> sur ce ménage, en attente de validation. Rechargez les données pour résoudre les autres queries qui dépendaient de ces valeurs (date de naissance, dates de vaccination…).</div>
+                        <form method="POST" action="{{ route('queries.reload', $query) }}">
+                            @csrf
+                            <button class="btn btn-primary w-100"><i class="bi bi-arrow-repeat me-1"></i>Recharger les données du ménage</button>
+                        </form>
+                    </div>
+                </div>
+            @endif
+
             @if ($options->isNotEmpty() || $user->can('comment', $query))
                 <div class="card mb-3">
                     <div class="card-header">Traitement</div>
@@ -352,7 +368,7 @@
                                                 @endif
                                             </fieldset>
                                             @foreach ($correctionField['pair'] as $k => $f)
-                                                @include('queries._correction-field', ['field' => $f, 'i' => $k, 'path' => $correctionField['path'], 'suggested' => $k === 0 ? $correctionField['suggested'] : null, 'paired' => true])
+                                                @include('queries._correction-field', ['field' => $f, 'i' => $k, 'path' => $f['path'] ?? $correctionField['path'], 'suggested' => $k === 0 ? $correctionField['suggested'] : null, 'paired' => true])
                                             @endforeach
                                         @elseif ($correctionField)
                                             @include('queries._correction-field', ['field' => $correctionField, 'i' => 0, 'path' => $correctionField['path'], 'suggested' => $correctionField['suggested'], 'paired' => false])

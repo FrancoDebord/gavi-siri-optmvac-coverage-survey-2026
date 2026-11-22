@@ -11,6 +11,7 @@ use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\Rules\Business\MalariaThreeDosesReviewRule;
 use App\Services\Quality\Rules\Business\RecallDoseAgeRule;
 use App\Services\Quality\Rules\Business\SmcCycleOrderRule;
+use App\Services\Export\DatasetExporter;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -22,12 +23,16 @@ use InvalidArgumentException;
 final class RelatedFields
 {
     /**
-     * @return list<array{variable: string, label: string}> questions saisissables en cause, hors celle de la query
+     * @return list<array{variable: string, label: string, path: ?string}> questions saisissables en cause, hors celle de la query,
+     *                                                                     avec leur membre (celui de la query, sauf règle sur plusieurs membres)
      */
     public static function for(DataQuery $query, NormalizedSubmission $clean): array
     {
         if (! $query->variable) {
             return [];
+        }
+        if ($query->rule_code === 'MAJ_09') {
+            return self::rosterUnderFive($clean);
         }
         $variables = match ($query->rule_code) {
             'VAC_DOSE_ORDER', 'VAC_DOSE_INTERVAL' => [self::previousDose($query, $clean)],
@@ -50,10 +55,40 @@ final class RelatedFields
             if ($variable === $query->variable || ! $definition || ! $dictionary->isInput($definition)) {
                 continue;
             }
-            $fields[] = ['variable' => $variable, 'label' => self::label($variable)];
+            $fields[] = ['variable' => $variable, 'label' => self::label($variable), 'path' => $query->instance_path];
         }
 
         return $fields;
+    }
+
+    /**
+     * MAJ-09 (enfants déclarés > membres de moins de 5 ans) : nombre d'enfants déclaré par chaque caregiver, puis
+     * tranche d'âge de chaque membre de 5 ans ou plus (un enfant mal classé). L'agent corrige celle qui est fausse.
+     *
+     * @return list<array{variable: string, label: string, path: string}>
+     */
+    private static function rosterUnderFive(NormalizedSubmission $clean): array
+    {
+        $caregivers = $members = [];
+        $roster = Map::var('repeat_membres');
+        foreach ((new DatasetExporter)->flatten($clean) as $rows) {
+            foreach ($rows as $row) {
+                $path = $row['path'] ?? null;
+                if (! $path) {
+                    continue;
+                }
+                $data = $row['data'] ?? [];
+                $position = preg_match('/\[(\d+)\]$/', $path, $m) ? $m[1] : '?';
+                if (is_numeric($data['caregiver_num_children'] ?? null) && (int) $data['caregiver_num_children'] > 0) {
+                    $caregivers[] = ['variable' => 'caregiver_num_children', 'label' => "Caregiver n°{$position} – enfants de moins de 5 ans déclarés", 'path' => $path];
+                }
+                if ($roster && str_starts_with($path, $roster.'[') && ! str_contains($path, '/') && is_numeric($data['age_group'] ?? null) && (int) $data['age_group'] !== 0) {
+                    $members[] = ['variable' => 'age_group', 'label' => "Membre n°{$position} – tranche d'âge", 'path' => $path];
+                }
+            }
+        }
+
+        return [...$caregivers, ...$members];
     }
 
     /** Libellé court d'une variable connue du mapping (ex. « VPO 2 », « Date de naissance »), sinon son nom. */

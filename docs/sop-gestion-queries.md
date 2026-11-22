@@ -70,6 +70,7 @@ Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont e
 | Soumission en double | **Correction proposée → exclusion** | Sur une query de doublon uniquement ; indiquer la soumission conservée. |
 
 3. Si on ne peut ni corriger ni confirmer, l'assigné l'explique en commentaire. Seul le data manager peut alors déclarer la query « irrésoluble ».
+4. **Recharger les données du ménage** : une valeur corrigée (date de naissance, date de vaccination…) peut lever d'autres queries du même ménage. Après avoir proposé la correction, l'assigné clique sur « Recharger les données du ménage » (fiche d'une query de ce ménage). Les queries encore sans réponse dont l'erreur disparaît avec la correction passent en « Correction proposée » et suivent la query d'origine : elles sont fermées à la validation de sa correction et reviennent à l'assigné si elle est refusée. Rien n'est appliqué aux données avant la validation.
 
 ### 5.3 bis Prise en compte immédiate (paramètre, désactivé par défaut)
 
@@ -147,3 +148,4 @@ Ils sont revus *[à compléter : fréquence, instance]*.
 |---|---|---|---|
 | 1.0 | 18/11/2026 | Création | *[à compléter]* |
 | 1.1 | 20/11/2026 | Validation en deux temps : vérification du superviseur de la zone, puis validation finale de l'administrateur (à l'unité ou en bloc) | *[à compléter]* |
+| 1.2 | 22/11/2026 | Rechargement des données du ménage : les queries levées par une correction proposée la suivent (5.3, point 4) | *[à compléter]* |

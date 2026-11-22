@@ -161,6 +161,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/queries/{query}/statut', [DataQueryController::class, 'updateStatus'])->whereNumber('query')->name('queries.status')->middleware('throttle:60,1');
     Route::post('/queries/{query}/commentaire', [DataQueryController::class, 'comment'])->whereNumber('query')->name('queries.comment')->middleware('throttle:60,1');
     Route::post('/queries/{query}/suggestion', [DataQueryController::class, 'suggest'])->whereNumber('query')->name('queries.suggest')->middleware('throttle:60,1');
+    Route::post('/queries/{query}/recharger', [DataQueryController::class, 'reload'])->whereNumber('query')->name('queries.reload')->middleware('throttle:10,1');
     Route::post('/queries/{query}/suggestion-ia', [DataQueryController::class, 'suggestAi'])->whereNumber('query')->name('queries.suggest-ai')->middleware('throttle:20,1');
     Route::post('/queries/{query}/affectation', [DataQueryController::class, 'assign'])->whereNumber('query')->name('queries.assign')->middleware('throttle:60,1');
     Route::post('/queries/lot', [DataQueryController::class, 'bulk'])->name('queries.bulk')->middleware('throttle:30,1');

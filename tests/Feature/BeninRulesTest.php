@@ -68,7 +68,23 @@ class BeninRulesTest extends TestCase
         $this->withoutVite()->actingAs($manager)->get(route('queries.show', $query))->assertOk()
             ->assertSee('Valeurs lues (ODK)')->assertSee('Déclarés : 3 (caregiver n°1 : 2, caregiver n°2 : 1)')
             ->assertSee('Compte ODK')->assertSee('binome-tch-01')
-            ->assertDontSee('name="corrections[0][variable]" value="caregiver_num_children"', false);
+            // Chaque valeur en cause est corrigeable dans son membre : enfants déclarés par caregiver, tranche d'âge
+            // des membres de 5 ans ou plus (jamais au niveau du ménage).
+            ->assertSee('Valeurs en cause (caregivers, membres de 5 ans ou plus)')
+            ->assertSee('Caregiver n°1 – enfants de moins de 5 ans déclarés')
+            ->assertSee('name="corrections[0][instance_path]" value="cg[1]"', false)
+            ->assertSee('name="corrections[1][instance_path]" value="cg[2]"', false)
+            ->assertSee('name="corrections[2][variable]" value="age_group"', false)
+            ->assertSee('name="corrections[2][instance_path]" value="smc_cov_roster_2023[1]"', false)
+            ->assertDontSee('name="corrections[0][instance_path]" value=""', false);
+
+        // Le caregiver n°1 a en fait un seul enfant de moins de 5 ans : la correction est enregistrée sur son membre.
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
+            ['variable' => 'caregiver_num_children', 'instance_path' => 'cg[1]', 'new_value' => '1', 'optional' => '1', 'group' => 'paire', 'reason' => 'carnet'],
+            ['variable' => 'caregiver_num_children', 'instance_path' => 'cg[2]', 'new_value' => '1', 'optional' => '1', 'group' => 'paire'],
+        ]])->assertSessionHasNoErrors();
+        $correction = DataCorrection::where('data_query_id', $query->id)->sole();
+        $this->assertSame(['caregiver_num_children', 'cg[1]', '2', '1'], [$correction->variable, $correction->instance_path, $correction->old_value, $correction->new_value]);
     }
 
     public function test_household_with_errors_raises_the_expected_rules(): void

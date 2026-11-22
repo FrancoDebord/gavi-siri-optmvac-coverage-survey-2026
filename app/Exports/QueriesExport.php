@@ -147,7 +147,7 @@ class QueriesExport implements WithMultipleSheets
         if (! $path) {
             return 'Ménage';
         }
-        $names = [VariableMap::var('repeat_caregivers') => 'Caregiver', VariableMap::var('repeat_enfants') => 'Enfant'];
+        $names = [VariableMap::var('repeat_caregivers') => 'Caregiver', VariableMap::var('repeat_enfants') => 'Enfant', VariableMap::var('repeat_membres') => 'Membre'];
 
         return collect(explode('/', $path))->map(function ($segment) use ($names) {
             if (! preg_match('/^(.+)\[(\d+)\]$/', $segment, $m)) {

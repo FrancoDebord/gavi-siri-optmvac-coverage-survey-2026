@@ -13,6 +13,7 @@ use App\Services\Dictionary\VariableMap as Map;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\QualityEngine;
+use App\Services\Quality\QueryWorkflow;
 use App\Services\Quality\Rules\Dictionary\TypeRule;
 use App\Support\DashboardCache;
 use App\Support\MultipleChoice;
@@ -264,6 +265,81 @@ class CleanDataService
     }
 
     /**
+     * Rechargement des données d'un ménage avec les corrections proposées (pas encore validées) : chaque query qui
+     * attend encore une réponse est réévaluée. Si une correction proposée dans une autre query fait disparaître son
+     * erreur, elle passe en « correction proposée » et suit cette correction : fermée à sa validation, rendue à
+     * l'agent à son refus. Les données ne changent pas tant que la correction n'est pas validée.
+     *
+     * @return array{origins: int, resolved: list<array{query: DataQuery, origin: DataQuery}>}
+     */
+    public function reloadProposed(Household $household, User $user): array
+    {
+        if (DataLock::isFrozen()) {
+            throw new InvalidArgumentException('Base gelée : aucun rechargement avant le dégel.');
+        }
+        $originIds = DataCorrection::where('household_id', $household->id)->where('status', DataCorrection::STATUS_PROPOSED)
+            ->whereNotNull('data_query_id')->where('variable', '!=', DataCorrection::EXCLUSION)->orderBy('id')->pluck('data_query_id')->unique()->values();
+        $origins = DataQuery::withoutGlobalScope('kind')->whereIn('id', $originIds)->get()->sortBy(fn ($q) => $originIds->search($q->id))->values();
+        $candidates = DataQuery::where('household_id', $household->id)->whereIn('status', [DataQuery::STATUS_OPEN, DataQuery::STATUS_SENT])
+            ->whereNotIn('id', $originIds)->get()->filter(fn (DataQuery $q) => QueryWorkflow::allowed($user, $q, DataQuery::STATUS_CORRECTED))->keyBy('id');
+
+        // Chaque correction proposée est essayée seule (rien n'est conservé) : on note les queries dont l'erreur disparaît.
+        $resolvedBy = [];
+        foreach ($origins as $origin) {
+            $remaining = $candidates->keys()->diff(array_keys($resolvedBy))->values()->all();
+            if ($remaining === []) {
+                break;
+            }
+            DB::beginTransaction();
+            try {
+                $this->decide($origin, true, null);
+                $this->rebuild([$household->id]);
+                $run = $this->engine->run('rechargement', $user->id, [$household->id]);
+                $closed = $run->status === 'success'
+                    ? DataQuery::whereIn('id', $remaining)->where('status', DataQuery::STATUS_VALIDATED)->pluck('id')->all() : [];
+            } finally {
+                DB::rollBack();
+            }
+            foreach ($closed as $id) {
+                $resolvedBy[$id] = $origin;
+            }
+        }
+
+        $resolved = [];
+        DB::transaction(function () use ($resolvedBy, $candidates, $user, &$resolved) {
+            foreach ($resolvedBy as $id => $origin) {
+                $query = $candidates[$id];
+                $from = $query->status;
+                $query->update(['status' => DataQuery::STATUS_CORRECTED, 'resolved_by_query_id' => $origin->id, 'auto_closed' => false,
+                    'responded_by' => $user->id, 'responded_at' => now(), 'supervised_by' => null, 'supervised_at' => null]);
+                QueryEvent::create(['data_query_id' => $query->id, 'user_id' => $user->id, 'type' => 'status', 'from_status' => $from, 'to_status' => DataQuery::STATUS_CORRECTED,
+                    'comment' => "Données rechargées : l'erreur disparaît avec la correction proposée dans {$origin->code}. La query suit cette correction : fermée à sa validation, renvoyée si elle est refusée."]);
+                $resolved[] = ['query' => $query, 'origin' => $origin];
+            }
+        });
+        DashboardCache::bump();
+
+        return ['origins' => $origins->count(), 'resolved' => $resolved];
+    }
+
+    /** Correction d'une query refusée : les queries qui la suivaient reviennent à leur assigné. */
+    public function releaseDependents(DataQuery $origin, ?User $user, string $why): void
+    {
+        foreach (DataQuery::withoutGlobalScope('kind')->where('resolved_by_query_id', $origin->id)->get() as $query) {
+            $unresolved = in_array($query->status, [DataQuery::STATUS_CORRECTED, DataQuery::STATUS_SUPERVISED], true);
+            $from = $query->status;
+            $query->update(['resolved_by_query_id' => null] + ($unresolved ? [
+                'status' => $query->assigned_to ? DataQuery::STATUS_SENT : DataQuery::STATUS_OPEN,
+                'responded_by' => null, 'responded_at' => null, 'supervised_by' => null, 'supervised_at' => null,
+            ] : []));
+            if ($unresolved) {
+                QueryEvent::create(['data_query_id' => $query->id, 'user_id' => $user?->id, 'type' => 'system', 'from_status' => $from, 'to_status' => $query->status,
+                    'comment' => "{$why} ({$origin->code}) : cette query attend une nouvelle réponse."]);
+            }
+        }
+    }
+
+    /**
      * Refus a posteriori d'une correction validée (data manager) : la valeur précédente est rétablie (correction
      * remplacée remise en vigueur, sinon valeur ODK), le moteur repasse et la query rouvre si l'erreur revient.
      */
@@ -383,6 +459,17 @@ class CleanDataService
                     'comment' => 'Correction appliquée à la base nettoyée, mais l\'anomalie est toujours détectée : query renvoyée pour une nouvelle réponse.',
                 ]);
             });
+        }
+        // Queries qui suivaient ces corrections : fermées par le moteur si l'erreur a disparu, sinon rendues à l'agent.
+        foreach ($queries as $origin) {
+            foreach (DataQuery::withoutGlobalScope('kind')->where('resolved_by_query_id', $origin->id)->get() as $dependent) {
+                if ($dependent->status === DataQuery::STATUS_VALIDATED) {
+                    $dependent->update(['validated_by' => $user?->id]);
+                    QueryEvent::create(['data_query_id' => $dependent->id, 'user_id' => $user?->id, 'type' => 'system',
+                        'comment' => "Correction de {$origin->code} validée : l'erreur de cette query est levée."]);
+                }
+            }
+            $this->releaseDependents($origin, $user, 'Correction validée, mais l\'erreur de cette query est toujours détectée');
         }
         DashboardCache::bump();
     }
