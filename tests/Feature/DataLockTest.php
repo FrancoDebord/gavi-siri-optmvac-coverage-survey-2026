@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DataCorrection;
 use App\Models\DataExport;
 use App\Models\DataLock;
 use App\Models\DataQuery;
@@ -99,7 +100,7 @@ class DataLockTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('audit.index', ['user_id' => $this->manager->id]))->assertOk()
             ->assertSee('Correction proposée')->assertSee('Statut → Correction proposée – en attente de validation');
-        $this->actingAs($this->admin)->get(route('audit.index', ['source' => 'correction']))->assertOk()->assertSee('C-000001');
+        $this->actingAs($this->admin)->get(route('audit.index', ['source' => 'correction']))->assertOk()->assertSee('C-'.str_pad((string) DataCorrection::query()->value('id'), 6, '0', STR_PAD_LEFT));
         $this->actingAs($this->manager)->get(route('audit.index'))->assertRedirect();
 
         $csv = $this->actingAs($this->admin)->get(route('audit.export', ['user_id' => $this->manager->id]))->assertOk()->streamedContent();
