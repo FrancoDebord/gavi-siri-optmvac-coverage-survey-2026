@@ -36,6 +36,7 @@ class QueryStatusRequest extends FormRequest
             'status' => ['required', Rule::in(array_keys(DataQuery::STATUSES))],
             'comment' => ['nullable', 'string', 'max:2000'],
             'password' => ['nullable', 'string', 'max:255'],
+            'pair_choice' => ['nullable', 'string', 'max:10'],
             'corrections' => ['nullable', 'array', 'max:20'],
             'corrections.*.variable' => ['nullable', 'string', 'max:255'],
             'corrections.*.instance_path' => ['nullable', 'string', 'max:255'],

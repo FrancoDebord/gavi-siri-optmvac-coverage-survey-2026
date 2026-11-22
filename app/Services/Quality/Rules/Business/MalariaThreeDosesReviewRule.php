@@ -29,25 +29,22 @@ class MalariaThreeDosesReviewRule extends BusinessRule
             $age = $child->get('age_months_est');
             $reasons = [];
             if (in_array('mal3', $cause, true)) {
-                $reasons[] = 'la carte indique VAP 3 non reçu ('.self::card($child).')';
+                $reasons[] = 'la carte indique VAP 3 non reçu';
             }
             if (in_array('rtss3_rec', $cause, true)) {
-                $reasons[] = 'au rappel, le caregiver déclare la 3e dose non reçue ('.self::recall($child).')';
+                $reasons[] = 'au rappel, le caregiver déclare la 3e dose non reçue';
             }
             if (in_array('age_months_est', $cause, true)) {
                 $reasons[] = sprintf('l\'enfant a %d mois (3 doses impossibles avant %d mois)', (int) $age, self::MIN_AGE);
             }
             $ageText = is_numeric($age) ? sprintf(', %d mois', (int) $age) : '';
+            // Réponses cochées pour les 3 premières doses (carte et rappel) : l'agent sait quoi répondre à la revue.
+            $answers = 'Carte : '.self::card($child).' · Rappel : '.self::recall($child);
 
             yield QueryCandidate::for($child,
-                $child->label().$ageText.' : revue « 3 doses de VAP la 1re année » = Oui, mais '.implode(' ; ', $reasons).'.',
+                $child->label().$ageText.' : revue « 3 doses de VAP la 1re année » = Oui, mais '.implode(' ; ', $reasons).'. Réponses cochées – '.$answers.'.',
                 'three_MV_doses',
-                implode(' ; ', array_filter([
-                    'Revue : Oui',
-                    $child->get('mal3') !== null && $child->get('mal3') !== '' ? 'Carte : '.self::card($child) : null,
-                    $child->get('rtss3_rec') !== null && $child->get('rtss3_rec') !== '' ? 'Rappel : '.self::recall($child) : null,
-                    is_numeric($age) ? 'Âge : '.(int) $age.' mois' : null,
-                ])),
+                implode(' ; ', array_filter(['Revue : Oui', $answers, is_numeric($age) ? 'Âge : '.(int) $age.' mois' : null])),
                 'Oui seulement si VAP 3 reçu (carte ou rappel) et enfant de '.self::MIN_AGE.' mois ou plus',
             );
         }
@@ -113,7 +110,7 @@ class MalariaThreeDosesReviewRule extends BusinessRule
             '1' => 'Oui',
             '0' => 'Non',
             '2' => 'NSP',
-            '' => '—',
+            '' => 'non renseigné',
             default => (string) $value,
         };
     }

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\DataCorrection;
 use App\Models\DataQuery;
+use App\Models\QueryEvent;
 use App\Models\QualityRule;
 use App\Models\User;
 use App\Services\Import\NormalizedSubmission;
@@ -138,7 +140,18 @@ class BeninRulesTest extends TestCase
         $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $query))->assertOk()
             ->assertSee('name="corrections[1][variable]" value="date_2"', false)
             ->assertSee('name="corrections[2][variable]" value="date_3"', false)
-            ->assertDontSee('value="date_5"', false);
+            ->assertDontSee('value="date_5"', false)
+            ->assertSee('name="pair_choice" id="pair-card" value="card"', false)->assertSee('vient de la carte CPS elle-même');
+
+        // Aucune date fausse : l'erreur est sur la carte. Valeurs confirmées, aucune correction.
+        $admin = User::factory()->create();
+        $admin->assignRole(User::ROLE_ADMIN);
+        $this->actingAs($admin)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => 'card', 'corrections' => [
+            ['variable' => 'date_2', 'instance_path' => $query->instance_path, 'new_value' => '2026-08-10', 'optional' => '1', 'group' => 'paire'],
+        ]])->assertSessionHasNoErrors();
+        $this->assertSame(DataQuery::STATUS_JUSTIFIED, $query->fresh()->status);
+        $this->assertSame(0, DataCorrection::where('data_query_id', $query->id)->count());
+        $this->assertTrue(QueryEvent::where('data_query_id', $query->id)->where('comment', 'like', '%l\'erreur vient de la carte elle-même%')->exists());
     }
 
     public function test_recall_dose_too_early_names_the_vaccine_and_the_dose(): void
@@ -169,8 +182,15 @@ class BeninRulesTest extends TestCase
 
         $queries = DataQuery::where('rule_code', 'MAJ_34')->get();
         $this->assertCount(1, $queries);
-        $this->assertSame('Enfant n°2 (caregiver n°1), 20 mois : revue « 3 doses de VAP la 1re année » = Oui, mais la carte indique VAP 3 non reçu '
-            .'(VAP 1 : Oui le 10/07/2025, VAP 2 : Oui, VAP 3 : Non) ; au rappel, le caregiver déclare la 3e dose non reçue (1re dose : Oui, 2e dose : Oui, 3e dose : Non).', $queries->first()->message);
+        $this->assertSame('Enfant n°2 (caregiver n°1), 20 mois : revue « 3 doses de VAP la 1re année » = Oui, mais la carte indique VAP 3 non reçu ; '
+            .'au rappel, le caregiver déclare la 3e dose non reçue. Réponses cochées – Carte : VAP 1 : Oui le 10/07/2025, VAP 2 : Oui, VAP 3 : Non · '
+            .'Rappel : 1re dose : Oui, 2e dose : Oui, 3e dose : Non.', $queries->first()->message);
         $this->assertStringContainsString('Enfant complètement vacciné', $queries->first()->suggestion);
+
+        // Fiche : les réponses cochées des 3 premières doses (carte et rappel), corrigeables.
+        $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $queries->first()))->assertOk()
+            ->assertSee('Réponses cochées (VAP 1 à 3, carte puis rappel)')
+            ->assertSee('0 – Non')
+            ->assertSee('value="mal1"', false)->assertSee('value="mal3"', false)->assertSee('value="rtss3_rec"', false);
     }
 }

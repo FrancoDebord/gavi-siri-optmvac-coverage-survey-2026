@@ -40,10 +40,10 @@
                         <dd class="col-sm-8"><span class="badge fs-6 text-bg-light border">{{ $focus['current'] }}</span></dd>
                     @endif
                     @if ($focus['related'])
-                        <dt class="col-sm-4">Aussi en cause</dt>
+                        <dt class="col-sm-4">{{ $query->rule_code === 'MAJ_34' ? 'Réponses cochées (VAP 1 à 3, carte puis rappel)' : 'Aussi en cause' }}</dt>
                         <dd class="col-sm-8">
                             @foreach ($focus['related'] as $related)
-                                <div>{{ $related['label'] }} <code class="small">{{ $related['variable'] }}</code> : <span class="badge fs-6 text-bg-warning-subtle text-warning-emphasis border">{{ $related['value'] ?? '(vide)' }}</span></div>
+                                <div>{{ $related['label'] }} <code class="small">{{ $related['variable'] }}</code> : <span class="badge fs-6 text-bg-warning-subtle text-warning-emphasis border">{{ \App\Models\DataCorrection::displayFor($related['variable'], $related['value'] === null ? null : (string) $related['value']) }}</span></div>
                             @endforeach
                             <div class="small text-muted">Vérifiez laquelle est fausse avant de corriger.</div>
                         </dd>

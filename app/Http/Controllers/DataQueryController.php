@@ -521,6 +521,8 @@ class DataQueryController extends Controller
         return back()->with('success', 'Valeur lue par l\'IA : '.$result['value'].' (confiance '.$result['confidence'].'). Vérifiez-la sur la photo : elle est proposée à l\'agent.');
     }
 
+    public const CARD_ERROR = 'Aucune date fausse : les dates saisies sont conformes à la carte CPS, l\'erreur vient de la carte elle-même.';
+
     public function updateStatus(QueryStatusRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
     {
         $this->authorize('view', $query);
@@ -536,7 +538,14 @@ class DataQueryController extends Controller
                 }
             }
             unset($row);
-            $workflow->transition($query, $request->validated('status'), $request->validated('comment'), $request->user(), $request->validated('password'), $corrections);
+            $status = $request->validated('status');
+            $comment = $request->validated('comment');
+            // Cycles CPS dans le désordre, aucune date fausse : l'erreur est sur la carte CPS. Valeurs confirmées, sans correction.
+            if ($status === DataQuery::STATUS_CORRECTED && $request->validated('pair_choice') === 'card' && $query->rule_code === 'MAJ_37') {
+                [$status, $corrections] = [DataQuery::STATUS_JUSTIFIED, []];
+                $comment = trim(self::CARD_ERROR.' '.trim((string) $comment));
+            }
+            $workflow->transition($query, $status, $comment, $request->user(), $request->validated('password'), $corrections);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['status' => $e->getMessage()])->withInput();
         }

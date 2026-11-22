@@ -38,8 +38,9 @@ final class RelatedFields
             // Âge calculé : corriger la date de naissance ou la réponse au rappel.
             'MAJ_32' => [self::dobVariable($query, $clean), ...array_column(RecallDoseAgeRule::dosesInCause(self::child($query, $clean,
                 ['age_months_est', 'measmth9', 'measmth15', 'penta3_rec', 'opv3_rec', 'pcv3_rec', 'rtss1_rec', 'rtss4_rec'])), 'variable')],
-            'MAJ_34' => array_map(fn ($v) => $v === 'age_months_est' ? self::dobVariable($query, $clean) : $v, MalariaThreeDosesReviewRule::inCause(self::child($query, $clean,
-                ['three_MV_doses', 'see_card', 'receive_vaccine', 'mal1', 'mal2', 'mal3', 'mal4', 'rtss3_rec', 'age_months_est']))),
+            // Réponses cochées pour les 3 premières doses de VAP (carte puis rappel), et la date de naissance si l'âge est en cause.
+            'MAJ_34' => ['mal1', 'mal2', 'mal3', 'rtss1_rec', 'rtss2_rec', 'rtss3_rec', in_array('age_months_est', MalariaThreeDosesReviewRule::inCause(self::child($query, $clean,
+                ['three_MV_doses', 'see_card', 'receive_vaccine', 'mal1', 'mal2', 'mal3', 'mal4', 'rtss3_rec', 'age_months_est'])), true) ? self::dobVariable($query, $clean) : null],
             default => [],
         };
         $dictionary = Dictionary::current();
