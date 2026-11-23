@@ -45,6 +45,8 @@
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
         <a class="{{ $link('coverage.vap') }}" href="{{ route('coverage.vap') }}"><i class="bi bi-shield-check"></i><span class="label">Couverture VAP</span></a>
+        <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'antigenes' ? 'active' : '' }}" href="{{ route('coverage.show', 'antigenes') }}"><i class="bi bi-shield-plus"></i><span class="label">Couverture vaccinale</span></a>
+        <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'cps' ? 'active' : '' }}" href="{{ route('coverage.show', 'cps') }}"><i class="bi bi-capsule"></i><span class="label">Couverture CPS</span></a>
         <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
         <a class="{{ $link('remaining-villages.*') }}" href="{{ route('remaining-villages.index') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>
         <a class="{{ $link('maps.clusters', 'clusters.*') }} {{ request()->routeIs('maps.clusters') ? 'active' : '' }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
@@ -64,6 +66,8 @@
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
         <a class="{{ $link('coverage.vap') }}" href="{{ route('coverage.vap') }}"><i class="bi bi-shield-check"></i><span class="label">Couverture VAP</span></a>
+        <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'antigenes' ? 'active' : '' }}" href="{{ route('coverage.show', 'antigenes') }}"><i class="bi bi-shield-plus"></i><span class="label">Couverture vaccinale</span></a>
+        <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'cps' ? 'active' : '' }}" href="{{ route('coverage.show', 'cps') }}"><i class="bi bi-capsule"></i><span class="label">Couverture CPS</span></a>
         <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
     @endcan
     @can('view dashboards')
@@ -80,6 +84,8 @@
     <a class="{{ $link('dashboard') }}" href="{{ route('dashboard', $hasOwnHome ? ['complet' => 1] : []) }}"><i class="bi bi-speedometer2"></i><span class="label">Progression</span></a>
     @cannot('view pi dashboard')
     <a class="{{ $link('coverage.vap') }}" href="{{ route('coverage.vap') }}"><i class="bi bi-shield-check"></i><span class="label">Couverture VAP</span></a>
+    <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'antigenes' ? 'active' : '' }}" href="{{ route('coverage.show', 'antigenes') }}"><i class="bi bi-shield-plus"></i><span class="label">Couverture vaccinale</span></a>
+    <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'cps' ? 'active' : '' }}" href="{{ route('coverage.show', 'cps') }}"><i class="bi bi-capsule"></i><span class="label">Couverture CPS</span></a>
     @endcannot
     <a class="{{ $link('maps.clusters') }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
     <a class="{{ $link('remaining-villages.*') }}" href="{{ route('remaining-villages.index') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>

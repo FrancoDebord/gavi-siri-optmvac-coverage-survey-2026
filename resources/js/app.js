@@ -28,6 +28,8 @@ import submissionsPage from './pages/submissions';
 import clusterMapPage from './pages/cluster-map';
 import userFormPage from './pages/user-form';
 import vapCoveragePage from './pages/vap-coverage';
+import vaccineCoveragePage from './pages/vaccine-coverage';
+import smcCoveragePage from './pages/smc-coverage';
 
 window.bootstrap = bootstrap;
 
@@ -49,6 +51,8 @@ const pages = {
     'cluster-map': clusterMapPage,
     'user-form': userFormPage,
     'vap-coverage': vapCoveragePage,
+    'vaccine-coverage': vaccineCoveragePage,
+    'smc-coverage': smcCoveragePage,
 };
 
 document.addEventListener('DOMContentLoaded', () => {

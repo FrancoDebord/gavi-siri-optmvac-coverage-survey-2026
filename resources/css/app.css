@@ -349,6 +349,11 @@ body.sidebar-open .sidebar-backdrop {
     height: 240px;
 }
 
+/* Graphique à nombreuses barres horizontales (couverture par dose). */
+.chart-box.chart-lg {
+    height: 520px;
+}
+
 .filter-bar .form-select,
 .filter-bar .form-control {
     font-size: .85rem;

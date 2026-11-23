@@ -98,7 +98,7 @@ class InvestigatorTest extends TestCase
         preg_match_all('/<span class="label">\s*([^<]+?)\s*(?:<|$)/u', $menu[0], $labels);
 
         $this->assertSame(
-            ['GAVI SIRI · Round 2', 'Vue d\'ensemble', 'Progression', 'Rapport de synthèse', 'Couverture VAP', 'Grappes par village', 'Villages restants', 'Carte des grappes', 'Soumissions', 'Queries', 'Décisions de terrain', 'Messages aux équipes', 'Incidents terrain', 'Documentation'],
+            ['GAVI SIRI · Round 2', 'Vue d\'ensemble', 'Progression', 'Rapport de synthèse', 'Couverture VAP', 'Couverture vaccinale', 'Couverture CPS', 'Grappes par village', 'Villages restants', 'Carte des grappes', 'Soumissions', 'Queries', 'Décisions de terrain', 'Messages aux équipes', 'Incidents terrain', 'Documentation'],
             array_map('trim', $labels[1]),
         );
         $this->assertStringNotContainsString(route('supervision.index'), $menu[0]);
