@@ -34,6 +34,9 @@ final class RelatedFields
         if ($query->rule_code === 'MAJ_09') {
             return self::rosterUnderFive($clean);
         }
+        if ($query->rule_code === 'MAJ_10') {
+            return self::rosterAges($clean);
+        }
         $variables = match ($query->rule_code) {
             'VAC_DOSE_ORDER', 'VAC_DOSE_INTERVAL' => [self::previousDose($query, $clean)],
             'VAC_BEFORE_DOB', 'VAC_MIN_AGE' => [self::dobVariable($query, $clean)],
@@ -89,6 +92,31 @@ final class RelatedFields
         }
 
         return [...$caregivers, ...$members];
+    }
+
+    /**
+     * MAJ-10 (aucun membre de 15 ans ou plus) : tranche d'âge cochée de chaque membre, avec ses initiales et son sexe.
+     *
+     * @return list<array{variable: string, label: string, path: string}>
+     */
+    private static function rosterAges(NormalizedSubmission $clean): array
+    {
+        $roster = Map::var('repeat_membres');
+        $dictionary = Dictionary::current();
+        $fields = [];
+        foreach ((new DatasetExporter)->flatten($clean)[$roster] ?? [] as $row) {
+            $path = (string) $row['path'];
+            if (str_contains($path, '/')) {
+                continue;
+            }
+            $data = $row['data'] ?? [];
+            $sex = trim(strip_tags((string) $dictionary->choiceLabel('sex', (string) ($data['person_sex'] ?? ''))));
+            $who = trim(($data['person_initials'] ?? '').($sex !== '' ? ' ('.mb_strtoupper(mb_substr($sex, 0, 1)).')' : ''));
+            $position = preg_match('/\[(\d+)\]$/', $path, $m) ? $m[1] : '?';
+            $fields[] = ['variable' => 'age_group', 'label' => "Membre n°{$position}".($who !== '' ? " {$who}" : '').' – tranche d\'âge', 'path' => $path];
+        }
+
+        return $fields;
     }
 
     /** Libellé court d'une variable connue du mapping (ex. « VPO 2 », « Date de naissance »), sinon son nom. */

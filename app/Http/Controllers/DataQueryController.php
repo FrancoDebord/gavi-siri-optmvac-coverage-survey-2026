@@ -531,7 +531,20 @@ class DataQueryController extends Controller
         return back()->with('success', 'Valeur lue par l\'IA : '.$result['value'].' (confiance '.$result['confidence'].'). Vérifiez-la sur la photo : elle est proposée à l\'agent.');
     }
 
-    public const CARD_ERROR = 'Aucune date fausse : les dates saisies sont conformes à la carte CPS, l\'erreur vient de la carte elle-même.';
+    /**
+     * Choix « aucune valeur fausse » dans « Quelle valeur est fausse ? » : rien n'est corrigé, la query est enregistrée
+     * comme valeur confirmée avec cette justification (complétée par le commentaire de l'agent).
+     */
+    public const NO_ERROR = [
+        'MAJ_37' => [
+            'label' => 'Aucune : les dates saisies sont bien celles de la carte, l\'erreur vient de la carte CPS elle-même',
+            'comment' => 'Aucune date fausse : les dates saisies sont conformes à la carte CPS, l\'erreur vient de la carte elle-même.',
+        ],
+        'MAJ_10' => [
+            'label' => 'Aucune : les tranches d\'âge sont justes, le ménage n\'a pas de membre de 15 ans ou plus',
+            'comment' => 'Tranches d\'âge vérifiées et confirmées : le ménage n\'a aucun membre de 15 ans ou plus.',
+        ],
+    ];
 
     public function updateStatus(QueryStatusRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
     {
@@ -550,10 +563,11 @@ class DataQueryController extends Controller
             unset($row);
             $status = $request->validated('status');
             $comment = $request->validated('comment');
-            // Cycles CPS dans le désordre, aucune date fausse : l'erreur est sur la carte CPS. Valeurs confirmées, sans correction.
-            if ($status === DataQuery::STATUS_CORRECTED && $request->validated('pair_choice') === 'card' && $query->rule_code === 'MAJ_37') {
+            // Aucune valeur fausse (ex. erreur sur la carte CPS elle-même, ménage réellement sans adulte) : valeurs
+            // confirmées, sans correction.
+            if ($status === DataQuery::STATUS_CORRECTED && in_array($request->validated('pair_choice'), ['none', 'card'], true) && isset(self::NO_ERROR[$query->rule_code])) {
                 [$status, $corrections] = [DataQuery::STATUS_JUSTIFIED, []];
-                $comment = trim(self::CARD_ERROR.' '.trim((string) $comment));
+                $comment = trim(self::NO_ERROR[$query->rule_code]['comment'].' '.trim((string) $comment));
             }
             $workflow->transition($query, $status, $comment, $request->user(), $request->validated('password'), $corrections);
         } catch (InvalidArgumentException $e) {

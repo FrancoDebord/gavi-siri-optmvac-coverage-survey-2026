@@ -360,10 +360,11 @@
                                                     <input class="form-check-input" type="radio" name="pair_choice" id="pair-all" value="all" required>
                                                     <label class="form-check-label" for="pair-all">{{ count($correctionField['pair']) > 2 ? 'Plusieurs' : 'Les deux' }}</label>
                                                 </div>
-                                                @if ($query->rule_code === 'MAJ_37')
+                                                @if ($noError = \App\Http\Controllers\DataQueryController::NO_ERROR[$query->rule_code] ?? null)
+                                                    {{-- Rien à changer : la query est enregistrée comme valeur confirmée, avec cette justification. --}}
                                                     <div class="form-check">
-                                                        <input class="form-check-input" type="radio" name="pair_choice" id="pair-card" value="card" required>
-                                                        <label class="form-check-label" for="pair-card">Aucune : les dates saisies sont bien celles de la carte, l'erreur vient de la carte CPS elle-même</label>
+                                                        <input class="form-check-input" type="radio" name="pair_choice" id="pair-none" value="none" required>
+                                                        <label class="form-check-label" for="pair-none">{{ $noError['label'] }}</label>
                                                     </div>
                                                 @endif
                                             </fieldset>

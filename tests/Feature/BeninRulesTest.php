@@ -142,6 +142,38 @@ class BeninRulesTest extends TestCase
         return $manager;
     }
 
+    public function test_household_without_adult_shows_the_roster_ages_and_can_be_confirmed(): void
+    {
+        (new SubmissionProcessor)->process(new NormalizedSubmission('uuid:NA', [
+            'today' => '2026-10-20', 'l1' => '1', 'l2' => '1', 'l3' => '1', 'village' => '41', 'fieldworker' => '46',
+            'household' => 'TCH-SEB-01-020', 'household_survey_status' => '0', 'c_low' => '12', 'c_high' => '35',
+        ], ['smc_cov_roster_2023' => [
+            ['key' => null, 'data' => ['person_initials' => 'AK', 'person_sex' => '1', 'age_group' => '6'], 'repeats' => []],
+            ['key' => null, 'data' => ['person_initials' => 'BS', 'person_sex' => '0', 'age_group' => '0'], 'repeats' => []],
+        ]], []), ['source_type' => 'demo']);
+        app(QualityEngine::class)->run('test');
+
+        $query = DataQuery::where('rule_code', 'MAJ_10')->firstOrFail();
+        $this->assertSame('Aucun membre de 15 ans ou plus parmi les 2 membres. Tranches d\'âge cochées : n°1 AK (F) : 10-14 ; n°2 BS (M) : moins de 5 ans.', $query->message);
+
+        $manager = $this->manager();
+        $this->withoutVite()->actingAs($manager)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('Membres du ménage (tranche d&#039;âge cochée)', false)
+            ->assertSee('Membre n°1 AK (F) – tranche d&#039;âge', false)
+            ->assertSee('6 – 10-14')
+            ->assertSee('name="corrections[0][instance_path]" value="smc_cov_roster_2023[1]"', false)
+            ->assertSee('name="corrections[1][instance_path]" value="smc_cov_roster_2023[2]"', false)
+            ->assertSee('name="pair_choice" id="pair-none" value="none"', false);
+
+        // Rien à changer : ménage réellement sans adulte, query confirmée sans correction.
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => 'none', 'comment' => 'Enfants seuls, parents en exode.', 'corrections' => [
+            ['variable' => 'age_group', 'instance_path' => 'smc_cov_roster_2023[1]', 'new_value' => '6', 'optional' => '1', 'group' => 'paire'],
+        ]])->assertSessionHasNoErrors();
+        $this->assertSame(DataQuery::STATUS_JUSTIFIED, $query->fresh()->status);
+        $this->assertSame(0, DataCorrection::where('data_query_id', $query->id)->count());
+        $this->assertTrue(QueryEvent::where('data_query_id', $query->id)->where('comment', 'like', '%aucun membre de 15 ans ou plus. Enfants seuls%')->exists());
+    }
+
     public function test_smc_cycles_out_of_order_list_every_date_and_offer_the_dates_in_cause(): void
     {
         $this->household('TCH-SEB-01-010', [[
@@ -157,12 +189,12 @@ class BeninRulesTest extends TestCase
             ->assertSee('name="corrections[1][variable]" value="date_2"', false)
             ->assertSee('name="corrections[2][variable]" value="date_3"', false)
             ->assertDontSee('value="date_5"', false)
-            ->assertSee('name="pair_choice" id="pair-card" value="card"', false)->assertSee('vient de la carte CPS elle-même');
+            ->assertSee('name="pair_choice" id="pair-none" value="none"', false)->assertSee('vient de la carte CPS elle-même');
 
         // Aucune date fausse : l'erreur est sur la carte. Valeurs confirmées, aucune correction.
         $admin = User::factory()->create();
         $admin->assignRole(User::ROLE_ADMIN);
-        $this->actingAs($admin)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => 'card', 'corrections' => [
+        $this->actingAs($admin)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => 'none', 'corrections' => [
             ['variable' => 'date_2', 'instance_path' => $query->instance_path, 'new_value' => '2026-08-10', 'optional' => '1', 'group' => 'paire'],
         ]])->assertSessionHasNoErrors();
         $this->assertSame(DataQuery::STATUS_JUSTIFIED, $query->fresh()->status);
