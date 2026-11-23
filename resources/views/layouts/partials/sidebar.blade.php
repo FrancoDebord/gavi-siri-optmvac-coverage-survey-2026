@@ -44,6 +44,7 @@
         <a class="{{ $link('investigator.index') }}" href="{{ route('investigator.index') }}"><i class="bi bi-grid-1x2"></i><span class="label">Vue d'ensemble</span></a>
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
+        <a class="{{ $link('coverage.vap') }}" href="{{ route('coverage.vap') }}"><i class="bi bi-shield-check"></i><span class="label">Couverture VAP</span></a>
         <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
         <a class="{{ $link('remaining-villages.*') }}" href="{{ route('remaining-villages.index') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>
         <a class="{{ $link('maps.clusters', 'clusters.*') }} {{ request()->routeIs('maps.clusters') ? 'active' : '' }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
@@ -62,6 +63,7 @@
         <a class="{{ $link('investigator.index') }}" href="{{ route('investigator.index') }}"><i class="bi bi-grid-1x2"></i><span class="label">Vue d'ensemble PI</span></a>
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
+        <a class="{{ $link('coverage.vap') }}" href="{{ route('coverage.vap') }}"><i class="bi bi-shield-check"></i><span class="label">Couverture VAP</span></a>
         <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
     @endcan
     @can('view dashboards')
@@ -76,6 +78,9 @@
 
     <div class="nav-section">Suivi</div>
     <a class="{{ $link('dashboard') }}" href="{{ route('dashboard', $hasOwnHome ? ['complet' => 1] : []) }}"><i class="bi bi-speedometer2"></i><span class="label">Progression</span></a>
+    @cannot('view pi dashboard')
+    <a class="{{ $link('coverage.vap') }}" href="{{ route('coverage.vap') }}"><i class="bi bi-shield-check"></i><span class="label">Couverture VAP</span></a>
+    @endcannot
     <a class="{{ $link('maps.clusters') }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
     <a class="{{ $link('remaining-villages.*') }}" href="{{ route('remaining-villages.index') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>
     <a class="{{ $link('submissions.*') }}" href="{{ route('submissions.index') }}"><i class="bi bi-house-door"></i><span class="label">Soumissions</span></a>

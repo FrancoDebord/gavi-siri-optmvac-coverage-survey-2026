@@ -27,6 +27,7 @@ import householdPage from './pages/household';
 import submissionsPage from './pages/submissions';
 import clusterMapPage from './pages/cluster-map';
 import userFormPage from './pages/user-form';
+import vapCoveragePage from './pages/vap-coverage';
 
 window.bootstrap = bootstrap;
 
@@ -47,6 +48,7 @@ const pages = {
     submissions: submissionsPage,
     'cluster-map': clusterMapPage,
     'user-form': userFormPage,
+    'vap-coverage': vapCoveragePage,
 };
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\VapCoverageController;
 use App\Http\Controllers\ClusterController;
 use App\Http\Controllers\ClusterMapController;
 use App\Http\Controllers\CorrectionSheetController;
@@ -52,6 +53,13 @@ Route::middleware(['auth', 'active'])->group(function () {
     // Documentation (README et docs/*.md), filtrée par permission dans le contrôleur.
     Route::get('/documentation', [DocumentationController::class, 'index'])->name('documentation.index');
     Route::get('/documentation/{page}', [DocumentationController::class, 'show'])->where('page', '[a-z0-9\-]+')->name('documentation.show');
+
+    // Couverture du vaccin antipaludique (VAP 1 à 4).
+    Route::middleware('permission:view dashboards|view pi dashboard')->group(function () {
+        Route::get('/couverture-vap', [VapCoverageController::class, 'index'])->name('coverage.vap');
+        Route::get('/couverture-vap/donnees', [VapCoverageController::class, 'data'])->name('coverage.vap.data');
+        Route::get('/couverture-vap/export', [VapCoverageController::class, 'export'])->middleware('throttle:20,1')->name('coverage.vap.export');
+    });
 
     Route::middleware('permission:view dashboards')->group(function () {
         // Dashboard de progression
