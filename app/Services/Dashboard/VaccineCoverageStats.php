@@ -98,6 +98,12 @@ class VaccineCoverageStats extends ChildCoverageStats
         return $children;
     }
 
+    /** Doses renseignées dans les données lues (après all() ou groupedBy()). */
+    public function collectedDoses(): array
+    {
+        return $this->collected;
+    }
+
     protected function extra(array $children): array
     {
         return ['collected' => $this->collected];

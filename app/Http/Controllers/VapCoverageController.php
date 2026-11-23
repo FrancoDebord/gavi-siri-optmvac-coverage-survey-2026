@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Exports\ArrayExport;
+use App\Exports\CoverageWorkbook;
 use App\Models\AuditLog;
 use App\Services\Dashboard\CoverageReport;
 use App\Services\Dashboard\VapCoverageStats;
@@ -38,31 +38,24 @@ class VapCoverageController extends Controller
         return CoverageReport::vap((new VapCoverageStats($filters))->all(), $filters);
     }
 
-    /** Export Excel : couverture par zone, commune, village, âge et sexe (filtres courants). */
+    /**
+     * Export Excel (filtres courants), une feuille par niveau : zone ; zone et commune ; zone, commune et village ;
+     * âge et sexe. Pour chaque dose : reçues, dénominateur, couverture.
+     */
     public function export(Request $request): Response
     {
         abort_unless($request->user()->can('export data'), 403);
         $filters = Filters::fromRequest($request);
-        $stats = (new VapCoverageStats($filters))->all();
+        $stats = new VapCoverageStats($filters);
         AuditLog::record('export.couverture_vap', null, ['filtres' => $filters->values]);
 
-        $rows = [];
-        foreach (['by_zone' => 'Zone sanitaire', 'by_commune' => 'Commune', 'by_village' => 'Village', 'by_age' => 'Âge', 'by_sex' => 'Sexe'] as $key => $level) {
-            foreach ($stats[$key] as $group) {
-                $row = [$level, $group['label'], $group['children']];
-                foreach (VapCoverageStats::DOSES as $k) {
-                    $dose = $group['doses'][$k];
-                    array_push($row, $dose['received'], $dose['denominator'], $dose['pct'] !== null ? $dose['pct'] / 100 : null);
-                }
-                $rows[] = $row;
-            }
-        }
-        $headings = ['Niveau', 'Libellé', 'Enfants enrôlés'];
+        $columns = [];
         foreach (VapCoverageStats::DOSES as $k) {
-            array_push($headings, "VAP {$k} reçues", "VAP {$k} dénominateur", "VAP {$k} %");
+            $columns[] = ["VAP {$k} reçues", fn ($g) => $g['doses'][$k]['received'], null];
+            $columns[] = ["VAP {$k} dénominateur", fn ($g) => $g['doses'][$k]['denominator'], null];
+            $columns[] = ["VAP {$k} %", fn ($g) => $g['doses'][$k]['pct'] !== null ? $g['doses'][$k]['pct'] / 100 : null, '0.0%'];
         }
 
-        return Excel::download(new ArrayExport($rows, $headings, 'Couverture VAP', ['F' => '0.0%', 'I' => '0.0%', 'L' => '0.0%', 'O' => '0.0%']),
-            'couverture-vap-'.now()->format('Ymd-Hi').'.xlsx');
+        return Excel::download(new CoverageWorkbook($stats->groupedBy(...), $columns), 'couverture-vap-'.now()->format('Ymd-Hi').'.xlsx');
     }
 }

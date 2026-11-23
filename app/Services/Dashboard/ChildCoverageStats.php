@@ -16,6 +16,9 @@ abstract class ChildCoverageStats
     /** Regroupements proposés : clé de la réponse => propriété de l'enfant. */
     public const GROUPS = ['by_zone' => 'zone', 'by_commune' => 'commune', 'by_village' => 'village', 'by_age' => 'age_group', 'by_sex' => 'sex'];
 
+    /** Enfants déjà lus (export en plusieurs feuilles). */
+    private ?array $loaded = null;
+
     public function __construct(protected readonly Filters $filters) {}
 
     /** Clé du cache (une par page). */
@@ -79,7 +82,9 @@ abstract class ChildCoverageStats
                     $age < 24 => '12–23 mois',
                     default => '24–35 mois',
                 },
-                'sex' => match ($sex) { '0' => 'Garçons', '1' => 'Filles', default => 'Sexe non renseigné' },
+                'sex' => match ($sex) {
+                    '0' => 'Garçons', '1' => 'Filles', default => 'Sexe non renseigné'
+                },
                 'card_seen' => (bool) $row->card_seen,
                 'data' => $data,
                 'household' => json_decode((string) $row->household_data, true) ?: [],
@@ -99,6 +104,28 @@ abstract class ChildCoverageStats
         ksort($groups, SORT_NATURAL | SORT_FLAG_CASE);
 
         return array_map(fn ($label, $members) => ['label' => $label, 'children' => count($members)] + $this->metrics($members), array_keys($groups), $groups);
+    }
+
+    /**
+     * Indicateurs par combinaison de propriétés (ex. ['zone', 'commune'] : chaque commune sous sa zone) ; [] = ensemble.
+     * Pour l'export Excel (non mis en cache).
+     *
+     * @param  list<string>  $properties
+     * @return list<array{labels: list<string>, children: int}>
+     */
+    public function groupedBy(array $properties): array
+    {
+        $groups = [];
+        // Enfants lus une seule fois pour toutes les feuilles de l'export.
+        $this->loaded ??= $this->children();
+        foreach ($this->loaded as $child) {
+            $labels = array_map(fn ($p) => $child[$p], $properties);
+            $groups[implode("\u{1F}", $labels)] ??= ['labels' => $labels, 'members' => []];
+            $groups[implode("\u{1F}", $labels)]['members'][] = $child;
+        }
+        ksort($groups, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return array_values(array_map(fn ($g) => ['labels' => $g['labels'], 'children' => count($g['members'])] + $this->metrics($g['members']), $groups));
     }
 
     protected static function rate(int $count, int $denominator): ?float

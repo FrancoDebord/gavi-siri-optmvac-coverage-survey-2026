@@ -77,7 +77,9 @@ class VapCoverageStats
                     $age < 24 => '12–23 mois',
                     default => '24–35 mois',
                 },
-                'sex' => match ($sex) { '0' => 'Garçons', '1' => 'Filles', default => 'Sexe non renseigné' },
+                'sex' => match ($sex) {
+                    '0' => 'Garçons', '1' => 'Filles', default => 'Sexe non renseigné'
+                },
                 'card_seen' => (bool) $row->card_seen,
                 'vap4_due' => $age !== null && $age >= self::vap4MinMonths($row->zone_code),
                 'doses' => $doses,
@@ -160,5 +162,29 @@ class VapCoverageStats
             'children' => count($members),
             'doses' => array_combine(self::DOSES, array_map(fn ($k) => self::dose($members, $k), self::DOSES)),
         ], array_keys($groups), $groups);
+    }
+
+    /** Enfants déjà lus (export en plusieurs feuilles). */
+    private ?array $loaded = null;
+
+    /**
+     * Couverture par combinaison de propriétés (ex. ['zone', 'commune']) ; [] = ensemble. Pour l'export Excel.
+     *
+     * @param  list<string>  $properties
+     * @return list<array{labels: list<string>, children: int, doses: array}>
+     */
+    public function groupedBy(array $properties): array
+    {
+        $this->loaded ??= $this->children();
+        $groups = [];
+        foreach ($this->loaded as $child) {
+            $labels = array_map(fn ($p) => $child[$p], $properties);
+            $groups[implode("\u{1F}", $labels)] ??= ['labels' => $labels, 'members' => []];
+            $groups[implode("\u{1F}", $labels)]['members'][] = $child;
+        }
+        ksort($groups, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return array_values(array_map(fn ($g) => ['labels' => $g['labels'], 'children' => count($g['members']),
+            'doses' => array_combine(self::DOSES, array_map(fn ($k) => self::dose($g['members'], $k), self::DOSES))], $groups));
     }
 }
