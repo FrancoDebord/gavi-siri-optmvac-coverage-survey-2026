@@ -4,6 +4,7 @@
             <span class="small text-muted align-self-center">Actualisé à <span data-generated-at>…</span></span>
             @can('export data')
                 <a href="{{ route('coverage.vap.export') }}" data-export class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+                <a href="{{ route('coverage.vap.pdf') }}" data-export class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
             @endcan
         </x-page-header>
 

@@ -56,5 +56,6 @@ class VapCoverageTest extends TestCase
         $this->assertSame('Filles', $data['by_sex'][0]['label']);
 
         $this->actingAs($admin)->get(route('coverage.vap.export'))->assertOk()->assertHeader('content-disposition');
+        $this->assertSame('application/pdf', $this->actingAs($admin)->get(route('coverage.vap.pdf'))->assertOk()->headers->get('content-type'));
     }
 }

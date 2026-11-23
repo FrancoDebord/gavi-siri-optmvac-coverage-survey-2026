@@ -60,10 +60,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/couverture-vap', [VapCoverageController::class, 'index'])->name('coverage.vap');
         Route::get('/couverture-vap/donnees', [VapCoverageController::class, 'data'])->name('coverage.vap.data');
         Route::get('/couverture-vap/export', [VapCoverageController::class, 'export'])->middleware('throttle:20,1')->name('coverage.vap.export');
+        Route::get('/couverture-vap/pdf', [VapCoverageController::class, 'pdf'])->middleware('throttle:20,1')->name('coverage.vap.pdf');
         // Couverture des antigènes du calendrier et de la CPS.
         Route::get('/couverture/{type}', [CoverageController::class, 'index'])->whereIn('type', CoverageController::TYPES)->name('coverage.show');
         Route::get('/couverture/{type}/donnees', [CoverageController::class, 'data'])->whereIn('type', CoverageController::TYPES)->name('coverage.data');
         Route::get('/couverture/{type}/export', [CoverageController::class, 'export'])->whereIn('type', CoverageController::TYPES)->middleware('throttle:20,1')->name('coverage.export');
+        Route::get('/couverture/{type}/pdf', [CoverageController::class, 'pdf'])->whereIn('type', CoverageController::TYPES)->middleware('throttle:20,1')->name('coverage.pdf');
     });
 
     Route::middleware('permission:view dashboards')->group(function () {

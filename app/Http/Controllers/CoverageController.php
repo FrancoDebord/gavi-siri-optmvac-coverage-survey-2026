@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\ArrayExport;
 use App\Models\AuditLog;
 use App\Services\Dashboard\ChildCoverageStats;
+use App\Services\Dashboard\CoverageReport;
 use App\Services\Dashboard\SmcCoverageStats;
 use App\Services\Dashboard\VaccineCoverageStats;
 use App\Support\Filters;
@@ -59,6 +60,17 @@ class CoverageController extends Controller
 
         return Excel::download(new ArrayExport($rows, ['Niveau', 'Libellé', 'Enfants enrôlés', ...$columns->keys()], $type === 'cps' ? 'Couverture CPS' : 'Couverture antigènes', $formats),
             "couverture-{$type}-".now()->format('Ymd-Hi').'.xlsx');
+    }
+
+    /** Rapport PDF : indicateurs, barres par dose ou cycle, détail et tableaux par niveau (filtres courants). */
+    public function pdf(Request $request, string $type): Response
+    {
+        abort_unless($request->user()->can('export data'), 403);
+        $filters = Filters::fromRequest($request);
+        AuditLog::record('export.couverture_'.$type, null, ['format' => 'pdf', 'filtres' => $filters->values]);
+        $stats = $this->stats($request, $type)->all();
+
+        return $type === 'cps' ? CoverageReport::smc($stats, $filters) : CoverageReport::antigens($stats, $filters);
     }
 
     private function stats(Request $request, string $type): ChildCoverageStats

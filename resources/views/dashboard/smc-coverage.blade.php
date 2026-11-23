@@ -6,6 +6,7 @@
             <a href="{{ route('coverage.vap') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-shield-check me-1"></i>VAP</a>
             @can('export data')
                 <a href="{{ route('coverage.export', 'cps') }}" data-export class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+                <a href="{{ route('coverage.pdf', 'cps') }}" data-export class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
             @endcan
         </x-page-header>
 

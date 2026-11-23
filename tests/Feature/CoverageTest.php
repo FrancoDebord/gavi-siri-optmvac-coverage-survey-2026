@@ -57,6 +57,8 @@ class CoverageTest extends TestCase
         $this->assertArrayNotHasKey('ipv1', $total['doses']);
 
         $this->actingAs($this->admin)->get(route('coverage.export', 'antigenes'))->assertOk()->assertHeader('content-disposition');
+        $pdf = $this->actingAs($this->admin)->get(route('coverage.pdf', ['type' => 'antigenes', 'health_zone_id' => 1]))->assertOk();
+        $this->assertSame('application/pdf', $pdf->headers->get('content-type'));
     }
 
     public function test_smc_coverage_by_cycle_with_card_then_recall(): void
@@ -74,5 +76,6 @@ class CoverageTest extends TestCase
         $this->assertEquals(50.0, $total['card_present']);
 
         $this->actingAs($this->admin)->get(route('coverage.export', 'cps'))->assertOk()->assertHeader('content-disposition');
+        $this->assertSame('application/pdf', $this->actingAs($this->admin)->get(route('coverage.pdf', 'cps'))->assertOk()->headers->get('content-type'));
     }
 }

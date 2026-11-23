@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\ArrayExport;
 use App\Models\AuditLog;
+use App\Services\Dashboard\CoverageReport;
 use App\Services\Dashboard\VapCoverageStats;
 use App\Support\Filters;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +26,16 @@ class VapCoverageController extends Controller
     public function data(Request $request): JsonResponse
     {
         return response()->json((new VapCoverageStats(Filters::fromRequest($request)))->all());
+    }
+
+    /** Rapport PDF : indicateurs, barres par dose, détail et tableaux par niveau (filtres courants). */
+    public function pdf(Request $request): Response
+    {
+        abort_unless($request->user()->can('export data'), 403);
+        $filters = Filters::fromRequest($request);
+        AuditLog::record('export.couverture_vap', null, ['format' => 'pdf', 'filtres' => $filters->values]);
+
+        return CoverageReport::vap((new VapCoverageStats($filters))->all(), $filters);
     }
 
     /** Export Excel : couverture par zone, commune, village, âge et sexe (filtres courants). */
