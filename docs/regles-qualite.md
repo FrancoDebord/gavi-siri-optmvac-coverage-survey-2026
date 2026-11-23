@@ -89,7 +89,7 @@ Règles du document « Règles de qualité des données – Bénin (cov26c4v2) �
 | `MAJ_08` | Nombre de caregivers incohérent avec la liste des membres | Majeure | Query | Non (à valider) | Corriger le nombre de caregivers ou la liste des membres. |
 | `MAJ_09` | Plus d'enfants déclarés que d'enfants listés | Majeure | Query | Oui | La fiche liste le nombre d'enfants déclaré par chaque caregiver et la tranche d'âge des membres de 5 ans ou plus, corrigeables chacun dans son membre. |
 | `MAJ_10` | Ménage sans adulte | Majeure | Query | Oui | La fiche liste les membres (initiales, sexe, tranche d'âge cochée), corrigeables chacun ; « Aucune » confirme la query sans correction (ménage réellement sans adulte). |
-| `MAJ_11` | Caregiver de moins de 15 ans | Majeure | Query | Oui | Vérifier l'âge du membre ou corriger « caregiver ». |
+| `MAJ_11` | Caregiver de moins de 15 ans | Majeure | Query | Oui | La query montre la réponse « caregiver » (q. 27), la tranche d'âge du membre (q. 24) et l'âge du caregiver interrogé (q. 34) ; chacune est corrigeable. |
 | `MAJ_12` | Âge du caregiver impossible | Majeure | Query | Oui | Vérifier l'âge et corriger. |
 | `MAJ_13` | Parent trop jeune pour l'enfant | Majeure | Query | Oui | Vérifier l'âge du caregiver, l'âge de l'enfant ou le lien. |
 | `MAJ_14` | Sexe incohérent avec le lien de parenté | Majeure | Query | Oui | Corriger le sexe ou le lien de parenté. |

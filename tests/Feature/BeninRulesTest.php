@@ -142,6 +142,34 @@ class BeninRulesTest extends TestCase
         return $manager;
     }
 
+    public function test_young_caregiver_shows_the_member_age_group_and_the_caregiver_age(): void
+    {
+        (new SubmissionProcessor)->process(new NormalizedSubmission('uuid:YC', [
+            'today' => '2026-10-20', 'l1' => '1', 'l2' => '1', 'l3' => '1', 'village' => '41', 'fieldworker' => '46',
+            'household' => 'TCH-SEB-01-021', 'household_survey_status' => '0', 'c_low' => '12', 'c_high' => '35',
+        ], [
+            'smc_cov_roster_2023' => [
+                ['key' => null, 'data' => ['person_initials' => 'BS', 'person_caregiver' => '0', 'age_group' => '9'], 'repeats' => []],
+                ['key' => null, 'data' => ['person_initials' => 'AK', 'person_caregiver' => '1', 'age_group' => '6'], 'repeats' => []],
+            ],
+            'cg' => [['key' => null, 'data' => ['participation_agreed' => '1', 'firstname' => 'AK', 'age_years' => '30', 'caregiver_num_children' => '1'], 'repeats' => []]],
+        ], []), ['source_type' => 'demo']);
+        app(QualityEngine::class)->run('test');
+
+        $query = DataQuery::where('rule_code', 'MAJ_11')->firstOrFail();
+        $this->assertSame('Membre n°2 AK : noté caregiver (q. 27), mais tranche d\'âge cochée 10-14 (moins de 15 ans) ; caregiver interrogé correspondant : n°1 AK, 30 ans (q. 34).', $query->message);
+        $this->assertSame('smc_cov_roster_2023[2]', $query->instance_path);
+
+        // Trois valeurs en cause, chacune corrigeable dans son membre.
+        $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $query))->assertOk()
+            ->assertSee('name="corrections[0][variable]" value="person_caregiver"', false)
+            ->assertSee('name="corrections[1][variable]" value="age_group"', false)
+            ->assertSee('name="corrections[1][instance_path]" value="smc_cov_roster_2023[2]"', false)
+            ->assertSee('name="corrections[2][variable]" value="age_years"', false)
+            ->assertSee('name="corrections[2][instance_path]" value="cg[1]"', false)
+            ->assertSee('Caregiver n°1 – âge (années)');
+    }
+
     public function test_household_without_adult_shows_the_roster_ages_and_can_be_confirmed(): void
     {
         (new SubmissionProcessor)->process(new NormalizedSubmission('uuid:NA', [

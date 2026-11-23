@@ -10,6 +10,7 @@ use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
 use App\Services\Quality\Rules\Business\MalariaThreeDosesReviewRule;
 use App\Services\Quality\Rules\Business\RecallDoseAgeRule;
+use App\Services\Quality\Rules\Business\RosterYoungCaregiverRule;
 use App\Services\Quality\Rules\Business\SmcCycleOrderRule;
 use App\Services\Export\DatasetExporter;
 use Illuminate\Support\Str;
@@ -36,6 +37,9 @@ final class RelatedFields
         }
         if ($query->rule_code === 'MAJ_10') {
             return self::rosterAges($clean);
+        }
+        if ($query->rule_code === 'MAJ_11') {
+            return self::youngCaregiver($query, $clean);
         }
         $variables = match ($query->rule_code) {
             'VAC_DOSE_ORDER', 'VAC_DOSE_INTERVAL' => [self::previousDose($query, $clean)],
@@ -92,6 +96,28 @@ final class RelatedFields
         }
 
         return [...$caregivers, ...$members];
+    }
+
+    /**
+     * MAJ-11 (membre de moins de 15 ans noté caregiver) : tranche d'âge du membre et âge du caregiver interrogé
+     * correspondant, en plus de la réponse « caregiver » (variable de la query).
+     *
+     * @return list<array{variable: string, label: string, path: string}>
+     */
+    private static function youngCaregiver(DataQuery $query, NormalizedSubmission $clean): array
+    {
+        $tables = (new DatasetExporter)->flatten($clean);
+        $roster = array_values(array_filter($tables[Map::var('repeat_membres')] ?? [], fn ($r) => ! str_contains((string) $r['path'], '/')));
+        $caregivers = array_values(array_filter($tables[Map::var('repeat_caregivers')] ?? [], fn ($r) => ! str_contains((string) $r['path'], '/')));
+        $path = (string) $query->instance_path;
+        $position = preg_match('/\[(\d+)\]$/', $path, $m) ? $m[1] : '?';
+        $fields = [['variable' => 'age_group', 'label' => "Membre n°{$position} – tranche d'âge", 'path' => $path]];
+        if ($caregiver = RosterYoungCaregiverRule::matchCaregiver($roster, $caregivers, $path)) {
+            $cg = preg_match('/\[(\d+)\]$/', $caregiver['path'], $m) ? $m[1] : '?';
+            $fields[] = ['variable' => 'age_years', 'label' => "Caregiver n°{$cg} – âge (années)", 'path' => $caregiver['path']];
+        }
+
+        return $fields;
     }
 
     /**

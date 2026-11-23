@@ -42,6 +42,8 @@ final class BeninRuleSet
         'AVT-01' => 'Avertissement sans correction : liste des vaccins d\'un même contact à préciser.',
     ];
 
+    public const MAJ_11_SUGGESTION = 'Vérifier avec le binôme la réponse « caregiver » (q. 27), la tranche d\'âge du membre (q. 24) et l\'âge du caregiver (q. 34) : corriger celle qui est fausse.';
+
     public const MAJ_32_SUGGESTION = 'Vérifier avec le caregiver la date de naissance et la dose déclarée ({attendu}) : corriger celle qui est fausse.';
 
     public const MAJ_34_SUGGESTION = 'Relire le carnet : s\'il porte le cachet « Enfant complètement vacciné », l\'enfant a reçu toutes les doses (laisser « Oui » et justifier). Sinon corriger la réponse de revue, la carte ou le rappel.';
@@ -96,9 +98,8 @@ final class BeninRuleSet
                 Business\RosterUnderFiveRule::class, 'Plus d\'enfants déclarés par les caregivers que d\'enfants de moins de 5 ans listés.', 'Vérifier les âges des membres et le nombre d\'enfants déclaré.'),
             'MAJ_10' => self::code('Ménage sans adulte', 'majeure', 'household', 'age_group', Business\RosterNoAdultRule::class,
                 'Aucun adulte (15 ans ou plus) dans la liste des membres.', 'Vérifier les âges des membres.'),
-            'MAJ_11' => self::expr('Caregiver de moins de 15 ans', 'majeure', 'repeat', 'person_caregiver,age_group',
-                '${person_caregiver} = 1 and ${age_group} <= 6',
-                'Un membre de moins de 15 ans est noté caregiver.', 'Vérifier l\'âge du membre ou corriger « caregiver ».'),
+            'MAJ_11' => self::code('Caregiver de moins de 15 ans', 'majeure', 'repeat', 'person_caregiver,age_group,age_years', Business\RosterYoungCaregiverRule::class,
+                'Un membre de moins de 15 ans est noté caregiver (réponse « caregiver », tranche d\'âge et âge du caregiver précisés).', self::MAJ_11_SUGGESTION),
             'MAJ_12' => self::expr('Âge du caregiver impossible', 'majeure', 'caregiver', 'age_years',
                 '${age_years} < 12 or ${age_years} > 90', 'Âge du caregiver à vérifier.', 'Vérifier l\'âge et corriger.'),
             'MAJ_13' => self::expr('Parent trop jeune pour l\'enfant', 'majeure', 'child', 'age_years,age_months_est,caregiver_relationship_to_child',
