@@ -59,7 +59,7 @@ class CoverageTest extends TestCase
         // Classeur : une feuille par niveau (zone ; zone et commune ; zone, commune et village ; âge et sexe).
         $file = $this->actingAs($this->admin)->get(route('coverage.export', 'antigenes'))->assertOk()->getFile()->getPathname();
         $book = \PhpOffice\PhpSpreadsheet\IOFactory::load($file);
-        $this->assertSame(['Zones', 'Zones et communes', 'Zones communes villages', 'Âge et sexe'], $book->getSheetNames());
+        $this->assertSame(['Niveau zone', 'Niveau commune', 'Niveau village', 'Âge et sexe'], $book->getSheetNames());
         $villages = $book->getSheet(2)->toArray();
         $this->assertSame(['Zone sanitaire', 'Commune', 'Village', 'Enfants enrôlés'], array_slice($villages[0], 0, 4));
         $this->assertSame('Ensemble', $book->getSheet(0)->getCell('A2')->getValue());

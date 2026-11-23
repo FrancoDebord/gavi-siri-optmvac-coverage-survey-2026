@@ -6,7 +6,8 @@ use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
 /**
  * Classeur Excel d'une page de couverture, une feuille par niveau :
- * 1. zone sanitaire (avec l'ensemble en tête) ; 2. zone et commune ; 3. zone, commune et village ; 4. âge et sexe.
+ * « Niveau zone » (avec l'ensemble en tête), « Niveau commune » (zone, commune), « Niveau village » (zone, commune, village),
+ * puis « Âge et sexe ».
  * $grouped(list<string> $properties) rend les groupes ['labels' => [...], 'children' => n, …indicateurs] ;
  * $columns : [[en-tête, fn(groupe) => valeur, format Excel ou null], …].
  */
@@ -24,9 +25,9 @@ class CoverageWorkbook implements WithMultipleSheets
         );
 
         return [
-            $this->sheet('Zones', ['Zone sanitaire'], $zones),
-            $this->sheet('Zones et communes', ['Zone sanitaire', 'Commune'], ($this->grouped)(['zone', 'commune'])),
-            $this->sheet('Zones communes villages', ['Zone sanitaire', 'Commune', 'Village'], ($this->grouped)(['zone', 'commune', 'village'])),
+            $this->sheet('Niveau zone', ['Zone sanitaire'], $zones),
+            $this->sheet('Niveau commune', ['Zone sanitaire', 'Commune'], ($this->grouped)(['zone', 'commune'])),
+            $this->sheet('Niveau village', ['Zone sanitaire', 'Commune', 'Village'], ($this->grouped)(['zone', 'commune', 'village'])),
             $this->sheet('Âge et sexe', ['Regroupement', 'Libellé'], $ageSex),
         ];
     }

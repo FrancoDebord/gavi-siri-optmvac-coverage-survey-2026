@@ -40,7 +40,10 @@ class VapCoverageTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(User::ROLE_ADMIN);
 
-        $this->withoutVite()->actingAs($admin)->get(route('coverage.vap'))->assertOk()->assertSee('Couverture du vaccin antipaludique (VAP 1 à 4)');
+        // Chaque graphique s'exporte en image (téléchargement ou copie pour PowerPoint).
+        $this->withoutVite()->actingAs($admin)->get(route('coverage.vap'))->assertOk()->assertSee('Couverture du vaccin antipaludique (VAP 1 à 4)')
+            ->assertSee('data-chart-image="download" data-chart-canvas="chart-doses"', false)
+            ->assertSee('data-chart-image="copy" data-chart-canvas="chart-doses"', false);
 
         $data = $this->actingAs($admin)->getJson(route('coverage.vap.data'))->assertOk()->json();
         $doses = $data['kpis']['doses'];

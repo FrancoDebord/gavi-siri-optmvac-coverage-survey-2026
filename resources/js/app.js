@@ -6,6 +6,7 @@ import 'datatables.net-bs5/css/dataTables.bootstrap5.min.css';
 import 'leaflet/dist/leaflet.css';
 import '../css/app.css';
 
+import { initChartImages } from './lib/charts';
 import { initLayout } from './lib/layout';
 import { initLiveFilters } from './lib/live-filter';
 import { initPasswordFields } from './lib/password-fields';
@@ -61,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSearchableSelects();
     initLiveFilters();
     initPasswordFields();
+    initChartImages();
     const page = document.body.dataset.page;
     if (page && pages[page]) {
         pages[page]();
