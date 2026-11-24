@@ -22,7 +22,9 @@ use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InvestigatorController;
 use App\Http\Controllers\MappingController;
 use App\Http\Controllers\MicrosoftLoginController;
+use App\Http\Controllers\PhotoProjectController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicPhotoController;
 use App\Http\Controllers\QualityRuleController;
 use App\Http\Controllers\QueryDashboardController;
 use App\Http\Controllers\RemainingVillagesController;
@@ -46,6 +48,15 @@ Route::get('/session/jeton', fn () => response()->json(['token' => csrf_token()]
 Route::middleware(['guest', 'throttle:20,1'])->group(function () {
     Route::get('/auth/microsoft', [MicrosoftLoginController::class, 'redirect'])->name('auth.microsoft');
     Route::get('/auth/microsoft/callback', [MicrosoftLoginController::class, 'callback'])->name('auth.microsoft.callback');
+});
+
+// Espaces photos de terrain : lien public secret, puis code PIN (sans compte) ; dépôt et galerie du projet.
+Route::prefix('photos/{token}')->where(['token' => '[A-Za-z0-9]{40}'])->name('photos.public.')->group(function () {
+    Route::get('/', [PublicPhotoController::class, 'show'])->middleware('throttle:60,1')->name('show');
+    Route::post('/pin', [PublicPhotoController::class, 'unlock'])->middleware('throttle:10,1')->name('unlock');
+    Route::post('/', [PublicPhotoController::class, 'upload'])->middleware('throttle:120,1')->name('upload');
+    Route::get('/{photo}/{variant}', [PublicPhotoController::class, 'file'])->whereNumber('photo')->whereIn('variant', ['vignette', 'original'])
+        ->middleware('throttle:600,1')->name('file');
 });
 
 Route::middleware(['auth', 'active'])->group(function () {
@@ -256,6 +267,18 @@ Route::middleware(['auth', 'active'])->group(function () {
     });
     Route::get('/parametres/audit', [AuditLogController::class, 'index'])->middleware('permission:view audit')->name('audit.index');
     Route::get('/parametres/audit/export', [AuditLogController::class, 'export'])->middleware(['permission:view audit', 'throttle:10,1'])->name('audit.export');
+    // Gestion des espaces photos de terrain (création, lien et PIN, galerie, suppression, ZIP).
+    Route::middleware('permission:manage field photos')->prefix('photos-terrain')->name('photo-projects.')->group(function () {
+        Route::get('/', [PhotoProjectController::class, 'index'])->name('index');
+        Route::post('/', [PhotoProjectController::class, 'store'])->name('store');
+        Route::get('/{project}', [PhotoProjectController::class, 'show'])->whereNumber('project')->name('show');
+        Route::put('/{project}', [PhotoProjectController::class, 'update'])->whereNumber('project')->name('update');
+        Route::delete('/{project}', [PhotoProjectController::class, 'destroy'])->whereNumber('project')->name('destroy');
+        Route::post('/{project}/renouveler', [PhotoProjectController::class, 'regenerate'])->whereNumber('project')->name('regenerate');
+        Route::get('/{project}/telecharger', [PhotoProjectController::class, 'download'])->whereNumber('project')->middleware('throttle:10,1')->name('download');
+        Route::delete('/{project}/photos/{photo}', [PhotoProjectController::class, 'destroyPhoto'])->whereNumber(['project', 'photo'])->name('photos.destroy');
+    });
+
     Route::middleware('permission:export databases')->group(function () {
         Route::get('/parametres/exports', [DataExportController::class, 'index'])->name('exports.index');
         Route::post('/parametres/exports', [DataExportController::class, 'store'])->name('exports.store')->middleware('throttle:10,1');

@@ -32,6 +32,8 @@ import vapCoveragePage from './pages/vap-coverage';
 import vaccineCoveragePage from './pages/vaccine-coverage';
 import smcCoveragePage from './pages/smc-coverage';
 import piResponsePage from './pages/pi-response';
+import photoSpacePage from './pages/photo-space';
+import photoProjectsPage from './pages/photo-projects';
 
 window.bootstrap = bootstrap;
 
@@ -56,6 +58,8 @@ const pages = {
     'vaccine-coverage': vaccineCoveragePage,
     'smc-coverage': smcCoveragePage,
     'pi-response': piResponsePage,
+    'photo-space': photoSpacePage,
+    'photo-projects': photoProjectsPage,
 };
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -60,6 +60,7 @@
         <a class="{{ $link('messages.*') }}" href="{{ route('messages.index') }}"><i class="bi bi-chat-left-text"></i><span class="label">Messages aux équipes</span></a>
         <a class="{{ $link('incidents.*') }}" href="{{ route('incidents.index') }}"><i class="bi bi-exclamation-triangle"></i><span class="label">Incidents terrain
             @if ($openIncidents)<span class="badge rounded-pill text-bg-danger ms-1">{{ $openIncidents }}</span>@endif</span></a>
+        <a class="{{ $link('photo-projects.*') }}" href="{{ route('photo-projects.index') }}"><i class="bi bi-images"></i><span class="label">Photos de terrain</span></a>
     @else
     @can('view pi dashboard')
         <div class="nav-section">Investigateur principal</div>
@@ -81,6 +82,9 @@
         @if ($unreadMessages)<span class="badge rounded-pill text-bg-primary ms-1">{{ $unreadMessages }}</span>@endif</span></a>
     <a class="{{ request()->routeIs('team.*') && ! ($onOwn ?? false) ? 'nav-link active' : 'nav-link' }}" href="{{ route('team.space') }}"><i class="bi bi-people-fill"></i><span class="label">Espace des binômes</span></a>
     <a class="{{ $link('decisions.*') }}" href="{{ route('decisions.index') }}"><i class="bi bi-journal-check"></i><span class="label">Décisions de terrain</span></a>
+    @can('manage field photos')
+    <a class="{{ $link('photo-projects.*') }}" href="{{ route('photo-projects.index') }}"><i class="bi bi-images"></i><span class="label">Photos de terrain</span></a>
+    @endcan
 
     <div class="nav-section">Suivi</div>
     <a class="{{ $link('dashboard') }}" href="{{ route('dashboard', $hasOwnHome ? ['complet' => 1] : []) }}"><i class="bi bi-speedometer2"></i><span class="label">Progression</span></a>
