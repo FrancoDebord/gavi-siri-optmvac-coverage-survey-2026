@@ -90,6 +90,9 @@
     <a class="{{ $link('decisions.*') }}" href="{{ route('decisions.index') }}"><i class="bi bi-journal-check"></i><span class="label">Décisions de terrain</span></a>
     @can('manage field photos')
     <a class="{{ $link('photo-projects.*') }}" href="{{ route('photo-projects.index') }}"><i class="bi bi-images"></i><span class="label">Photos de terrain</span></a>
+    @elseif (auth()->user()->hasRole(\App\Models\User::ROLE_SUPERVISOR) && ! auth()->user()->hasOwnTeam() &&\App\Models\PhotoProject::openForTeams()->exists())
+    {{-- Superviseurs : dépôt dans les espaces photos ouverts (déjà dans « Mon binôme » s'ils en ont un). --}}
+    <a class="nav-link" href="{{ route('team.photos') }}" target="_blank" rel="noopener"><i class="bi bi-camera"></i><span class="label">Photos de terrain</span></a>
     @endcan
 
     <div class="nav-section">Suivi</div>

@@ -17,6 +17,7 @@
                 </select>
             </form>
         @endunless
+        <x-photo-spaces-button />
         @can('report incidents')
             <a href="{{ route('incidents.create') }}" class="btn btn-sm btn-danger"><i class="bi bi-exclamation-triangle me-1"></i>Signaler un incident</a>
         @endcan

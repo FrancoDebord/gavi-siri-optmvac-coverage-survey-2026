@@ -259,22 +259,26 @@ class TeamSpaceController extends Controller
             'openQueries' => DataQuery::forTeam($team)->whereIn('status', DataQuery::UNRESOLVED)->count(),
             'openVillageQueries' => DataQuery::forTeam($team)
                 ->where('rule_code', 'TEAM_VILLAGE')->whereIn('status', DataQuery::UNRESOLVED)->count(),
-            // Espaces photos de terrain ouverts de l'enquête (bouton « Photos de terrain » de l'en-tête).
-            'photoSpaces' => PhotoProject::openForTeams()->get(['id', 'name']),
         ];
     }
 
     /**
      * Espace photos de terrain depuis l'espace binôme : compte connecté, donc sans code PIN (déverrouillé pour cette
      * session), puis la page de dépôt. Sans projet précisé : le seul espace ouvert, sinon retour au choix.
+     * Réservé aux binômes, aux superviseurs et aux gestionnaires des espaces photos.
      */
     public function photos(Request $request, ?PhotoProject $project = null): RedirectResponse
     {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole([User::ROLE_TEAM, User::ROLE_SUPERVISOR]) || $user->hasOwnTeam() || $user->can('manage field photos'), 403);
         $open = PhotoProject::openForTeams();
         if (! $project) {
             $spaces = $open->get();
             if ($spaces->count() !== 1) {
-                return redirect()->route('team.space')->with('info', $spaces->isEmpty()
+                // Retour à l'espace d'où vient l'utilisateur (binôme ou superviseur), où le bouton propose le choix.
+                $home = $user->hasRole(User::ROLE_TEAM) ? 'team.space' : 'supervision.index';
+
+                return redirect()->route($home)->with('info', $spaces->isEmpty()
                     ? "Aucun espace photos de terrain n'est ouvert pour le moment."
                     : "Choisissez l'espace photos avec le bouton « Photos de terrain ».");
             }

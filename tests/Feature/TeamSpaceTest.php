@@ -178,6 +178,27 @@ class TeamSpaceTest extends TestCase
         $this->actingAs($pi)->get(route('team.space', ['team_id' => Team::where('code', '33-43')->value('id')]))->assertOk()->assertSee('Binôme 33-43');
     }
 
+    public function test_supervisor_space_links_to_the_open_photo_spaces(): void
+    {
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, ['health_zone_id' => HealthZone::where('code', '1')->value('id')]);
+        $reader = $this->user(User::ROLE_READER);
+
+        // Aucun espace ouvert : ni bouton ni entrée de menu ; retour à l'espace superviseur.
+        $this->actingAs($supervisor)->get(route('supervision.index'))->assertOk()->assertDontSee(route('team.photos'), false);
+        $this->actingAs($supervisor)->get(route('team.photos'))->assertRedirect(route('supervision.index'));
+
+        $photos = PhotoProject::create(['name' => 'Photos Round 2', 'linked_to_survey' => true]);
+        $this->actingAs($supervisor)->get(route('supervision.index'))->assertOk()
+            ->assertSee(route('team.photos', $photos), false)->assertSee(route('team.photos'), false);
+        // Ouvert sans code PIN.
+        $this->actingAs($supervisor)->get(route('team.photos'))->assertRedirect($photos->publicUrl());
+        $this->actingAs($supervisor)->get($photos->publicUrl())->assertOk()->assertSee('Déposer des photos');
+
+        // Lecteur : page superviseur sans le bouton, accès refusé.
+        $this->actingAs($reader)->get(route('supervision.index'))->assertOk()->assertDontSee(route('team.photos', $photos), false);
+        $this->actingAs($reader)->get(route('team.photos', $photos))->assertForbidden();
+    }
+
     public function test_team_account_requires_a_team(): void
     {
         $admin = $this->user(User::ROLE_ADMIN);
