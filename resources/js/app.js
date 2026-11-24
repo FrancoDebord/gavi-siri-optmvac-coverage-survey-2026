@@ -8,6 +8,7 @@ import '../css/app.css';
 
 import { initChartImages } from './lib/charts';
 import { initLayout } from './lib/layout';
+import { initLightbox } from './lib/lightbox';
 import { initLiveFilters } from './lib/live-filter';
 import { initPasswordFields } from './lib/password-fields';
 import { initSearchableSelects } from './lib/searchable-select';
@@ -68,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSearchableSelects();
     initLiveFilters();
     initPasswordFields();
+    initLightbox();
     initChartImages();
     const page = document.body.dataset.page;
     if (page && pages[page]) {

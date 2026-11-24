@@ -1,12 +1,23 @@
-{{-- Galerie d'un espace photos : vignettes (clic : photo originale), auteur, lieu, date, légende ; suppression pour les gestionnaires. --}}
+{{--
+    Galerie d'un espace photos : vignettes, auteur, lieu, date, légende ; suppression pour les gestionnaires.
+    Clic sur une vignette : visionneuse plein écran (lib/lightbox.js) ; sans JS, la photo originale s'ouvre.
+--}}
 @if ($photos->isEmpty())
     <p class="text-muted text-center py-4 mb-0">Aucune photo pour l'instant.</p>
 @else
-    <div class="row g-3">
+    <div class="row g-3" data-lightbox-gallery>
         @foreach ($photos as $photo)
             <div class="col-6 col-md-4 col-lg-3">
                 <div class="card h-100 photo-card">
-                    <a href="{{ route('photos.public.file', [$project->token, $photo, 'original']) }}" target="_blank" rel="noopener" class="ratio ratio-4x3 bg-light">
+                    <a href="{{ route('photos.public.file', [$project->token, $photo, 'original']) }}" target="_blank" rel="noopener" class="ratio ratio-4x3 bg-light photo-thumb"
+                       data-lightbox-item
+                       data-thumb="{{ route('photos.public.file', [$project->token, $photo, 'vignette']) }}"
+                       data-author="{{ $photo->authorLabel() }}"
+                       data-place="{{ $photo->placeLabel() }}"
+                       data-date="{{ ($photo->taken_at ?? $photo->created_at)->format('d/m/Y H:i') }}"
+                       data-caption="{{ $photo->caption }}"
+                       data-download="{{ $photo->downloadName() }}"
+                       @if ($photo->latitude !== null) data-map="https://www.openstreetmap.org/?mlat={{ $photo->latitude }}&mlon={{ $photo->longitude }}#map=16/{{ $photo->latitude }}/{{ $photo->longitude }}" @endif>
                         <img src="{{ route('photos.public.file', [$project->token, $photo, 'vignette']) }}" alt="{{ $photo->caption ?: 'Photo de terrain' }}" loading="lazy" class="object-fit-cover rounded-top">
                     </a>
                     <div class="card-body p-2 small">

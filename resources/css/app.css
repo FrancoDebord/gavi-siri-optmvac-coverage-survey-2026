@@ -755,3 +755,173 @@ footer.text-muted {
 /* Tableau repliable (x-ppt-tables, niveau village) : chevron vers le haut une fois déplié. */
 [data-bs-toggle="collapse"] .bi-chevron-down { display: inline-block; transition: transform 0.2s; }
 [data-bs-toggle="collapse"]:not(.collapsed) .bi-chevron-down { transform: rotate(180deg); }
+
+/* ------------------------------------------------------------------------------------------------
+ * Visionneuse plein écran des photos de terrain (lib/lightbox.js)
+ * ---------------------------------------------------------------------------------------------- */
+.photo-thumb { cursor: zoom-in; overflow: hidden; }
+.photo-thumb img { transition: transform .35s ease; }
+.photo-thumb:hover img { transform: scale(1.06); }
+
+body.lightbox-lock { overflow: hidden; }
+
+.lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: none;
+    background-color: #060606;   /* noir plein : rien de la page ne transparaît (fondu seulement en balayant vers le bas) */
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.lightbox.is-open { display: block; animation: lightbox-in .25s ease; }
+.lightbox.is-idle { cursor: none; }
+
+.lightbox-stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+}
+.lightbox-image {
+    max-width: 100vw;
+    max-height: 100vh;
+    max-height: 100dvh;
+    object-fit: contain;
+    will-change: transform;
+    transform-origin: center center;
+    cursor: zoom-in;
+    box-shadow: 0 0 80px rgba(0, 0, 0, .6);
+}
+.lightbox.is-zoomed .lightbox-image { cursor: grab; }
+.lightbox.is-loading .lightbox-image { filter: blur(6px); }
+.lightbox-image.is-entering-right { animation: lightbox-from-right .3s ease; }
+.lightbox-image.is-entering-left { animation: lightbox-from-left .3s ease; }
+.lightbox-spinner { position: absolute; display: none; width: 2.5rem; height: 2.5rem; opacity: .7; }
+.lightbox.is-loading .lightbox-spinner { display: block; }
+
+/* Barre du haut, navigation, légende et vignettes : masquées après quelques secondes d'inactivité. */
+.lightbox-bar, .lightbox-nav, .lightbox-caption, .lightbox-strip, .lightbox-progress {
+    transition: opacity .4s ease, transform .4s ease;
+}
+.lightbox.is-idle .lightbox-bar,
+.lightbox.is-idle .lightbox-nav,
+.lightbox.is-idle .lightbox-caption,
+.lightbox.is-idle .lightbox-strip { opacity: 0; pointer-events: none; }
+.lightbox.is-idle .lightbox-bar { transform: translateY(-10px); }
+.lightbox.is-idle .lightbox-strip, .lightbox.is-idle .lightbox-caption { transform: translateY(10px); }
+
+.lightbox-bar {
+    position: absolute;
+    inset: 0 0 auto 0;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .6rem 1rem;
+    background: linear-gradient(rgba(0, 0, 0, .65), transparent);
+}
+.lightbox-counter { font-variant-numeric: tabular-nums; opacity: .85; letter-spacing: .05em; }
+.lightbox-actions { display: flex; gap: .25rem; }
+.lightbox-actions > button, .lightbox-actions > a {
+    display: inline-grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    font-size: 1.2rem;
+    text-decoration: none;
+}
+.lightbox-actions > button:hover, .lightbox-actions > a:hover, .lightbox-actions > :focus-visible { background: rgba(255, 255, 255, .15); color: #fff; }
+.lightbox-actions > [hidden] { display: none; }
+.lightbox.is-playing [data-lb="slideshow"] { background: var(--airid-red, #C10202); }
+
+.lightbox-progress { position: absolute; inset: 0 0 auto 0; z-index: 3; height: 3px; display: none; }
+.lightbox.is-playing .lightbox-progress { display: block; }
+.lightbox-progress span { display: block; height: 100%; width: 0; background: var(--airid-red, #C10202); }
+
+.lightbox-nav {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 3.25rem;
+    height: 3.25rem;
+    margin-top: -1.6rem;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .1);
+    color: #fff;
+    font-size: 1.6rem;
+    backdrop-filter: blur(6px);
+}
+.lightbox-nav:hover { background: rgba(255, 255, 255, .25); }
+.lightbox-nav[hidden] { display: none; }
+.lightbox-prev { left: 1rem; }
+.lightbox-next { right: 1rem; }
+
+.lightbox-caption {
+    position: absolute;
+    inset: auto 0 76px 0;
+    z-index: 2;
+    padding: 2.5rem 1.25rem .75rem;
+    background: linear-gradient(transparent, rgba(0, 0, 0, .7));
+    text-align: center;
+    pointer-events: none;
+}
+.lightbox-caption-meta { font-size: .9rem; opacity: .9; }
+.lightbox-caption-text { margin-top: .25rem; font-size: 1.05rem; max-width: 60rem; margin-inline: auto; }
+
+.lightbox-strip {
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 2;
+    display: flex;
+    gap: .4rem;
+    justify-content: safe center;
+    height: 76px;
+    padding: .5rem 1rem;
+    overflow-x: auto;
+    background: rgba(0, 0, 0, .7);
+    scrollbar-width: thin;
+}
+.lightbox-strip button {
+    flex: 0 0 auto;
+    width: 84px;
+    height: 60px;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #222;
+    opacity: .5;
+    transition: opacity .2s ease, border-color .2s ease, transform .2s ease;
+}
+.lightbox-strip button img { width: 100%; height: 100%; object-fit: cover; }
+.lightbox-strip button:hover { opacity: .85; }
+.lightbox-strip button.is-active { opacity: 1; border-color: #fff; transform: scale(1.06); }
+
+@media (max-width: 576px) {
+    .lightbox-nav { display: none; }            /* balayage sur téléphone */
+    .lightbox-strip { height: 60px; }
+    .lightbox-strip button { width: 60px; height: 44px; }
+    .lightbox-caption { bottom: 60px; }
+    .lightbox-actions > button, .lightbox-actions > a { width: 2.25rem; height: 2.25rem; font-size: 1.05rem; }
+}
+
+@keyframes lightbox-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lightbox-from-right { from { opacity: .2; translate: 40px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes lightbox-from-left { from { opacity: .2; translate: -40px 0; } to { opacity: 1; translate: 0 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .lightbox.is-open, .lightbox-image.is-entering-right, .lightbox-image.is-entering-left { animation: none; }
+    .photo-thumb img, .lightbox-image { transition: none !important; }
+}

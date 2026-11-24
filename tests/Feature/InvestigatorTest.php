@@ -9,6 +9,7 @@ use App\Models\DecisionCategory;
 use App\Models\FieldDecision;
 use App\Models\HealthZone;
 use App\Models\Household;
+use App\Models\PhotoProject;
 use App\Models\Team;
 use App\Models\TeamMessage;
 use App\Models\User;
@@ -64,6 +65,22 @@ class InvestigatorTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    public function test_pi_space_links_to_field_photos(): void
+    {
+        $photos = PhotoProject::create(['name' => 'Photos Round 2', 'linked_to_survey' => true]);
+
+        // PI : onglet « Photos de terrain » (gestion) sur ses pages, bouton de dépôt sur la vue d'ensemble.
+        $pi = $this->user(User::ROLE_PI);
+        $this->actingAs($pi)->get(route('investigator.index'))->assertOk()
+            ->assertSee(route('photo-projects.index'), false)->assertSee(route('team.photos', $photos), false);
+        $this->actingAs($pi)->get(route('investigator.response'))->assertOk()->assertSee(route('photo-projects.index'), false);
+        $this->actingAs($pi)->get(route('team.photos', $photos))->assertRedirect($photos->publicUrl());
+
+        // Data manager (pages PI, sans gestion des photos) : ni onglet ni bouton.
+        $this->actingAs($this->user(User::ROLE_DATA_MANAGER))->get(route('investigator.index'))->assertOk()
+            ->assertDontSee(route('photo-projects.index'), false)->assertDontSee(route('team.photos', $photos), false);
     }
 
     public function test_pi_lands_on_overview_with_charts(): void

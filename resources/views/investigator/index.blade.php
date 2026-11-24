@@ -15,6 +15,7 @@
             </select>
         </form>
         <a href="{{ route('submissions.index', array_filter(['health_zone_id' => $zoneId])) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-house-door me-1"></i>Soumissions</a>
+        <x-photo-spaces-button />
         @can('send messages')
             <a href="{{ route('messages.index') }}#nouveau" class="btn btn-sm btn-outline-primary"><i class="bi bi-chat-left-text me-1"></i>Écrire aux équipes</a>
         @endcan

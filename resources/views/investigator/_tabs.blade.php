@@ -23,4 +23,9 @@
     <li class="nav-item">
         <a class="nav-link" href="{{ route('queries.dashboard', array_filter(['health_zone_id' => $zoneId])) }}"><i class="bi bi-flag me-1"></i>Queries</a>
     </li>
+    @can('manage field photos')
+        <li class="nav-item">
+            <a class="nav-link" href="{{ route('photo-projects.index') }}"><i class="bi bi-images me-1"></i>Photos de terrain</a>
+        </li>
+    @endcan
 </ul>
