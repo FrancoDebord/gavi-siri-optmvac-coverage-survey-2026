@@ -41,6 +41,26 @@
             <div class="col-12"><x-chart-card title="Couverture par commune" canvas="chart-communes" /></div>
         </div>
 
+        {{-- Tableaux simples (zone, commune) : copiés en tableau HTML, ils se collent comme tableaux natifs dans PowerPoint. --}}
+        <div class="row g-3 mb-3">
+            @foreach (['zone' => 'Niveau zone', 'commune' => 'Niveau commune'] as $level => $title)
+                <div class="col-xl-6">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+                            <span>{{ $title }} <span class="small text-muted">— tableau pour PowerPoint</span></span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-table="ppt-{{ $level }}" title="Copier le tableau (à coller dans PowerPoint, Word ou Excel)">
+                                <i class="bi bi-clipboard me-1"></i>Copier
+                            </button>
+                        </div>
+                        <div class="card-body table-responsive">
+                            <div id="ppt-{{ $level }}"></div>
+                        </div>
+                        <div class="card-footer small text-muted">Chaque cellule : couverture (reçues / dénominateur). VAP 4 : enfants ayant atteint l'âge de la 4e dose.</div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+
         {{-- Tableau par dose --}}
         <div class="card mb-3">
             <div class="card-header">Détail par dose</div>

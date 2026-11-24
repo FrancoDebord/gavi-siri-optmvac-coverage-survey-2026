@@ -108,6 +108,70 @@ function levelTable() {
         : '<tr><td colspan="6" class="text-center text-muted">Aucun enfant enrôlé pour ces filtres</td></tr>';
 }
 
+/*
+ * Tableaux simples « Niveau zone » et « Niveau commune », mis en forme par styles en ligne : copiés en HTML, ils se
+ * collent comme tableaux natifs (bordures, en-tête) dans PowerPoint, Word ou Excel. Dernière ligne : ensemble.
+ */
+const PPT = {
+    table: 'border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt;width:100%',
+    th: `border:1px solid ${AIRID.grey};background:${AIRID.black};color:#fff;padding:4px 8px;font-weight:bold`,
+    td: `border:1px solid ${AIRID.greyLight};padding:4px 8px;color:${AIRID.black}`,
+    total: `border:1px solid ${AIRID.grey};background:#EDEDED;padding:4px 8px;font-weight:bold;color:${AIRID.black}`,
+};
+
+function pptDose(dose) {
+    return dose.denominator ? `${pct(dose.pct)} (${fmt(dose.received)}/${fmt(dose.denominator)})` : '—';
+}
+
+function pptTable(target, rows, withZone) {
+    const el = document.getElementById(target);
+    if (!el || !last) return;
+    const head = [...(withZone ? ['Zone sanitaire', 'Commune'] : ['Zone sanitaire']), 'Enfants', ...DOSES.map((k) => `VAP ${k}`)];
+    const left = (i) => i < (withZone ? 2 : 1);
+    const line = (cells, style) => `<tr>${cells.map((c, i) => `<td style="${style};text-align:${left(i) ? 'left' : 'right'}">${escapeHtml(String(c))}</td>`).join('')}</tr>`;
+    const body = rows.map((r) => line([...(withZone ? [r.zone ?? '', r.label] : [r.label]), fmt(r.children), ...DOSES.map((k) => pptDose(r.doses[k]))], PPT.td));
+    const doses = Object.fromEntries(last.by_dose.map((d, i) => [DOSES[i], d]));
+    const total = line([...(withZone ? ['Ensemble', ''] : ['Ensemble']), fmt(last.kpis.children), ...DOSES.map((k) => pptDose(doses[k]))], PPT.total);
+    el.innerHTML = rows.length
+        ? `<table style="${PPT.table}"><thead><tr>${head.map((h, i) => `<th style="${PPT.th};text-align:${left(i) ? 'left' : 'right'}">${escapeHtml(h)}</th>`).join('')}</tr></thead>
+            <tbody>${body.join('')}${total}</tbody></table>`
+        : '<p class="text-muted text-center mb-0">Aucun enfant enrôlé pour ces filtres</p>';
+}
+
+/** Bouton « Copier » : tableau en HTML (mise en forme) et en texte tabulé (repli : sélection du tableau). */
+function bindTableCopy(root) {
+    root.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-copy-table]');
+        if (!button) return;
+        const table = document.getElementById(button.dataset.copyTable)?.querySelector('table');
+        if (!table) return;
+        const html = table.outerHTML;
+        const text = [...table.rows].map((row) => [...row.cells].map((c) => c.textContent.trim()).join('\t')).join('\n');
+        const icon = button.querySelector('i');
+        const done = (ok) => {
+            icon.className = `bi bi-${ok ? 'clipboard-check' : 'x-lg'} me-1`;
+            setTimeout(() => { icon.className = 'bi bi-clipboard me-1'; }, 1500);
+        };
+        try {
+            await navigator.clipboard.write([new window.ClipboardItem({
+                'text/html': new Blob([html], { type: 'text/html' }),
+                'text/plain': new Blob([text], { type: 'text/plain' }),
+            })]);
+            done(true);
+        } catch {
+            // Navigateur sans ClipboardItem (ou copie refusée) : copie de la sélection.
+            const range = document.createRange();
+            range.selectNode(table);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            const ok = document.execCommand('copy');
+            selection.removeAllRanges();
+            done(ok);
+        }
+    });
+}
+
 export default function vapCoveragePage() {
     const root = document.getElementById('vap-coverage');
     let current = {};
@@ -123,6 +187,8 @@ export default function vapCoveragePage() {
             groupChart('chart-sex', last.by_sex);
             doseTable(last.by_dose);
             levelTable();
+            pptTable('ppt-zone', last.by_zone, false);
+            pptTable('ppt-commune', [...last.by_commune].sort((a, b) => (a.zone ?? '').localeCompare(b.zone ?? '', 'fr') || a.label.localeCompare(b.label, 'fr')), true);
             document.querySelectorAll('[data-generated-at]').forEach((el) => { el.textContent = last.generated_at; });
         } catch (error) {
             console.error(error);
@@ -134,6 +200,7 @@ export default function vapCoveragePage() {
         load();
     });
     bindExportLinks(root, () => current);
+    bindTableCopy(root);
     document.getElementById('coverage-level')?.addEventListener('change', levelTable);
     filters.ready.then(() => {
         current = filters.values();

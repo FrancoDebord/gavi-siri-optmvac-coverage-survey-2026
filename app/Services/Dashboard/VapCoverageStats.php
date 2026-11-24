@@ -159,6 +159,8 @@ class VapCoverageStats
 
         return array_map(fn ($label, $members) => [
             'label' => $label,
+            // Zone sanitaire de la commune (tableau « Niveau commune » à coller dans PowerPoint).
+            ...($key === 'commune' ? ['zone' => $members[0]['zone']] : []),
             'children' => count($members),
             'doses' => array_combine(self::DOSES, array_map(fn ($k) => self::dose($members, $k), self::DOSES)),
         ], array_keys($groups), $groups);
