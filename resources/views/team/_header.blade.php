@@ -15,6 +15,19 @@
             </select>
         </form>
     @endunless
+    {{-- Espaces photos de terrain : ouverts sans code PIN depuis le compte connecté. --}}
+    @if ($photoSpaces->count() === 1)
+        <a href="{{ route('team.photos', $photoSpaces->first()) }}" class="btn btn-sm btn-outline-success" target="_blank" rel="noopener"><i class="bi bi-camera me-1"></i>Photos de terrain</a>
+    @elseif ($photoSpaces->count() > 1)
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-camera me-1"></i>Photos de terrain</button>
+            <ul class="dropdown-menu">
+                @foreach ($photoSpaces as $space)
+                    <li><a class="dropdown-item" href="{{ route('team.photos', $space) }}" target="_blank" rel="noopener">{{ $space->name }}</a></li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
     <a href="{{ route('team.corrections.pdf', $isTeam ? [] : ['team_id' => $team->id]) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-card-checklist me-1"></i>Fiche de corrections (PDF)</a>
     <a href="{{ route('team.clusters.pdf', $teamParam) }}" class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1"></i>Cartes des grappes (PDF)</a>
 </x-page-header>

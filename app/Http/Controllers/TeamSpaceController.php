@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Cluster;
 use App\Models\DataQuery;
 use App\Models\Household;
+use App\Models\PhotoProject;
 use App\Models\QualityRule;
 use App\Models\Team;
 use App\Models\TeamMessage;
@@ -19,6 +20,7 @@ use App\Services\Maps\ClusterMapRenderer;
 use App\Services\Quality\QueryFocus;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -257,7 +259,31 @@ class TeamSpaceController extends Controller
             'openQueries' => DataQuery::forTeam($team)->whereIn('status', DataQuery::UNRESOLVED)->count(),
             'openVillageQueries' => DataQuery::forTeam($team)
                 ->where('rule_code', 'TEAM_VILLAGE')->whereIn('status', DataQuery::UNRESOLVED)->count(),
+            // Espaces photos de terrain ouverts de l'enquête (bouton « Photos de terrain » de l'en-tête).
+            'photoSpaces' => PhotoProject::openForTeams()->get(['id', 'name']),
         ];
+    }
+
+    /**
+     * Espace photos de terrain depuis l'espace binôme : compte connecté, donc sans code PIN (déverrouillé pour cette
+     * session), puis la page de dépôt. Sans projet précisé : le seul espace ouvert, sinon retour au choix.
+     */
+    public function photos(Request $request, ?PhotoProject $project = null): RedirectResponse
+    {
+        $open = PhotoProject::openForTeams();
+        if (! $project) {
+            $spaces = $open->get();
+            if ($spaces->count() !== 1) {
+                return redirect()->route('team.space')->with('info', $spaces->isEmpty()
+                    ? "Aucun espace photos de terrain n'est ouvert pour le moment."
+                    : "Choisissez l'espace photos avec le bouton « Photos de terrain ».");
+            }
+            $project = $spaces->first();
+        }
+        abort_unless($open->whereKey($project->id)->exists(), 404);
+        $request->session()->put($project->sessionKey(), true);
+
+        return redirect()->away($project->publicUrl());
     }
 
     /** Libellé du statut de visite (liste de choix du formulaire). */

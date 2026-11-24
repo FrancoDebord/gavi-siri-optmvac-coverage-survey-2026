@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -38,6 +39,12 @@ class PhotoProject extends Model
     public static function newPin(): string
     {
         return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    /** Espaces ouverts de l'enquête, proposés dans l'espace des binômes. */
+    public static function openForTeams(): Builder
+    {
+        return self::query()->where('active', true)->where('linked_to_survey', true)->latest('id');
     }
 
     public function photos(): HasMany

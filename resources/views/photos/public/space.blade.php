@@ -26,7 +26,7 @@
                                 @foreach ($teams->groupBy(fn ($t) => $t->healthZone?->name ?? 'Autres') as $zone => $group)
                                     <optgroup label="{{ $zone }}">
                                         @foreach ($group as $team)
-                                            <option value="{{ $team->id }}" @selected(old('team_id') == $team->id)>{{ $team->label() }}</option>
+                                            <option value="{{ $team->id }}" @selected(old('team_id', $defaultTeamId) == $team->id)>{{ $team->label() }}</option>
                                         @endforeach
                                     </optgroup>
                                 @endforeach

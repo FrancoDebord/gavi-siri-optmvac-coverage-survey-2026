@@ -119,6 +119,33 @@ class FieldPhotosTest extends TestCase
         $this->assertSame(['Kossi', 'Glazoué centre', null], [$photo->author_name, $photo->place, $photo->team_id]);
     }
 
+    public function test_team_account_opens_the_space_without_pin_with_its_team_preselected(): void
+    {
+        $account = User::factory()->create(['team_id' => $this->team->id]);
+        $account->assignRole(User::ROLE_TEAM);
+
+        // Aucun espace ouvert : retour à l'espace binôme avec un message.
+        $this->actingAs($account)->get(route('team.photos'))->assertRedirect(route('team.space'))->assertSessionHas('info');
+
+        // Un autre projet (hors enquête) et un espace fermé ne sont pas proposés.
+        $other = $this->project(['name' => 'Autre projet', 'linked_to_survey' => false]);
+        $closed = $this->project(['name' => 'Fermé']);
+        $closed->update(['active' => false]);
+        $this->actingAs($account)->get(route('team.photos', $other))->assertNotFound();
+        $this->actingAs($account)->get(route('team.photos', $closed))->assertNotFound();
+
+        // Le seul espace ouvert de l'enquête : ouvert directement, sans code PIN.
+        $project = $this->project();
+        $this->actingAs($account)->get(route('team.photos'))->assertRedirect($project->publicUrl());
+        $this->actingAs($account)->get($project->publicUrl())->assertOk()->assertSee('Déposer des photos')
+            ->assertSee('<option value="'.$this->team->id.'" selected', false);
+
+        // Plusieurs espaces : choix dans l'en-tête de l'espace binôme.
+        $second = $this->project(['name' => 'Supervision']);
+        $this->actingAs($account)->get(route('team.photos'))->assertRedirect(route('team.space'));
+        $this->actingAs($account)->get(route('team.photos', $second))->assertRedirect($second->publicUrl());
+    }
+
     public function test_closing_or_renewing_the_link_and_pin_locks_the_space(): void
     {
         $project = $this->project();

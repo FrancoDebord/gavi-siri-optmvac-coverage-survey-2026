@@ -6,6 +6,7 @@ use App\Models\Cluster;
 use App\Models\DataQuery;
 use App\Models\HealthZone;
 use App\Models\Household;
+use App\Models\PhotoProject;
 use App\Models\Team;
 use App\Models\TeamMessage;
 use App\Models\User;
@@ -155,6 +156,10 @@ class TeamSpaceTest extends TestCase
         foreach ([['team', $this->team->id, 'Bravo 46-47'], ['collector', $this->team->collectors()->value('id'), 'Pour l\'agent 46'], ['team', $other->id, 'Pour 33-43'], ['all', null, 'Pour tous']] as [$type, $id, $body]) {
             TeamMessage::create(['sender_id' => $pi->id, 'target_type' => $type, 'target_id' => $id, 'kind' => 'encouragement', 'body' => $body]);
         }
+
+        // Espace photos de terrain ouvert : bouton dans l'en-tête et entrée du menu.
+        $photos = PhotoProject::create(['name' => 'Photos Round 2', 'linked_to_survey' => true]);
+        $this->actingAs($account)->get(route('team.space'))->assertSee(route('team.photos', $photos), false)->assertSee(route('team.photos'), false);
 
         $this->actingAs($account)->get(route('team.space'))->assertSee('Bravo 46-47')->assertSee('Pour l&#039;agent 46', false)->assertSee('Pour tous')->assertDontSee('Pour 33-43');
         $message = TeamMessage::where('body', 'Bravo 46-47')->firstOrFail();

@@ -46,6 +46,8 @@ class PublicPhotoController extends Controller
             'teams' => $project->linked_to_survey ? Team::with('healthZone:id,name')->orderBy('code')->get(['id', 'code', 'name', 'health_zone_id']) : collect(),
             'villages' => $project->linked_to_survey ? Village::with('healthZone:id,name')->whereHas('households')->orderBy('name')->get(['id', 'name', 'health_zone_id']) : collect(),
             'maxKb' => self::maxKilobytes(),
+            // Compte binôme connecté : son binôme est présélectionné.
+            'defaultTeamId' => $request->user()?->team_id,
         ]);
     }
 

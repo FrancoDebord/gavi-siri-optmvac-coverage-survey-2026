@@ -25,6 +25,9 @@
         <a class="{{ $link('team.clusters', 'clusters.*') }} {{ request()->routeIs('team.clusters') ? 'active' : '' }}" href="{{ route('team.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Mes grappes</span></a>
         <a class="{{ $link('team.remaining') }}" href="{{ route('team.remaining') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>
         <a class="{{ $link('maps.clusters') }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte de mes villages</span></a>
+        @if (\App\Models\PhotoProject::openForTeams()->exists())
+            <a class="nav-link" href="{{ route('team.photos') }}" target="_blank" rel="noopener"><i class="bi bi-camera"></i><span class="label">Photos de terrain</span></a>
+        @endif
     @endif
     @if (auth()->user()->hasOwnTeam())
         {{-- Superviseur agent d'un binôme : tout ce que voit son binôme, en plus de la supervision. --}}
@@ -37,6 +40,9 @@
         <a class="nav-link {{ $onOwn && request()->routeIs('team.queries') ? 'active' : '' }}" href="{{ route('team.queries', $own) }}"><i class="bi bi-flag"></i><span class="label">Mes queries
             @if ($ownQueries)<span class="badge rounded-pill text-bg-danger ms-1">{{ $ownQueries }}</span>@endif</span></a>
         <a class="nav-link {{ $onOwn && request()->routeIs('team.clusters') ? 'active' : '' }}" href="{{ route('team.clusters', $own) }}"><i class="bi bi-bounding-box"></i><span class="label">Mes grappes</span></a>
+        @if (\App\Models\PhotoProject::openForTeams()->exists())
+            <a class="nav-link" href="{{ route('team.photos') }}" target="_blank" rel="noopener"><i class="bi bi-camera"></i><span class="label">Photos de terrain</span></a>
+        @endif
     @endif
     @if ($isPi)
         @php($openQueries = \App\Models\DataQuery::whereIn('status', \App\Models\DataQuery::UNRESOLVED)->count())
