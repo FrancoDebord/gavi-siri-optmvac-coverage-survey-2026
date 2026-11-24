@@ -49,6 +49,23 @@
             <div class="col-lg-6"><x-chart-card title="Statut des visites par commune" canvas="chart-communes" size="chart-sm" /></div>
         </div>
 
+        {{-- Récapitulatif des taux de réponse : tableau à copier et coller dans PowerPoint (tableau natif). --}}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center gap-2">
+                <span>Taux de réponse de l'enquête <span class="small text-muted">— tableau pour PowerPoint</span></span>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" data-copy-table="response-table" title="Copier le tableau (à coller dans PowerPoint, Word ou Excel)">
+                    <i class="bi bi-clipboard me-1"></i>Copier
+                </button>
+            </div>
+            <div class="card-body table-responsive">
+                <div id="response-table"></div>
+            </div>
+            <div class="card-footer small text-muted">
+                Taux de réponse des ménages = ménages ayant accepté de participer / ménages avec au moins un enfant de moins de 5 ans.
+                Enfants de 12 à 35 mois : enfants éligibles enrôlés. Selon les filtres du tableau de bord.
+            </div>
+        </div>
+
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>Réalisation par zone sanitaire › commune › village › grappe</span>

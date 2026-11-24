@@ -98,7 +98,14 @@ class AccessAndPagesTest extends TestCase
         $this->actingAs($admin)->getJson(route('dashboard.data'))->assertOk()
             ->assertJsonPath('kpis.visited', 2)
             ->assertJsonPath('kpis.refused', 2)
-            ->assertJsonStructure(['kpis', 'daily', 'by_zone', 'by_commune', 'productivity', 'hierarchy', 'points']);
+            ->assertJsonStructure(['kpis', 'daily', 'by_zone', 'by_commune', 'response', 'productivity', 'hierarchy', 'points'])
+            // Récapitulatif des taux de réponse : une colonne par zone, puis l'ensemble (deux ménages, deux refus).
+            ->assertJsonCount(3, 'response')
+            ->assertJsonPath('response.2.label', 'Ensemble')
+            ->assertJsonPath('response.2.visited', 2)
+            ->assertJsonPath('response.2.with_children', 2)
+            ->assertJsonPath('response.2.refused', 2)
+            ->assertJsonPath('response.2.responded', 0);
 
         $this->actingAs($admin)->getJson(route('queries.dashboard.data'))->assertOk()
             ->assertJsonStructure(['kpis' => ['total', 'open', 'per_100_households'], 'by_severity', 'top_rules', 'by_variable', 'rankings' => ['zone', 'collector'], 'heatmap']);

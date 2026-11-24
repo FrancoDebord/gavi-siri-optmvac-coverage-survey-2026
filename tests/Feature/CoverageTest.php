@@ -62,6 +62,13 @@ class CoverageTest extends TestCase
         $this->assertArrayHasKey('fully_basic', $village);
         $this->assertSame(2, array_sum(array_column($data['tables']['zone'], 'children')));
 
+        // Récapitulatif des taux de réponse (tableau de bord de progression) : enfants de 12 à 35 mois et sexe.
+        $response = collect($this->actingAs($this->admin)->getJson(route('dashboard.data'))->assertOk()->json('response'));
+        $all = $response->firstWhere('label', 'Ensemble') ?? $response->first();
+        $this->assertSame(2, $all['eligible']);
+        $this->assertSame(2, $all['girls'] + $all['boys']);
+        $this->assertGreaterThanOrEqual(1, $all['responded']);
+
         // Classeur : une feuille par niveau (zone ; zone et commune ; zone, commune et village ; âge et sexe).
         $file = $this->actingAs($this->admin)->get(route('coverage.export', 'antigenes'))->assertOk()->getFile()->getPathname();
         $book = \PhpOffice\PhpSpreadsheet\IOFactory::load($file);

@@ -81,3 +81,23 @@ export function initTableCopy(root) {
         }
     });
 }
+
+/*
+ * Tableau récapitulatif « à la présentation » (indicateurs en lignes, groupes en colonnes) : filets horizontaux
+ * seulement, séparateurs entre sections, valeurs mises en avant en rouge. sections : [[{ label, value(col), strong? }]].
+ */
+export function recapTable(columns, sections) {
+    const font = `font-family:Calibri,Arial,sans-serif;font-size:12pt;color:${AIRID.black}`;
+    const cell = (style, text, align) => `<td style="${font};padding:3px 10px;text-align:${align};${style}">${text}</td>`;
+    const rule = (color, width = 1) => `border-top:${width}px solid ${color}`;
+    const head = `<tr>${cell(`${rule(AIRID.black, 2)};border-bottom:1px solid ${AIRID.black}`, '', 'left')}${columns.map((c) => cell(`${rule(AIRID.black, 2)};border-bottom:1px solid ${AIRID.black};font-weight:bold;text-align:center`, escapeHtml(c.label), 'center')).join('')}</tr>`;
+    const body = sections.map((rows, s) => rows.map((row, i) => {
+        const sep = i === 0 && s > 0 ? rule(AIRID.black) : '';
+        const last = s === sections.length - 1 && i === rows.length - 1 ? `;border-bottom:2px solid ${AIRID.black}` : '';
+        const value = row.strong ? `;color:${AIRID.red};font-weight:bold` : '';
+
+        return `<tr>${cell(sep + last, escapeHtml(row.label), 'left')}${columns.map((c) => cell(sep + last + value, escapeHtml(String(row.value(c))), 'center')).join('')}</tr>`;
+    }).join('')).join('');
+
+    return `<table style="border-collapse:collapse;background:#fff"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}

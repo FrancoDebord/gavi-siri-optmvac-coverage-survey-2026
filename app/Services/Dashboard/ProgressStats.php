@@ -23,6 +23,7 @@ class ProgressStats
             'daily' => $this->daily(),
             'by_zone' => $this->byLevel('health_zones', 'health_zone_id'),
             'by_commune' => $this->byLevel('communes', 'commune_id'),
+            'response' => $this->responseSummary(),
             'productivity' => $this->productivity(),
             'productivity_teams' => $this->productivity(byTeam: true),
             'hierarchy' => $this->hierarchy(),
@@ -157,6 +158,67 @@ class ProgressStats
         }
 
         return $rows;
+    }
+
+    /**
+     * Tableau récapitulatif des taux de réponse (une colonne par zone sanitaire, puis l'ensemble) : ménages visités,
+     * sans / avec enfant de moins de 5 ans, issues des visites (refus, accès impossible, personne à interroger,
+     * autre, réponse), taux de réponse des ménages (réponses / ménages avec enfant de moins de 5 ans), caregivers
+     * interviewés, enfants de moins de 5 ans recensés, enfants de 12 à 35 mois (éligibles) par sexe.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function responseSummary(): array
+    {
+        $statuses = [
+            'refused' => self::statusValues('statut_refus', '1'),
+            'no_access' => ['2'],
+            'no_respondent' => ['4'],
+            'no_children' => self::statusValues('statut_sans_enfant', '3'),
+        ];
+        $households = $this->households()->selectRaw('households.health_zone_id as zone, households.survey_status as status, households.consented as consented, count(*) as n')
+            ->groupBy('households.health_zone_id', 'households.survey_status', 'households.consented')->get();
+        $children = $this->filters->applyThroughHouseholds(DB::table('children'), 'children.household_id')
+            ->join('households', 'households.id', '=', 'children.household_id')
+            ->selectRaw("households.health_zone_id as zone, count(*) as under5,
+                sum(case when children.eligible then 1 else 0 end) as eligible,
+                sum(case when children.eligible and children.sex = '1' then 1 else 0 end) as girls,
+                sum(case when children.eligible and children.sex = '0' then 1 else 0 end) as boys")
+            ->groupBy('households.health_zone_id')->get()->keyBy('zone');
+        $caregivers = $this->filters->applyThroughHouseholds(DB::table('caregivers')->where('caregivers.consented', true), 'caregivers.household_id')
+            ->join('households', 'households.id', '=', 'caregivers.household_id')
+            ->selectRaw('households.health_zone_id as zone, count(*) as n')->groupBy('households.health_zone_id')->pluck('n', 'zone');
+
+        $column = function (string $label, Collection $rows, array $zones) use ($statuses, $children, $caregivers) {
+            $sum = fn (callable $keep) => (int) $rows->filter($keep)->sum('n');
+            $visited = $sum(fn () => true);
+            $responded = $sum(fn ($r) => (bool) $r->consented);
+            $count = fn (array $values) => $sum(fn ($r) => ! $r->consented && in_array((string) $r->status, $values, true));
+            $item = ['label' => $label, 'visited' => $visited, 'no_children' => $count($statuses['no_children'])];
+            $item['with_children'] = $visited - $item['no_children'];
+            foreach (['refused', 'no_access', 'no_respondent'] as $key) {
+                $item[$key] = $count($statuses[$key]);
+            }
+            $item['responded'] = $responded;
+            // Autres issues (code « autre », statut manquant) : le reste des ménages avec enfant de moins de 5 ans.
+            $item['other'] = max(0, $item['with_children'] - $item['refused'] - $item['no_access'] - $item['no_respondent'] - $responded);
+            $item['response_rate'] = $item['with_children'] ? round($responded * 100 / $item['with_children'], 1) : null;
+            $item['caregivers'] = (int) collect($zones)->sum(fn ($z) => $caregivers[$z] ?? 0);
+            foreach (['under5', 'eligible', 'girls', 'boys'] as $key) {
+                $item[$key] = (int) collect($zones)->sum(fn ($z) => $children[$z]->{$key} ?? 0);
+            }
+
+            return $item;
+        };
+
+        $names = DB::table('health_zones')->pluck('name', 'id');
+        $zoneIds = $households->pluck('zone')->merge($children->keys())->unique()->sortBy(fn ($z) => $names[$z] ?? '~')->values();
+        $columns = $zoneIds->map(fn ($z) => $column($names[$z] ?? 'Zone non renseignée', $households->where('zone', $z), [$z]))->all();
+        if (count($columns) !== 1) {
+            $columns[] = $column('Ensemble', $households, $zoneIds->all());
+        }
+
+        return $columns;
     }
 
     /** Répartition des statuts de visite par zone sanitaire ou par commune (barres empilées). */

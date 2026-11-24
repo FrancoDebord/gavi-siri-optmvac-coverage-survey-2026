@@ -4,6 +4,7 @@ import { bindExportLinks, initFilterBar } from '../lib/filters';
 import { AIRID, color, escapeHtml, fmt, pct, rateColor } from '../lib/format';
 import { getJson } from '../lib/http';
 import { addStatusLegend, baseMap, drawBoundaries, householdMarker, STATUS_COLORS } from '../lib/map';
+import { initTableCopy, recapTable } from '../lib/ppt-tables';
 
 let map = null;
 let markersLayer = null;
@@ -204,6 +205,41 @@ function renderMap(points, boundaries = lastBoundaries) {
     setTimeout(() => map.invalidateSize(), 50);
 }
 
+/** Récapitulatif des taux de réponse (une colonne par zone sanitaire, puis l'ensemble). */
+function responseTable(columns) {
+    const el = document.getElementById('response-table');
+    if (!el) return;
+    if (!columns?.length) {
+        el.innerHTML = '<p class="text-muted text-center mb-0">Aucun ménage visité pour ces filtres</p>';
+
+        return;
+    }
+    const n = (key) => (c) => fmt(c[key]);
+    const sections = [
+        [
+            { label: 'Ménages visités', value: n('visited') },
+            { label: 'Ménages sans enfant de moins de 5 ans', value: n('no_children') },
+            { label: 'Ménages avec enfant(s) de moins de 5 ans', value: n('with_children') },
+        ],
+        [
+            { label: 'Refus', value: n('refused') },
+            { label: 'Concession inaccessible', value: n('no_access') },
+            { label: 'Personne à interroger introuvable', value: n('no_respondent') },
+            ...(columns.some((c) => c.other > 0) ? [{ label: 'Autre issue', value: n('other') }] : []),
+            { label: 'Ont répondu', value: n('responded') },
+            { label: 'Taux de réponse des ménages', value: (c) => pct(c.response_rate), strong: true },
+        ],
+        [
+            { label: 'Caregivers interviewés', value: n('caregivers') },
+            { label: 'Enfants de moins de 5 ans recensés', value: n('under5') },
+            { label: 'Enfants de 12 à 35 mois', value: n('eligible') },
+            { label: 'Filles (12–35 mois)', value: n('girls') },
+            { label: 'Garçons (12–35 mois)', value: n('boys') },
+        ],
+    ];
+    el.innerHTML = recapTable(columns, sections);
+}
+
 export default function progressPage() {
     const root = document.getElementById('progress-dashboard');
     const dataUrl = root.dataset.url;
@@ -219,6 +255,7 @@ export default function progressPage() {
             dailyChart(data.daily);
             statusChart('chart-zones', data.by_zone);
             statusChart('chart-communes', data.by_commune);
+            responseTable(data.response);
             lastProductivity = { teams: data.productivity_teams, agents: data.productivity };
             renderProductivity();
             hierarchy(data.hierarchy);
@@ -239,6 +276,7 @@ export default function progressPage() {
         load();
     });
     bindExportLinks(root, () => current);
+    initTableCopy(root);
     document.getElementById('map-color')?.addEventListener('change', () => renderMap(lastPoints));
     document.getElementById('productivity-by')?.addEventListener('change', renderProductivity);
 
