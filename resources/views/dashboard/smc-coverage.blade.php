@@ -29,6 +29,8 @@
             <div class="col-lg-6"><x-chart-card title="Par sexe" canvas="chart-sex" size="chart-sm" /></div>
         </div>
 
+        <x-ppt-tables note="Couverture de chaque cycle prévu dans la commune (carte, sinon rappel). Estimations brutes, non pondérées." />
+
         <div class="card mb-3">
             <div class="card-header">Détail par cycle</div>
             <div class="card-body p-0 table-responsive">

@@ -42,7 +42,8 @@ class CoverageTest extends TestCase
 
     public function test_antigen_coverage_uses_the_card_then_the_recall(): void
     {
-        $this->actingAs($this->admin)->get(route('coverage.show', 'antigenes'))->assertOk()->assertSee('Couverture vaccinale par antigène');
+        $this->actingAs($this->admin)->get(route('coverage.show', 'antigenes'))->assertOk()->assertSee('Couverture vaccinale par antigène')
+            ->assertSee('data-copy-table="ppt-zone"', false)->assertSee('data-copy-table="ppt-village"', false);
         $data = $this->actingAs($this->admin)->getJson(route('coverage.data', 'antigenes'))->assertOk()->json();
         $total = $data['total'];
 
@@ -55,6 +56,11 @@ class CoverageTest extends TestCase
         // Dose jamais renseignée (question non posée) : écartée.
         $this->assertNotContains('ipv1', $data['collected']);
         $this->assertArrayNotHasKey('ipv1', $total['doses']);
+        // Tableaux pour PowerPoint : une ligne par village sous sa commune et sa zone, mêmes indicateurs.
+        $village = $data['tables']['village'][0];
+        $this->assertCount(3, $village['labels']);
+        $this->assertArrayHasKey('fully_basic', $village);
+        $this->assertSame(2, array_sum(array_column($data['tables']['zone'], 'children')));
 
         // Classeur : une feuille par niveau (zone ; zone et commune ; zone, commune et village ; âge et sexe).
         $file = $this->actingAs($this->admin)->get(route('coverage.export', 'antigenes'))->assertOk()->getFile()->getPathname();
@@ -69,7 +75,8 @@ class CoverageTest extends TestCase
 
     public function test_smc_coverage_by_cycle_with_card_then_recall(): void
     {
-        $this->actingAs($this->admin)->get(route('coverage.show', 'cps'))->assertOk()->assertSee('chimioprévention du paludisme saisonnier');
+        $this->actingAs($this->admin)->get(route('coverage.show', 'cps'))->assertOk()->assertSee('chimioprévention du paludisme saisonnier')
+            ->assertSee('data-copy-table="ppt-commune"', false);
         $total = $this->actingAs($this->admin)->getJson(route('coverage.data', 'cps'))->assertOk()->json('total');
 
         $this->assertSame([2, 2, 1, 1], [$total['cycles'][1]['denominator'], $total['cycles'][1]['received'], $total['cycles'][1]['card'], $total['cycles'][1]['recall']]);

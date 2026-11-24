@@ -44,7 +44,8 @@ class VapCoverageTest extends TestCase
         $this->withoutVite()->actingAs($admin)->get(route('coverage.vap'))->assertOk()->assertSee('Couverture du vaccin antipaludique (VAP 1 à 4)')
             ->assertSee('data-chart-image="download" data-chart-canvas="chart-doses"', false)
             ->assertSee('data-chart-image="copy" data-chart-canvas="chart-doses"', false)
-            ->assertSee('data-copy-table="ppt-zone"', false)->assertSee('data-copy-table="ppt-commune"', false);
+            ->assertSee('data-copy-table="ppt-zone"', false)->assertSee('data-copy-table="ppt-commune"', false)
+            ->assertSee('data-copy-table="ppt-village"', false);
 
         $data = $this->actingAs($admin)->getJson(route('coverage.vap.data'))->assertOk()->json();
         $doses = $data['kpis']['doses'];
@@ -58,9 +59,9 @@ class VapCoverageTest extends TestCase
         $this->assertEquals(33.3, $data['kpis']['zero_dose']);
         $this->assertSame(['12–23 mois', '24–35 mois'], array_column($data['by_age'], 'label'));
         $this->assertSame('Filles', $data['by_sex'][0]['label']);
-        // Tableau « Niveau commune » : chaque commune porte sa zone sanitaire.
-        $this->assertArrayHasKey('zone', $data['by_commune'][0]);
-        $this->assertArrayNotHasKey('zone', $data['by_zone'][0]);
+        // Tableaux pour PowerPoint : libellés zone / zone et commune / zone, commune et village.
+        $this->assertSame([1, 2, 3], array_map(fn ($level) => count($data['tables'][$level][0]['labels']), ['zone', 'commune', 'village']));
+        $this->assertSame(3, array_sum(array_column($data['tables']['village'], 'children')));
 
         $this->actingAs($admin)->get(route('coverage.vap.export'))->assertOk()->assertHeader('content-disposition');
         $this->assertSame('application/pdf', $this->actingAs($admin)->get(route('coverage.vap.pdf'))->assertOk()->headers->get('content-type'));

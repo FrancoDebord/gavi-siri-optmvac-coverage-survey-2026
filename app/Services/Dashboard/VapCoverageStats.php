@@ -35,6 +35,8 @@ class VapCoverageStats
                 'by_village' => $this->grouped($children, 'village'),
                 'by_age' => $this->grouped($children, 'age_group'),
                 'by_sex' => $this->grouped($children, 'sex'),
+                // Tableaux « Niveau zone / commune / village » (à copier dans PowerPoint).
+                'tables' => array_map(fn ($properties) => $this->combine($children, $properties), ChildCoverageStats::TABLES),
                 'generated_at' => now()->format('d/m/Y H:i:s'),
             ];
         });
@@ -159,8 +161,6 @@ class VapCoverageStats
 
         return array_map(fn ($label, $members) => [
             'label' => $label,
-            // Zone sanitaire de la commune (tableau « Niveau commune » à coller dans PowerPoint).
-            ...($key === 'commune' ? ['zone' => $members[0]['zone']] : []),
             'children' => count($members),
             'doses' => array_combine(self::DOSES, array_map(fn ($k) => self::dose($members, $k), self::DOSES)),
         ], array_keys($groups), $groups);
@@ -178,8 +178,15 @@ class VapCoverageStats
     public function groupedBy(array $properties): array
     {
         $this->loaded ??= $this->children();
+
+        return $this->combine($this->loaded, $properties);
+    }
+
+    /** @param  list<string>  $properties */
+    private function combine(array $children, array $properties): array
+    {
         $groups = [];
-        foreach ($this->loaded as $child) {
+        foreach ($children as $child) {
             $labels = array_map(fn ($p) => $child[$p], $properties);
             $groups[implode("\u{1F}", $labels)] ??= ['labels' => $labels, 'members' => []];
             $groups[implode("\u{1F}", $labels)]['members'][] = $child;

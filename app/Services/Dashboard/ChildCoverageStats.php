@@ -16,6 +16,9 @@ abstract class ChildCoverageStats
     /** Regroupements proposés : clé de la réponse => propriété de l'enfant. */
     public const GROUPS = ['by_zone' => 'zone', 'by_commune' => 'commune', 'by_village' => 'village', 'by_age' => 'age_group', 'by_sex' => 'sex'];
 
+    /** Tableaux par niveau (clé de all()['tables'] => propriétés des colonnes de libellés). */
+    public const TABLES = ['zone' => ['zone'], 'commune' => ['zone', 'commune'], 'village' => ['zone', 'commune', 'village']];
+
     /** Enfants déjà lus (export en plusieurs feuilles). */
     private ?array $loaded = null;
 
@@ -45,6 +48,9 @@ abstract class ChildCoverageStats
             foreach (self::GROUPS as $key => $property) {
                 $result[$key] = $this->grouped($children, $property);
             }
+            // Tableaux « Niveau zone / commune / village » (à copier dans PowerPoint) : chaque commune sous sa zone,
+            // chaque village sous sa commune (deux villages homonymes de communes différentes restent distincts).
+            $result['tables'] = array_map(fn ($properties) => $this->combine($children, $properties), self::TABLES);
 
             return $result + ['generated_at' => now()->format('d/m/Y H:i:s')];
         });
@@ -115,10 +121,20 @@ abstract class ChildCoverageStats
      */
     public function groupedBy(array $properties): array
     {
-        $groups = [];
         // Enfants lus une seule fois pour toutes les feuilles de l'export.
         $this->loaded ??= $this->children();
-        foreach ($this->loaded as $child) {
+
+        return $this->combine($this->loaded, $properties);
+    }
+
+    /**
+     * @param  list<string>  $properties
+     * @return list<array{labels: list<string>, children: int}>
+     */
+    private function combine(array $children, array $properties): array
+    {
+        $groups = [];
+        foreach ($children as $child) {
             $labels = array_map(fn ($p) => $child[$p], $properties);
             $groups[implode("\u{1F}", $labels)] ??= ['labels' => $labels, 'members' => []];
             $groups[implode("\u{1F}", $labels)]['members'][] = $child;

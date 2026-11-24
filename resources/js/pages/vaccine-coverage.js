@@ -1,5 +1,6 @@
 import { groupChart, initCoveragePage, levelTable, rateCell, setKpis, sourceChart } from '../lib/coverage';
 import { AIRID, escapeHtml, fmt, pct } from '../lib/format';
+import { initTableCopy, rateOnly, renderPptTables } from '../lib/ppt-tables';
 
 /** Couverture des antigènes du calendrier : toutes les doses, puis une dose choisie par zone, commune, âge et sexe. */
 // Doses principales du tableau par niveau (si renseignées dans les données).
@@ -56,7 +57,15 @@ export default function vaccineCoveragePage() {
         [...(select?.options ?? [])].forEach((o) => { o.hidden = !data.collected.includes(o.value); });
         renderDose();
         renderLevel();
+        // Tableaux pour PowerPoint : doses principales, enfants complètement vaccinés, zéro dose (en %).
+        renderPptTables(data.tables, [
+            ...KEY_DOSES.filter((code) => data.collected.includes(code)).map((code) => ({ label: byCode[code]?.label ?? code, value: (r) => rateOnly(r.doses[code]?.pct) })),
+            { label: 'Complets (base)', value: (r) => rateOnly(r.fully_basic) },
+            { label: "Complets pour l'âge", value: (r) => rateOnly(r.fully_age) },
+            { label: 'Zéro dose', value: (r) => rateOnly(r.zero_dose) },
+        ], t);
     });
+    initTableCopy(root);
     select?.addEventListener('change', renderDose);
     document.getElementById('coverage-level')?.addEventListener('change', renderLevel);
 }

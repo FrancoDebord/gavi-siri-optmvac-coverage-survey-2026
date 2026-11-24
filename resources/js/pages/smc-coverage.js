@@ -1,6 +1,7 @@
 import { renderChart } from '../lib/charts';
 import { groupChart, initCoveragePage, levelTable, rateCell, setKpis, sourceChart } from '../lib/coverage';
 import { AIRID, fmt, pct } from '../lib/format';
+import { initTableCopy, rateOnly, renderPptTables } from '../lib/ppt-tables';
 
 /** Couverture CPS : par cycle (carte / rappel), nombre de cycles reçus, puis par zone, commune, âge et sexe. */
 // Une couleur par cycle, du plus clair (cycle 1) au rouge AIRID (cycle 5).
@@ -56,6 +57,14 @@ export default function smcCoveragePage() {
                 <td class="text-end">${fmt(c.received)}</td><td class="text-end fw-semibold">${pct(c.pct)}</td><td class="text-end">${pct(c.pct_card)}</td></tr>`;
         }).join('');
         renderLevel();
+        // Tableaux pour PowerPoint : cycles prévus, au moins un cycle, tous les cycles, CPS déclarée (en %).
+        renderPptTables(data.tables, [
+            ...ks.map((k) => ({ label: `Cycle ${k}`, value: (r) => rateOnly(r.cycles[k].pct) })),
+            { label: '≥ 1 cycle', value: (r) => rateOnly(r.at_least_one) },
+            { label: 'Tous les cycles', value: (r) => rateOnly(r.all_cycles) },
+            { label: 'CPS déclarée', value: (r) => rateOnly(r.declared) },
+        ], t);
     });
+    initTableCopy(root);
     document.getElementById('coverage-level')?.addEventListener('change', renderLevel);
 }

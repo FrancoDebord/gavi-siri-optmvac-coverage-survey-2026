@@ -53,6 +53,8 @@
             <div class="col-lg-6"><x-chart-card title="Par sexe" canvas="chart-sex" size="chart-sm" /></div>
         </div>
 
+        <x-ppt-tables note="Couverture de chaque dose parmi les enfants qui ont atteint l'âge de la dose (carte, sinon rappel). Estimations brutes, non pondérées." />
+
         <div class="card mb-3">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <span>Couverture des principales doses par <span data-level-label>zone sanitaire</span></span>

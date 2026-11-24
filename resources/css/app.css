@@ -751,3 +751,7 @@ body.map-window .map-box.map-explorer { height: calc(100vh - 4.5rem); }
 footer.text-muted {
     color: #9a9693 !important;
 }
+
+/* Tableau repliable (x-ppt-tables, niveau village) : chevron vers le haut une fois déplié. */
+[data-bs-toggle="collapse"] .bi-chevron-down { display: inline-block; transition: transform 0.2s; }
+[data-bs-toggle="collapse"]:not(.collapsed) .bi-chevron-down { transform: rotate(180deg); }
