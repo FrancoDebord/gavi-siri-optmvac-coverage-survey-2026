@@ -143,6 +143,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::middleware('permission:view pi dashboard')->group(function () {
         Route::get('/investigateur', [InvestigatorController::class, 'index'])->name('investigator.index');
         Route::get('/investigateur/progression', [InvestigatorController::class, 'progress'])->name('investigator.progress');
+        Route::get('/investigateur/taux-de-reponse', [InvestigatorController::class, 'response'])->name('investigator.response');
         Route::get('/investigateur/synthese', [InvestigatorController::class, 'summary'])->name('investigator.summary');
         Route::get('/investigateur/synthese.pdf', [InvestigatorController::class, 'summary'])->name('investigator.summary.pdf')->middleware('throttle:20,1');
         Route::get('/investigateur/grappes', [InvestigatorController::class, 'clusters'])->name('investigator.clusters');

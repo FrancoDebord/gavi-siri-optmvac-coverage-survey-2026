@@ -212,10 +212,19 @@ class ProgressStats
         };
 
         $names = DB::table('health_zones')->pluck('name', 'id');
+        $codes = DB::table('health_zones')->pluck('code', 'id');
         $zoneIds = $households->pluck('zone')->merge($children->keys())->unique()->sortBy(fn ($z) => $names[$z] ?? '~')->values();
-        $columns = $zoneIds->map(fn ($z) => $column($names[$z] ?? 'Zone non renseignée', $households->where('zone', $z), [$z]))->all();
+        // En-tête : nom de la zone et bras de l'étude (« Tchaourou (Contrôle) »), en français et en anglais.
+        $columns = $zoneIds->map(function ($z) use ($column, $households, $names, $codes) {
+            $arm = config('gavi.study_arms.'.($codes[$z] ?? ''));
+
+            return $column($names[$z] ?? 'Zone non renseignée', $households->where('zone', $z), [$z]) + [
+                'header' => ['fr' => isset($names[$z]) ? $names[$z].($arm ? " ({$arm['fr']})" : '') : 'Zone non renseignée',
+                    'en' => isset($names[$z]) ? $names[$z].($arm ? " ({$arm['en']})" : '') : 'Unknown zone'],
+            ];
+        })->all();
         if (count($columns) !== 1) {
-            $columns[] = $column('Ensemble', $households, $zoneIds->all());
+            $columns[] = $column('Ensemble', $households, $zoneIds->all()) + ['header' => ['fr' => 'Ensemble', 'en' => 'Overall']];
         }
 
         return $columns;

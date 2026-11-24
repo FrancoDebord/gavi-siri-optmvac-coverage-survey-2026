@@ -88,6 +88,30 @@ class InvestigatorController extends Controller
     }
 
     /**
+     * Taux de réponse de l'enquête : récapitulatif par zone sanitaire et bras de l'étude (ménages visités, issues des
+     * visites, taux de réponse, caregivers, enfants de 12 à 35 mois), à copier dans PowerPoint, en français ou en anglais.
+     */
+    public function response(Request $request): View
+    {
+        $data = $request->validate([
+            'health_zone_id' => ['nullable', 'integer', 'exists:health_zones,id'],
+            'du' => ['nullable', 'date'],
+            'au' => ['nullable', 'date', 'after_or_equal:du'],
+        ], [], ['health_zone_id' => 'zone sanitaire', 'du' => 'date de début', 'au' => 'date de fin']);
+        $zoneId = isset($data['health_zone_id']) ? (int) $data['health_zone_id'] : null;
+        $filters = new Filters(array_filter(['health_zone_id' => $zoneId, 'from' => $data['du'] ?? null, 'to' => $data['au'] ?? null]), $request->user());
+
+        return view('investigator.response', [
+            'zones' => HealthZone::whereHas('communes')->orderBy('name')->get(['id', 'name']),
+            'zoneId' => $zoneId,
+            'from' => $data['du'] ?? null,
+            'to' => $data['au'] ?? null,
+            'today' => CarbonImmutable::today(),
+            'response' => (new ProgressStats($filters))->responseSummary(),
+        ]);
+    }
+
+    /**
      * Rapport de synthèse : chiffres clés par zone, par zone et binôme, par zone, binôme et date, puis décisions de
      * collecte. Page web de consultation, ou PDF à imprimer (même contenu, mêmes filtres).
      */

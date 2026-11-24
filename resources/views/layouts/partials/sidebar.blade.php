@@ -43,6 +43,7 @@
         <div class="nav-section">Suivi de la collecte</div>
         <a class="{{ $link('investigator.index') }}" href="{{ route('investigator.index') }}"><i class="bi bi-grid-1x2"></i><span class="label">Vue d'ensemble</span></a>
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
+        <a class="{{ $link('investigator.response') }}" href="{{ route('investigator.response') }}"><i class="bi bi-percent"></i><span class="label">Taux de réponse</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
         <a class="{{ $link('coverage.vap') }}" href="{{ route('coverage.vap') }}"><i class="bi bi-shield-check"></i><span class="label">Couverture VAP</span></a>
         <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'antigenes' ? 'active' : '' }}" href="{{ route('coverage.show', 'antigenes') }}"><i class="bi bi-shield-plus"></i><span class="label">Couverture vaccinale</span></a>
@@ -64,6 +65,7 @@
         <div class="nav-section">Investigateur principal</div>
         <a class="{{ $link('investigator.index') }}" href="{{ route('investigator.index') }}"><i class="bi bi-grid-1x2"></i><span class="label">Vue d'ensemble PI</span></a>
         <a class="{{ $link('investigator.progress') }}" href="{{ route('investigator.progress') }}"><i class="bi bi-graph-up"></i><span class="label">Progression</span></a>
+        <a class="{{ $link('investigator.response') }}" href="{{ route('investigator.response') }}"><i class="bi bi-percent"></i><span class="label">Taux de réponse</span></a>
         <a class="{{ $link('investigator.summary*') }}" href="{{ route('investigator.summary') }}"><i class="bi bi-file-earmark-text"></i><span class="label">Rapport de synthèse</span></a>
         <a class="{{ $link('coverage.vap') }}" href="{{ route('coverage.vap') }}"><i class="bi bi-shield-check"></i><span class="label">Couverture VAP</span></a>
         <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'antigenes' ? 'active' : '' }}" href="{{ route('coverage.show', 'antigenes') }}"><i class="bi bi-shield-plus"></i><span class="label">Couverture vaccinale</span></a>

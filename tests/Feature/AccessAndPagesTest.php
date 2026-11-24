@@ -105,7 +105,13 @@ class AccessAndPagesTest extends TestCase
             ->assertJsonPath('response.2.visited', 2)
             ->assertJsonPath('response.2.with_children', 2)
             ->assertJsonPath('response.2.refused', 2)
-            ->assertJsonPath('response.2.responded', 0);
+            ->assertJsonPath('response.2.responded', 0)
+            ->assertJsonPath('response.2.header.en', 'Overall');
+        // En-têtes : zone et bras de l'étude (code 1 : contrôle ; code 2 : intervention).
+        $headers = array_column($this->actingAs($admin)->getJson(route('dashboard.data'))->json('response'), 'header');
+        $control = HealthZone::where('code', '1')->value('name');
+        $this->assertContains(['fr' => "{$control} (Contrôle)", 'en' => "{$control} (Control)"], $headers);
+        $this->assertContains('Intervention', array_map(fn ($h) => preg_replace('/.*\((.*)\)$/', '$1', $h['en']), $headers));
 
         $this->actingAs($admin)->getJson(route('queries.dashboard.data'))->assertOk()
             ->assertJsonStructure(['kpis' => ['total', 'open', 'per_100_households'], 'by_severity', 'top_rules', 'by_variable', 'rankings' => ['zone', 'collector'], 'heatmap']);

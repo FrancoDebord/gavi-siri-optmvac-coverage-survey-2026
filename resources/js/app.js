@@ -31,6 +31,7 @@ import userFormPage from './pages/user-form';
 import vapCoveragePage from './pages/vap-coverage';
 import vaccineCoveragePage from './pages/vaccine-coverage';
 import smcCoveragePage from './pages/smc-coverage';
+import piResponsePage from './pages/pi-response';
 
 window.bootstrap = bootstrap;
 
@@ -54,6 +55,7 @@ const pages = {
     'vap-coverage': vapCoveragePage,
     'vaccine-coverage': vaccineCoveragePage,
     'smc-coverage': smcCoveragePage,
+    'pi-response': piResponsePage,
 };
 
 document.addEventListener('DOMContentLoaded', () => {

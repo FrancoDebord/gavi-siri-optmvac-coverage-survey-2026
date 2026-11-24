@@ -3,6 +3,7 @@
     @foreach ([
         'investigator.index' => ['grid-1x2', 'Vue d\'ensemble'],
         'investigator.progress' => ['graph-up', 'Progression'],
+        'investigator.response' => ['percent', 'Taux de réponse'],
         'investigator.summary' => ['file-earmark-text', 'Rapport de synthèse'],
         'investigator.clusters' => ['bounding-box', 'Grappes par village'],
         'remaining-villages.index' => ['hourglass-split', 'Villages restants'],

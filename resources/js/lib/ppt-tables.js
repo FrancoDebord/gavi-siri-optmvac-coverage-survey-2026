@@ -84,13 +84,13 @@ export function initTableCopy(root) {
 
 /*
  * Tableau récapitulatif « à la présentation » (indicateurs en lignes, groupes en colonnes) : filets horizontaux
- * seulement, séparateurs entre sections, valeurs mises en avant en rouge. sections : [[{ label, value(col), strong? }]].
+ * seulement, séparateurs entre sections, valeurs mises en avant en rouge. sections : [[{ label, value(col), strong? }]] ; header(col) : en-tête de colonne.
  */
-export function recapTable(columns, sections) {
+export function recapTable(columns, sections, header = (c) => c.label) {
     const font = `font-family:Calibri,Arial,sans-serif;font-size:12pt;color:${AIRID.black}`;
     const cell = (style, text, align) => `<td style="${font};padding:3px 10px;text-align:${align};${style}">${text}</td>`;
     const rule = (color, width = 1) => `border-top:${width}px solid ${color}`;
-    const head = `<tr>${cell(`${rule(AIRID.black, 2)};border-bottom:1px solid ${AIRID.black}`, '', 'left')}${columns.map((c) => cell(`${rule(AIRID.black, 2)};border-bottom:1px solid ${AIRID.black};font-weight:bold;text-align:center`, escapeHtml(c.label), 'center')).join('')}</tr>`;
+    const head = `<tr>${cell(`${rule(AIRID.black, 2)};border-bottom:1px solid ${AIRID.black}`, '', 'left')}${columns.map((c) => cell(`${rule(AIRID.black, 2)};border-bottom:1px solid ${AIRID.black};font-weight:bold;text-align:center`, escapeHtml(header(c)), 'center')).join('')}</tr>`;
     const body = sections.map((rows, s) => rows.map((row, i) => {
         const sep = i === 0 && s > 0 ? rule(AIRID.black) : '';
         const last = s === sections.length - 1 && i === rows.length - 1 ? `;border-bottom:2px solid ${AIRID.black}` : '';

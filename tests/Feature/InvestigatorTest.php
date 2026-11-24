@@ -98,7 +98,7 @@ class InvestigatorTest extends TestCase
         preg_match_all('/<span class="label">\s*([^<]+?)\s*(?:<|$)/u', $menu[0], $labels);
 
         $this->assertSame(
-            ['GAVI SIRI · Round 2', 'Vue d\'ensemble', 'Progression', 'Rapport de synthèse', 'Couverture VAP', 'Couverture vaccinale', 'Couverture CPS', 'Grappes par village', 'Villages restants', 'Carte des grappes', 'Soumissions', 'Queries', 'Décisions de terrain', 'Messages aux équipes', 'Incidents terrain', 'Documentation'],
+            ['GAVI SIRI · Round 2', 'Vue d\'ensemble', 'Progression', 'Taux de réponse', 'Rapport de synthèse', 'Couverture VAP', 'Couverture vaccinale', 'Couverture CPS', 'Grappes par village', 'Villages restants', 'Carte des grappes', 'Soumissions', 'Queries', 'Décisions de terrain', 'Messages aux équipes', 'Incidents terrain', 'Documentation'],
             array_map('trim', $labels[1]),
         );
         $this->assertStringNotContainsString(route('supervision.index'), $menu[0]);
@@ -139,6 +139,29 @@ class InvestigatorTest extends TestCase
 
         $reader = $this->user(User::ROLE_READER);
         $this->actingAs($reader)->get(route('investigator.index'))->assertRedirect(route('dashboard'));
+    }
+
+    public function test_response_rate_page_by_zone_and_study_arm(): void
+    {
+        $pi = $this->user(User::ROLE_PI);
+
+        $response = $this->actingAs($pi)->get(route('investigator.response'))->assertOk()
+            ->assertSee("Taux de réponse de l'enquête", false)->assertSee('data-copy-table="response-table"', false)
+            ->assertSee(route('investigator.response'), false);
+        $columns = collect($response->viewData('response'))->keyBy('label');
+
+        // Tchaourou : 3 ménages visités, dont 1 sans enfant de moins de 5 ans ; 2 réponses sur 2 ménages avec enfant.
+        $tch = $columns[$this->tchaourou->name];
+        $this->assertSame("{$this->tchaourou->name} (Contrôle)", $tch['header']['fr']);
+        $this->assertSame("{$this->tchaourou->name} (Control)", $tch['header']['en']);
+        $this->assertSame([3, 1, 2, 2], [$tch['visited'], $tch['no_children'], $tch['with_children'], $tch['responded']]);
+        $this->assertEquals(100.0, $tch['response_rate']);
+        $this->assertSame("{$this->dagla->name} (Intervention)", $columns[$this->dagla->name]['header']['fr']);
+        $this->assertSame(4, $columns['Ensemble']['visited']);
+
+        // Filtre de zone : une seule colonne, sans « Ensemble ».
+        $zone = $this->actingAs($pi)->get(route('investigator.response', ['health_zone_id' => $this->dagla->id]))->assertOk()->viewData('response');
+        $this->assertSame([$this->dagla->name], array_column($zone, 'label'));
     }
 
     public function test_summary_dates_use_the_last_synchronisation_and_the_synchronisation_days(): void

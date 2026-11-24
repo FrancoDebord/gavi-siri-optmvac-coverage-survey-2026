@@ -42,6 +42,12 @@ return [
         'cache_seconds' => (int) env('GAVI_DASHBOARD_CACHE', 30),
     ],
 
+    // Bras de l'étude par zone sanitaire (code l1) : en-têtes du récapitulatif des taux de réponse (fr / en).
+    'study_arms' => [
+        '1' => ['fr' => 'Contrôle', 'en' => 'Control'],
+        '2' => ['fr' => 'Intervention', 'en' => 'Intervention'],
+    ],
+
     'http' => [
         'timeout' => 60,
         'page_size' => 500,
