@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Models\Child;
 use App\Models\DataCorrection;
 use App\Models\DataQuery;
-use App\Models\QueryEvent;
 use App\Models\QualityRule;
+use App\Models\QueryEvent;
 use App\Models\User;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
@@ -121,6 +121,54 @@ class BeninRulesTest extends TestCase
         $this->assertSame(0, DataQuery::where('rule_code', 'OBS_28')->count());
         $this->assertSame('Caregiver n°1 : Le sexe du caregiver ne correspond pas au lien déclaré.', DataQuery::where('rule_code', 'MAJ_14')->value('message'));
         $this->assertSame('Corriger le sexe ou le lien de parenté.', DataQuery::where('rule_code', 'MAJ_14')->value('suggestion'));
+
+        // MAJ_26 : la query nomme la série en cause (RR, pas Penta), porte sur RR 2 et liste les réponses de la série.
+        $doses = DataQuery::where('rule_code', 'MAJ_26')->firstOrFail();
+        $this->assertSame('Enfant n°1 (caregiver n°1) : dose reçue sans la dose précédente sur la carte – RR 2 (q. 129) cochée « Oui », mais RR 1 (q. 126) cochée « Non ».', $doses->message);
+        $this->assertSame(['meas2', 'meas1 = 0 ; meas2 = 1'], [$doses->variable, $doses->observed_value]);
+        $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $doses))->assertOk()
+            ->assertSee('<code class="text-muted">meas1</code>', false)->assertDontSee('<code class="text-muted">Penta1</code>', false)
+            ->assertSee('name="corrections[0][variable]" value="meas2"', false)
+            ->assertSee('name="corrections[1][variable]" value="meas1"', false)
+            ->assertSee('name="pair_choice"', false);
+    }
+
+    public function test_recall_dose_without_the_previous_one_names_the_series_in_cause(): void
+    {
+        $this->household('TCH-SEB-01-041', [
+            ['age_months_est' => '20', 'penta1_rec' => '1', 'penta2_rec' => '1', 'penta3_rec' => '0', 'rtss1_rec' => '0', 'rtss2_rec' => '1'],
+            // « Ne sais pas » pour la dose précédente : pas relevé.
+            ['age_months_est' => '20', 'rtss1_rec' => '2', 'rtss2_rec' => '1'],
+        ]);
+
+        $query = DataQuery::where('rule_code', 'MAJ_31')->firstOrFail();
+        $this->assertSame(1, $this->rules('MAJ_31'));
+        $this->assertMatchesRegularExpression('/^Enfant n°1 \(caregiver n°1\) : au rappel, dose déclarée reçue sans la dose précédente – VAP 2 \(q\. \d+\) répondu « Oui », mais VAP 1 \(q\. \d+\) répondu « Non »\.$/u', $query->message);
+        $this->assertSame(['rtss2_rec', 'rtss1_rec = 0 ; rtss2_rec = 1 ; rtss3_rec = ∅ ; rtss4_rec = ∅'], [$query->variable, $query->observed_value]);
+        $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $query))->assertOk()
+            ->assertDontSee('<code class="text-muted">penta1_rec</code>', false)
+            ->assertSee('name="corrections[0][variable]" value="rtss2_rec"', false)
+            ->assertSee('name="corrections[1][variable]" value="rtss1_rec"', false);
+    }
+
+    public function test_dose_series_migration_moves_existing_queries_to_the_dose_in_cause(): void
+    {
+        $this->household('TCH-SEB-01-040', [['receive_vaccine' => '1', 'Penta1' => '1', 'Penta2' => '1', 'Penta3' => '0', 'mal3' => '0', 'mal4' => '1']]);
+        $query = DataQuery::where('rule_code', 'MAJ_26')->firstOrFail();
+        $this->assertStringContainsString('VAP 4 (q. 113) cochée « Oui », mais VAP 3 (q. 109) cochée « Non »', $query->message);
+        $this->assertSame('mal1 = ∅ ; mal2 = ∅ ; mal3 = 0 ; mal4 = 1', $query->observed_value);
+
+        // Query créée par l'ancienne règle : portée par Penta1, avec une réponse en cours.
+        $old = hash('sha256', implode('|', ['MAJ_26', $query->household_id, $query->instance_path ?? '', 'Penta1', '']));
+        $query->update(['variable' => 'Penta1', 'fingerprint' => $old, 'status' => DataQuery::STATUS_JUSTIFIED]);
+        (require database_path('migrations/2026_11_25_150000_detailed_dose_series_rule.php'))->up();
+
+        $query->refresh();
+        $this->assertSame('mal4', $query->variable);
+        // Le contrôle suivant retrouve la même query (même empreinte) : pas de doublon, réponse conservée.
+        app(QualityEngine::class)->run('test');
+        $this->assertSame(1, $this->rules('MAJ_26'));
+        $this->assertSame(DataQuery::STATUS_JUSTIFIED, $query->fresh()->status);
     }
 
     /** Ménage d'un caregiver avec les enfants donnés (Tchaourou, l1 = 1). */
@@ -242,7 +290,7 @@ class BeninRulesTest extends TestCase
         // Validation : correction appliquée, l'anomalie disparaît, la query est fermée.
         $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED, 'comment' => 'OK'])->assertSessionHasNoErrors();
         $this->assertSame(DataQuery::STATUS_VALIDATED, $query->fresh()->status);
-        $this->assertSame(29, \App\Models\Child::where('household_id', $query->household_id)->value('age_months'));
+        $this->assertSame(29, Child::where('household_id', $query->household_id)->value('age_months'));
     }
 
     public function test_child_five_or_older_declared_age_can_be_corrected_in_years_and_months(): void

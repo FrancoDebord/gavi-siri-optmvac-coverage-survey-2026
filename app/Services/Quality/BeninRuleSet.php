@@ -48,6 +48,10 @@ final class BeninRuleSet
 
     public const MAJ_34_SUGGESTION = 'Relire le carnet : s\'il porte le cachet « Enfant complètement vacciné », l\'enfant a reçu toutes les doses (laisser « Oui » et justifier). Sinon corriger la réponse de revue, la carte ou le rappel.';
 
+    public const MAJ_26_SUGGESTION = 'Relire la carte : si la dose précédente y figure, la cocher « Oui » ; sinon, corriger la dose cochée « Oui » à tort.';
+
+    public const MAJ_31_SUGGESTION = 'Revoir le rappel avec le caregiver : si l\'enfant a reçu la dose précédente, répondre « Oui » ; sinon, corriger la dose déclarée reçue à tort.';
+
     public const MAJ_37_SUGGESTION = 'Relire sur la carte CPS les dates des cycles en cause et corriger celle(s) qui sont fausses (jour et mois inversés, année).';
 
     /** Tranche d'âge cible de l'enfant (âge en mois entre c_low et c_high du ménage). */
@@ -58,8 +62,6 @@ final class BeninRuleSet
      */
     public static function rules(): array
     {
-        $doses = fn (array $series, string $suffix = '') => implode(' or ', array_merge(...array_map(
-            fn ($s) => array_map(fn ($i) => "(\${{$s[$i]}{$suffix}} = 1 and \${{$s[$i - 1]}{$suffix}} = 0)", range(1, count($s) - 1)), $series)));
         $cycles = fn (callable $one) => implode(' or ', array_map($one, range(1, 5)));
 
         return [
@@ -118,9 +120,9 @@ final class BeninRuleSet
             'MAJ_19' => self::expr('Date de naissance documentée sans photo', 'majeure', 'child', 'child_dob_documented,dob_doc_image',
                 '${child_dob_documented} = 1 and string-length(${dob_doc_image}) = 0',
                 'Photo du document de naissance manquante.', 'Photographier le document à la revisite.'),
-            'MAJ_26' => self::expr('Dose reçue sans la précédente (carte)', 'majeure', 'child', 'Penta1,Penta2,Penta3',
-                $doses([['opv1', 'opv2', 'opv3'], ['Penta1', 'Penta2', 'Penta3'], ['pcv1', 'pcv2', 'pcv3'], ['rota1', 'rota2', 'rota3'], ['mal1', 'mal2', 'mal3', 'mal4'], ['ipv1', 'ipv2'], ['meas1', 'meas2']]),
-                'Dose reçue sans la dose précédente sur la carte.', 'Relire la carte et corriger.'),
+            // Sept séries contrôlées : la query nomme la série et les doses en cause (et non plus toujours Penta).
+            'MAJ_26' => self::code('Dose reçue sans la précédente (carte)', 'majeure', 'child', implode(',', array_merge(...Business\DoseSeriesOrderRule::SERIES)),
+                Business\DoseSeriesOrderRule::class, 'Dose reçue sans la dose précédente sur la carte (série et doses en cause précisées).', self::MAJ_26_SUGGESTION),
             'MAJ_27' => self::expr('Carte vue sans photo', 'majeure', 'child', 'see_card,chb_image1',
                 '${see_card} = 1 and string-length(${chb_image1}) = 0', 'Photo de la carte manquante.', 'Photographier la carte à la revisite.'),
             'MAJ_28' => self::expr('Photos de la carte manquantes', 'majeure', 'child', 'num_images,chb_image2,chb_image3,chb_image4',
@@ -128,9 +130,9 @@ final class BeninRuleSet
                 'Moins de photos que le nombre déclaré.', 'Photographier les pages manquantes.'),
             'MAJ_29' => self::expr('VAP 4 trop proche de VAP 3', 'majeure', 'child', 'mal3date,mal4date',
                 '${mal4date} - ${mal3date} < 150', 'VAP 4 moins de 150 jours après VAP 3.', 'Relire les deux dates sur la carte.'),
-            'MAJ_31' => self::expr('Rappel : dose reçue sans la précédente', 'majeure', 'child', 'penta1_rec,penta2_rec,penta3_rec',
-                $doses([['opv1', 'opv2', 'opv3'], ['penta1', 'penta2', 'penta3'], ['pcv1', 'pcv2', 'pcv3'], ['rota1', 'rota2', 'rota3'], ['rtss1', 'rtss2', 'rtss3', 'rtss4']], '_rec'),
-                'Rappel incohérent entre les doses.', 'Revoir le rappel avec le caregiver.'),
+            // Cinq séries contrôlées au rappel : la query nomme la série et les doses en cause (et non plus toujours Penta).
+            'MAJ_31' => self::code('Rappel : dose reçue sans la précédente', 'majeure', 'child', implode(',', array_merge(...Business\RecallDoseSeriesOrderRule::SERIES)),
+                Business\RecallDoseSeriesOrderRule::class, 'Au rappel, dose déclarée reçue sans la dose précédente (série et doses en cause précisées).', self::MAJ_31_SUGGESTION),
             'MAJ_32' => self::code('Rappel : dose impossible pour l\'âge', 'majeure', 'child', 'age_months_est,measmth9,measmth15,penta3_rec,opv3_rec,pcv3_rec,rtss1_rec,rtss4_rec',
                 Business\RecallDoseAgeRule::class, 'Enfant trop jeune pour la dose déclarée au rappel (vaccin et dose précisés).', self::MAJ_32_SUGGESTION),
             'MAJ_34' => self::code('Revue « 3 doses de VAP » incohérente', 'majeure', 'child', 'three_MV_doses,mal3,rtss3_rec,age_months_est',

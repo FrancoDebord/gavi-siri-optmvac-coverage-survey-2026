@@ -8,8 +8,10 @@ use App\Services\Dictionary\Dictionary;
 use App\Services\Dictionary\VariableMap as Map;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
+use App\Services\Quality\Rules\Business\DoseSeriesOrderRule;
 use App\Services\Quality\Rules\Business\MalariaThreeDosesReviewRule;
 use App\Services\Quality\Rules\Business\RecallDoseAgeRule;
+use App\Services\Quality\Rules\Business\RecallDoseSeriesOrderRule;
 use App\Services\Quality\Rules\Business\RosterYoungCaregiverRule;
 use App\Services\Quality\Rules\Business\SmcCycleOrderRule;
 use App\Services\Export\DatasetExporter;
@@ -48,6 +50,11 @@ final class RelatedFields
             'VAC_DOSE_ORDER', 'VAC_DOSE_INTERVAL' => [self::previousDose($query, $clean)],
             'VAC_BEFORE_DOB', 'VAC_MIN_AGE' => [self::dobVariable($query, $clean)],
             'ELIG_AGE_DOB' => [Map::var('age_annees'), self::dobVariable($query, $clean)],
+            // Dose reçue sans la précédente : la dose précédente (et les autres doses en cause s'il y en a plusieurs).
+            'MAJ_26' => array_merge(...array_map(fn (array $gap) => [$gap['previous'], $gap['dose']],
+                DoseSeriesOrderRule::gaps(fn ($v) => self::value($clean, $v, $query->instance_path)))),
+            'MAJ_31' => array_merge(...array_map(fn (array $gap) => [$gap['previous'], $gap['dose']],
+                RecallDoseSeriesOrderRule::gaps(fn ($v) => self::value($clean, $v, $query->instance_path)))),
             // Toutes les dates de cycles CPS en cause (pas seulement celle de la query).
             'MAJ_37' => array_map(fn ($k) => "date_{$k}", SmcCycleOrderRule::cyclesInCause(SmcCycleOrderRule::dates(fn ($v) => self::value($clean, $v, $query->instance_path)))),
             // Âge calculé : corriger la date de naissance ou la réponse au rappel.
