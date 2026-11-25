@@ -118,7 +118,7 @@ class DataQuery extends Model
         'fingerprint', 'quality_rule_id', 'rule_code', 'label', 'severity', 'household_id', 'caregiver_id',
         'child_id', 'team_id', 'submission_uuid', 'household_code', 'health_zone_id', 'commune_id', 'village_id',
         'cluster_id', 'collector_id', 'collection_date', 'variable', 'variable_label', 'instance_path', 'observed_value',
-        'expected', 'message', 'suggestion', 'status', 'kind', 'assigned_to', 'assigned_by', 'assigned_at', 'due_on',
+        'expected', 'message', 'suggestion', 'status', 'closes_as', 'kind', 'assigned_to', 'assigned_by', 'assigned_at', 'due_on',
         'responded_by', 'responded_at', 'supervised_by', 'supervised_at', 'validated_by', 'detected_at', 'last_detected_at',
         'suggested_value', 'suggested_source', 'suggested_note', 'suggested_by', 'suggested_at',
         'reviewer_id', 'review_assigned_by', 'review_assigned_at',

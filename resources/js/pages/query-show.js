@@ -77,8 +77,15 @@ export default function queryShowPage() {
     const pairChoice = corrections?.querySelector('[data-pair-choice]');
     function syncPair() {
         if (!pairChoice) return;
-        const choice = pairChoice.querySelector('input[name="pair_choice"]:checked')?.value ?? null;
+        const checked = pairChoice.querySelector('input[name="pair_choice"]:checked');
+        const choice = checked?.value ?? null;
         const active = select.value === 'corrigee';
+        // « Âge confirmé » fermé tout de suite par le data manager (irrésoluble) : signature si la query l'exige.
+        if (signature && active) {
+            const required = checked?.dataset.signature === '1';
+            signature.classList.toggle('d-none', !required);
+            signature.querySelector('input').required = required;
+        }
         corrections.querySelectorAll('[data-pair-row]').forEach((row) => {
             const shown = choice === 'all' || choice === row.dataset.pairRow;
             row.classList.toggle('d-none', !shown);

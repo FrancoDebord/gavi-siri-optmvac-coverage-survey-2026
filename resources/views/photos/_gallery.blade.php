@@ -1,24 +1,27 @@
 {{--
     Galerie d'un espace photos : vignettes, auteur, lieu, date, légende ; suppression pour les gestionnaires.
     Clic sur une vignette : visionneuse plein écran (lib/lightbox.js) ; sans JS, la photo originale s'ouvre.
+    $project : espace affiché ; null = photos de plusieurs espaces (onglet « Photos » du binôme), nom de l'espace affiché.
 --}}
+@php($project ??= null)
 @if ($photos->isEmpty())
     <p class="text-muted text-center py-4 mb-0">Aucune photo pour l'instant.</p>
 @else
     <div class="row g-3" data-lightbox-gallery>
         @foreach ($photos as $photo)
+            @php($space = $project ?? $photo->project)
             <div class="col-6 col-md-4 col-lg-3">
                 <div class="card h-100 photo-card">
-                    <a href="{{ route('photos.public.file', [$project->token, $photo, 'original']) }}" target="_blank" rel="noopener" class="ratio ratio-4x3 bg-light photo-thumb"
+                    <a href="{{ route('photos.public.file', [$space->token, $photo, 'original']) }}" target="_blank" rel="noopener" class="ratio ratio-4x3 bg-light photo-thumb"
                        data-lightbox-item
-                       data-thumb="{{ route('photos.public.file', [$project->token, $photo, 'vignette']) }}"
+                       data-thumb="{{ route('photos.public.file', [$space->token, $photo, 'vignette']) }}"
                        data-author="{{ $photo->authorLabel() }}"
                        data-place="{{ $photo->placeLabel() }}"
                        data-date="{{ ($photo->taken_at ?? $photo->created_at)->format('d/m/Y H:i') }}"
                        data-caption="{{ $photo->caption }}"
                        data-download="{{ $photo->downloadName() }}"
                        @if ($photo->latitude !== null) data-map="https://www.openstreetmap.org/?mlat={{ $photo->latitude }}&mlon={{ $photo->longitude }}#map=16/{{ $photo->latitude }}/{{ $photo->longitude }}" @endif>
-                        <img src="{{ route('photos.public.file', [$project->token, $photo, 'vignette']) }}" alt="{{ $photo->caption ?: 'Photo de terrain' }}" loading="lazy" class="object-fit-cover rounded-top">
+                        <img src="{{ route('photos.public.file', [$space->token, $photo, 'vignette']) }}" alt="{{ $photo->caption ?: 'Photo de terrain' }}" loading="lazy" class="object-fit-cover rounded-top">
                     </a>
                     <div class="card-body p-2 small">
                         <div class="fw-semibold text-truncate" title="{{ $photo->authorLabel() }}">{{ $photo->authorLabel() }}</div>
@@ -34,11 +37,14 @@
                         @if ($photo->caption)
                             <div class="mt-1">{{ $photo->caption }}</div>
                         @endif
+                        @unless ($project)
+                            <div class="text-muted mt-1 text-truncate" title="Espace photos"><i class="bi bi-images me-1"></i>{{ $space->name }}</div>
+                        @endunless
                     </div>
                     @if ($canDelete)
                         <div class="card-footer p-2 d-flex justify-content-between align-items-center small">
                             <span class="text-muted">{{ number_format($photo->size / 1048576, 1, ',', ' ') }} Mo</span>
-                            <form method="POST" action="{{ route('photo-projects.photos.destroy', [$project, $photo]) }}"
+                            <form method="POST" action="{{ route('photo-projects.photos.destroy', [$space, $photo]) }}"
                                   data-confirm="Supprimer définitivement cette photo ?" data-confirm-variant="danger" data-confirm-label="Supprimer" data-confirm-title="Supprimer la photo">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger" title="Supprimer la photo"><i class="bi bi-trash"></i></button>

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Child;
 use App\Models\DataCorrection;
 use App\Models\DataQuery;
 use App\Models\QueryEvent;
@@ -200,6 +201,106 @@ class BeninRulesTest extends TestCase
         $this->assertSame(DataQuery::STATUS_JUSTIFIED, $query->fresh()->status);
         $this->assertSame(0, DataCorrection::where('data_query_id', $query->id)->count());
         $this->assertTrue(QueryEvent::where('data_query_id', $query->id)->where('comment', 'like', '%aucun membre de 15 ans ou plus. Enfants seuls%')->exists());
+    }
+
+    /** Ménage avec un enfant de 5 ans ou plus (MAJ_18), âge venant de la date de naissance documentée ou de l'âge déclaré. */
+    private function olderChild(string $code, array $child): DataQuery
+    {
+        (new SubmissionProcessor)->process(new NormalizedSubmission('uuid:'.$code, [
+            'today' => '2026-10-20', 'l1' => '1', 'l2' => '1', 'l3' => '1', 'village' => '41', 'fieldworker' => '46',
+            'household' => $code, 'household_survey_status' => '0', 'c_low' => '12', 'c_high' => '35',
+        ], ['cg' => [['key' => null, 'data' => ['participation_agreed' => '1', 'caregiver_num_children' => '1', 'age_years' => '30'],
+            'repeats' => ['smc_cov_hh_cg_child_2023' => [['key' => null, 'data' => $child, 'repeats' => []]]]]],
+        ], []), ['source_type' => 'demo']);
+        app(QualityEngine::class)->run('test');
+
+        return DataQuery::where('rule_code', 'MAJ_18')->where('household_code', $code)->firstOrFail();
+    }
+
+    public function test_child_five_or_older_is_solved_by_correcting_the_date_of_birth_and_the_age_follows(): void
+    {
+        $query = $this->olderChild('TCH-SEB-01-030', ['child_dob_documented' => '1', 'child_dob' => '2020-05-01', 'age_months_est' => '77']);
+        $manager = $this->manager();
+
+        // Traitement : la question d'où vient l'âge (date documentée), ou « âge juste ».
+        $this->withoutVite()->actingAs($manager)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('L&#039;âge de l&#039;enfant est-il faux ?', false)
+            ->assertSee('name="corrections[0][variable]" value="child_dob"', false)
+            ->assertSee('name="pair_choice" id="pair-none" value="none"', false)
+            ->assertDontSee('id="pair-all"', false);
+
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => '0', 'corrections' => [
+            ['variable' => 'child_dob', 'instance_path' => $query->instance_path, 'new_value' => '2024-05-01', 'reason' => 'acte', 'optional' => '1', 'group' => 'paire'],
+        ]])->assertSessionHasNoErrors();
+
+        // L'âge calculé suit la date corrigée (20/10/2026 − 01/05/2024 = 902 jours ≈ 29 mois).
+        $corrections = DataCorrection::where('data_query_id', $query->id)->pluck('new_value', 'variable');
+        $this->assertSame('2024-05-01', $corrections['child_dob']);
+        $this->assertSame('29', $corrections['age_months_est']);
+        $this->assertSame('29', $corrections['calc_dob_months']);
+
+        // Validation : correction appliquée, l'anomalie disparaît, la query est fermée.
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED, 'comment' => 'OK'])->assertSessionHasNoErrors();
+        $this->assertSame(DataQuery::STATUS_VALIDATED, $query->fresh()->status);
+        $this->assertSame(29, \App\Models\Child::where('household_id', $query->household_id)->value('age_months'));
+    }
+
+    public function test_child_five_or_older_declared_age_can_be_corrected_in_years_and_months(): void
+    {
+        $query = $this->olderChild('TCH-SEB-01-031', ['child_dob_documented' => '0', 'child_dob_caregiver_known' => '0', 'child_years' => '5', 'child_months' => '2', 'age_months_est' => '62']);
+        $manager = $this->manager();
+        $this->withoutVite()->actingAs($manager)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('name="corrections[0][variable]" value="child_years"', false)
+            ->assertSee('name="corrections[1][variable]" value="child_months"', false)
+            ->assertSee('id="pair-all"', false);
+
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => '0', 'corrections' => [
+            ['variable' => 'child_years', 'instance_path' => $query->instance_path, 'new_value' => '2', 'reason' => 'revisite', 'optional' => '1', 'group' => 'paire'],
+        ]])->assertSessionHasNoErrors();
+        $corrections = DataCorrection::where('data_query_id', $query->id)->pluck('new_value', 'variable');
+        $this->assertSame(['2', '26', '26'], [$corrections['child_years'], $corrections['child_age_reported'], $corrections['age_months_est']]);
+    }
+
+    public function test_child_five_or_older_confirmed_by_the_team_is_closed_as_unresolvable_at_final_validation(): void
+    {
+        $query = $this->olderChild('TCH-SEB-01-032', ['child_dob_documented' => '1', 'child_dob' => '2020-05-01', 'age_months_est' => '77']);
+        // Réponse d'un compte qui ne valide pas (superviseur à qui la query est assignée).
+        $responder = User::factory()->create(['health_zone_id' => $query->health_zone_id]);
+        $responder->assignRole(User::ROLE_SUPERVISOR);
+        $query->update(['assigned_to' => $responder->id, 'status' => DataQuery::STATUS_SENT]);
+
+        $this->withoutVite()->actingAs($responder)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('la validation finale fermera la query comme irrésoluble');
+        $this->actingAs($responder)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => 'none', 'comment' => 'Vu sur l\'acte de naissance.', 'corrections' => [
+            ['variable' => 'child_dob', 'instance_path' => $query->instance_path, 'new_value' => '2020-05-01', 'optional' => '1', 'group' => 'paire'],
+        ]])->assertSessionHasNoErrors();
+        $query->refresh();
+        $this->assertSame([DataQuery::STATUS_JUSTIFIED, DataQuery::STATUS_UNRESOLVABLE], [$query->status, $query->closes_as]);
+        $this->assertSame(0, DataCorrection::where('data_query_id', $query->id)->count());
+
+        // Data manager : l'action de validation annonce la fermeture comme irrésoluble, puis la query est fermée ainsi.
+        $manager = $this->manager();
+        $this->withoutVite()->actingAs($manager)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('Valider directement : fermer comme irrésoluble')->assertSee('La validation finale fermera la query comme');
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_VALIDATED])->assertSessionHasNoErrors();
+        $this->assertSame(DataQuery::STATUS_UNRESOLVABLE, $query->fresh()->status);
+        $this->assertNotNull($query->fresh()->closed_at);
+
+        // Le moteur ne la rouvre pas.
+        app(QualityEngine::class)->run('test');
+        $this->assertSame(DataQuery::STATUS_UNRESOLVABLE, $query->fresh()->status);
+    }
+
+    public function test_child_five_or_older_confirmed_by_the_data_manager_is_closed_at_once(): void
+    {
+        $query = $this->olderChild('TCH-SEB-01-033', ['child_dob_documented' => '1', 'child_dob' => '2020-05-01', 'age_months_est' => '77']);
+        $this->actingAs($this->manager())->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => 'none', 'corrections' => [
+            ['variable' => 'child_dob', 'instance_path' => $query->instance_path, 'new_value' => '2020-05-01', 'optional' => '1', 'group' => 'paire'],
+        ]])->assertSessionHasNoErrors();
+        $query->refresh();
+        $this->assertSame(DataQuery::STATUS_UNRESOLVABLE, $query->status);
+        $this->assertNull($query->closes_as);
+        $this->assertTrue(QueryEvent::where('data_query_id', $query->id)->where('comment', 'like', 'Âge confirmé%')->exists());
     }
 
     public function test_smc_cycles_out_of_order_list_every_date_and_offer_the_dates_in_cause(): void

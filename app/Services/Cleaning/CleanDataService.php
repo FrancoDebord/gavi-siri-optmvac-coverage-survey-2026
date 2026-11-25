@@ -133,6 +133,37 @@ class CleanDataService
                 'proposed_at' => now(),
             ]));
         }
+        // Date de naissance ou âge déclaré corrigé : l'âge calculé de l'enfant (age_months_est…) est recalculé comme dans
+        // le formulaire, sinon les contrôles sur l'âge (MAJ_18…) ne verraient pas la correction.
+        $ageInputs = ChildAgeRecalculator::inputs();
+        foreach ($created->filter(fn (DataCorrection $c) => in_array($c->variable, $ageInputs, true))->groupBy('instance_path') as $path => $group) {
+            $path = $path === '' ? null : $path;
+            $first = $group->first();
+            $derived = ChildAgeRecalculator::derived($clean, $path, $group->mapWithKeys(fn (DataCorrection $c) => [$c->variable => $c->new_value])->all());
+            foreach ($derived as $variable => $value) {
+                $definition = $dictionary->variable($variable);
+                if (! $definition || isset($seen[$variable.'@'.$path])) {
+                    continue;
+                }
+                try {
+                    $old = CorrectionApplier::normalize(SubmissionPaths::get($clean, $variable, $path));
+                } catch (InvalidArgumentException) {
+                    continue;
+                }
+                if ($old === $value) {
+                    continue;
+                }
+                $seen[$variable.'@'.$path] = true;
+                $created->push(new DataCorrection([
+                    'submission_uuid' => $household->submission_uuid, 'household_id' => $household->id, 'data_query_id' => $query->id,
+                    'variable' => $variable, 'instance_path' => $path,
+                    'source_value' => CorrectionApplier::normalize(SubmissionPaths::get($source, $variable, $path)), 'old_value' => $old,
+                    'new_value' => $value, 'reason' => $first->reason, 'source_reference' => $first->source_reference,
+                    'comment' => 'Mise à jour automatique : âge de l\'enfant recalculé d\'après la correction.',
+                    'status' => DataCorrection::STATUS_PROPOSED, 'proposed_by' => $user?->id, 'proposed_at' => now(),
+                ]));
+            }
+        }
         // Arrondissement corrigé : la variable calculée qui filtre les villages (village_parent) le suit.
         $arrondissement = $created->first(fn (DataCorrection $c) => $c->variable === Map::var('arrondissement') && $c->instance_path === null);
         $parent = 'village_parent';

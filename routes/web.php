@@ -149,6 +149,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/mon-binome/villages-restants', [TeamSpaceController::class, 'remainingVillages'])->name('team.remaining');
     Route::get('/mon-binome/grappes', [TeamSpaceController::class, 'clusters'])->name('team.clusters');
     Route::get('/mon-binome/photos/{project?}', [TeamSpaceController::class, 'photos'])->whereNumber('project')->name('team.photos');
+    Route::get('/mon-binome/photos-terrain', [TeamSpaceController::class, 'fieldPhotos'])->name('team.field-photos');
     Route::get('/mon-binome/grappes.pdf', [TeamSpaceController::class, 'clustersPdf'])->name('team.clusters.pdf')->middleware('throttle:10,1');
 
     // Investigateur principal

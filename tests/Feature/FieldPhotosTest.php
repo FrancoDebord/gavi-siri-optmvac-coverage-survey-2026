@@ -146,6 +146,31 @@ class FieldPhotosTest extends TestCase
         $this->actingAs($account)->get(route('team.photos', $second))->assertRedirect($second->publicUrl());
     }
 
+    public function test_team_space_photos_tab_shows_its_photos_in_the_viewer(): void
+    {
+        $project = $this->project();
+        $this->post(route('photos.public.unlock', $project->token), ['pin' => $project->pin]);
+        $this->postJson(route('photos.public.upload', $project->token), ['team_id' => $this->team->id, 'caption' => 'Séance au village', 'photos' => [UploadedFile::fake()->image('a.jpg')]])->assertOk();
+        $other = Team::create(['code' => '33-43', 'name' => 'Autre', 'health_zone_id' => $this->team->health_zone_id]);
+        $this->flushSession();
+        $photo = FieldPhoto::firstOrFail();
+
+        $account = User::factory()->create(['team_id' => $this->team->id]);
+        $account->assignRole(User::ROLE_TEAM);
+        $this->actingAs($account)->get(route('team.field-photos'))->assertOk()
+            ->assertSee('Photos de terrain du binôme · 1 photo(s)')->assertSee('Séance au village')
+            ->assertSee('data-lightbox-gallery', false)->assertSee($project->name);
+        // Fichier ouvert depuis le compte du binôme, sans code PIN, même si l'espace est fermé.
+        $project->update(['active' => false]);
+        $this->actingAs($account)->get(route('photos.public.file', [$project->token, $photo, 'original']))->assertOk();
+
+        // Autre binôme : ni la photo dans son onglet, ni le fichier.
+        $stranger = User::factory()->create(['team_id' => $other->id]);
+        $stranger->assignRole(User::ROLE_TEAM);
+        $this->actingAs($stranger)->get(route('team.field-photos'))->assertOk()->assertSee('Aucune photo pour l\'instant.', false);
+        $this->actingAs($stranger)->get(route('photos.public.file', [$project->token, $photo, 'original']))->assertForbidden();
+    }
+
     public function test_closing_or_renewing_the_link_and_pin_locks_the_space(): void
     {
         $project = $this->project();

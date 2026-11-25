@@ -130,6 +130,13 @@ class QueryWorkflow
         if (($status === DataQuery::STATUS_CORRECTED || ($status === DataQuery::STATUS_VALIDATED && $withCorrections)) && ($lock = DataLock::current())) {
             throw new InvalidArgumentException("Base gelée (version {$lock->label()} depuis le {$lock->created_at->format('d/m/Y')}) : aucune correction possible avant le dégel par l'administrateur.");
         }
+        // Réponse qui appelle une autre fermeture (ex. MAJ_18, âge confirmé : irrésoluble) : la validation finale ferme la
+        // query ainsi, sans rien appliquer.
+        $closingNote = null;
+        if ($status === DataQuery::STATUS_VALIDATED && ! $withCorrections && $query->closes_as === DataQuery::STATUS_UNRESOLVABLE) {
+            $status = DataQuery::STATUS_UNRESOLVABLE;
+            $closingNote = 'Validation finale de la réponse : query fermée comme irrésoluble.';
+        }
         // Validation d'une correction : appliquée à la base nettoyée, la query est conclue par le moteur.
         if ($status === DataQuery::STATUS_VALIDATED && $withCorrections) {
             DB::transaction(function () use ($query, $comment, $user, $signed) {
@@ -148,6 +155,7 @@ class QueryWorkflow
             return $query->refresh();
         }
 
+        $comment = $closingNote ? trim($closingNote.' '.($comment ?? '')) : $comment;
         DB::transaction(function () use ($query, $status, $comment, $user, $isResponse, $signed, $corrections, $withCorrections) {
             $from = $query->status;
             if ($status === DataQuery::STATUS_CORRECTED) {
@@ -179,6 +187,8 @@ class QueryWorkflow
             } elseif (! $closing) {
                 $query->responded_by = $query->responded_at = null;
                 $query->supervised_by = $query->supervised_at = null;
+                // Rejet ou réouverture : la fermeture attendue tombe avec la réponse.
+                $query->closes_as = null;
             }
             $query->validated_by = $closing ? $user?->id : null;
             if ($status === DataQuery::STATUS_SUPERVISED) {

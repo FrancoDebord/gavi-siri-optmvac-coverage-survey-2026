@@ -112,8 +112,12 @@ class PublicPhotoController extends Controller
     {
         $project = PhotoProject::where('token', $token)->firstOrFail();
         abort_unless($photo->photo_project_id === $project->id, 404);
-        $manager = $request->user()?->can('manage field photos');
-        abort_unless($manager || ($project->active && $this->unlocked($request, $project)), 403);
+        $user = $request->user();
+        // Gestionnaire, appareil qui a saisi le PIN, ou compte qui voit l'espace du binôme de la photo (onglet « Photos »).
+        $allowed = $user?->can('manage field photos')
+            || ($project->active && $this->unlocked($request, $project))
+            || ($user && $photo->team && TeamSpaceController::canSeeTeam($user, $photo->team));
+        abort_unless($allowed, 403);
 
         $path = $variant === 'vignette' && $photo->thumb_path ? $photo->thumb_path : $photo->path;
         abort_unless(Storage::disk(FieldPhoto::DISK)->exists($path), 404);

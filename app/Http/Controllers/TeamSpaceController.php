@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Cluster;
 use App\Models\DataQuery;
+use App\Models\FieldPhoto;
 use App\Models\Household;
 use App\Models\PhotoProject;
 use App\Models\QualityRule;
@@ -225,6 +226,34 @@ class TeamSpaceController extends Controller
      *
      * @return array{0: Team, 1: Collection<int, Team>}
      */
+    /** Même règle que l'ouverture de l'espace binôme : son propre binôme, ou les binômes de la zone supervisée. */
+    public static function canSeeTeam(User $user, Team $team): bool
+    {
+        if ($user->hasRole(User::ROLE_TEAM)) {
+            return (int) $user->team_id === (int) $team->id;
+        }
+        if (! $user->can('view dashboards')) {
+            return false;
+        }
+        $zoneId = $user->supervisedZoneId();
+
+        return ! $zoneId || (int) $team->health_zone_id === (int) $zoneId || (int) $user->team_id === (int) $team->id;
+    }
+
+    /**
+     * Onglet « Photos » : photos de terrain déposées pour le binôme (tous les espaces photos), les plus récentes
+     * d'abord ; clic : visionneuse plein écran.
+     */
+    public function fieldPhotos(Request $request): View
+    {
+        [$team, $teams] = $this->team($request);
+
+        return view('team.field-photos', $this->shared($request, $team, $teams, 'photos') + [
+            'photos' => FieldPhoto::with(['project:id,name,token', 'team:id,code,name', 'village:id,name'])
+                ->where('team_id', $team->id)->latest('id')->paginate(48)->withQueryString(),
+        ]);
+    }
+
     private function team(Request $request): array
     {
         $user = $request->user();

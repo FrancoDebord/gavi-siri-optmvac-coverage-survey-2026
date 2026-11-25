@@ -183,7 +183,12 @@
                     ->mapWithKeys(fn ($status) => [$status => match ($status) {
                         \App\Models\DataQuery::STATUS_OPEN => in_array($query->status, [...\App\Models\DataQuery::RESPONSES, ...\App\Models\DataQuery::AWAITING_FINAL], true) ? 'Rejeter la réponse (retour au binôme)' : 'Rouvrir la query',
                         \App\Models\DataQuery::STATUS_SUPERVISED => 'Valider (vérification du superviseur) → validation finale',
-                        \App\Models\DataQuery::STATUS_VALIDATED => $awaitingFinal ? 'Validation finale et fermeture' : 'Valider directement et fermer (sans vérification du superviseur)',
+                        \App\Models\DataQuery::STATUS_VALIDATED => match (true) {
+                            // Réponse « âge confirmé » (MAJ_18…) : la validation ferme la query comme irrésoluble.
+                            $query->closes_as === \App\Models\DataQuery::STATUS_UNRESOLVABLE => $awaitingFinal ? 'Validation finale : fermer comme irrésoluble' : 'Valider directement : fermer comme irrésoluble',
+                            $awaitingFinal => 'Validation finale et fermeture',
+                            default => 'Valider directement et fermer (sans vérification du superviseur)',
+                        },
                         default => \App\Models\DataQuery::STATUSES[$status],
                     }]);
                 $needsSignature = $doubleValidation && $user->can('validate', $query);
@@ -259,6 +264,9 @@
                 <div class="card mb-3">
                     <div class="card-header">Traitement</div>
                     <div class="card-body">
+                        @if ($query->closes_as === \App\Models\DataQuery::STATUS_UNRESOLVABLE && in_array($query->status, [...\App\Models\DataQuery::RESPONSES, ...\App\Models\DataQuery::AWAITING_FINAL], true))
+                            <div class="alert alert-secondary py-2 small"><i class="bi bi-info-circle me-1"></i>Réponse : valeur confirmée, rien à corriger. La validation finale fermera la query comme <strong>irrésoluble</strong>.</div>
+                        @endif
                         @if ($options->isNotEmpty())
                             <form id="query-status-form" method="POST" action="{{ route('queries.status', $query) }}" class="mb-3" data-confirm-when="status:irresoluble" data-confirm-variant="warning" data-confirm-title="Query irrésoluble" data-confirm="Déclarer la query {{ $query->code }} irrésoluble ? Elle sera fermée sans correction de la donnée.">
                                 @csrf
@@ -346,25 +354,34 @@
                                                 @include('queries._correction-reason', ['i' => 62])
                                             </div>
                                         @endif
-                                        @if ($correctionField && $correctionField['related'])
+                                        @if ($correctionField && $correctionField['pair'])
+                                            @php($noError = \App\Http\Controllers\DataQueryController::NO_ERROR[$query->rule_code] ?? null)
                                             <fieldset class="border border-warning-subtle rounded p-2 mb-2" data-pair-choice>
-                                                <legend class="float-none w-auto small fw-semibold px-1 mb-1">Quelle valeur est fausse ?</legend>
-                                                <div class="small text-muted mb-1">Vérifiez sur le carnet laquelle est fausse.</div>
+                                                <legend class="float-none w-auto small fw-semibold px-1 mb-1">{{ $noError['legend'] ?? 'Quelle valeur est fausse ?' }}</legend>
+                                                <div class="small text-muted mb-1">{{ $noError['hint'] ?? 'Vérifiez sur le carnet laquelle est fausse.' }}</div>
                                                 @foreach ($correctionField['pair'] as $k => $f)
                                                     <div class="form-check">
                                                         <input class="form-check-input" type="radio" name="pair_choice" id="pair-{{ $k }}" value="{{ $k }}" required>
-                                                        <label class="form-check-label" for="pair-{{ $k }}"><strong>{{ $f['short_label'] ?? $f['label'] }}</strong> ({{ $f['display'] }})</label>
+                                                        <label class="form-check-label" for="pair-{{ $k }}">@if (isset($noError['legend']))Oui : corriger @endif<strong>{{ $f['short_label'] ?? $f['label'] }}</strong> ({{ $f['display'] }})</label>
                                                     </div>
                                                 @endforeach
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="radio" name="pair_choice" id="pair-all" value="all" required>
-                                                    <label class="form-check-label" for="pair-all">{{ count($correctionField['pair']) > 2 ? 'Plusieurs' : 'Les deux' }}</label>
-                                                </div>
-                                                @if ($noError = \App\Http\Controllers\DataQueryController::NO_ERROR[$query->rule_code] ?? null)
-                                                    {{-- Rien à changer : la query est enregistrée comme valeur confirmée, avec cette justification. --}}
+                                                @if (count($correctionField['pair']) > 1)
                                                     <div class="form-check">
-                                                        <input class="form-check-input" type="radio" name="pair_choice" id="pair-none" value="none" required>
+                                                        <input class="form-check-input" type="radio" name="pair_choice" id="pair-all" value="all" required>
+                                                        <label class="form-check-label" for="pair-all">{{ count($correctionField['pair']) > 2 ? 'Plusieurs' : 'Les deux' }}</label>
+                                                    </div>
+                                                @endif
+                                                @if ($noError)
+                                                    {{-- Rien à changer : la query est enregistrée comme valeur confirmée, avec cette justification
+                                                         (MAJ_18 : fermée comme irrésoluble à la validation finale, ou tout de suite par le data manager). --}}
+                                                    @php($closesNow = ($noError['closes_as'] ?? null) && \App\Services\Quality\QueryWorkflow::allowed($user, $query, $noError['closes_as']))
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="pair_choice" id="pair-none" value="none" required
+                                                               @if ($closesNow && $needsSignature) data-signature="1" @endif>
                                                         <label class="form-check-label" for="pair-none">{{ $noError['label'] }}</label>
+                                                        @if ($noError['closes_as'] ?? null)
+                                                            <div class="form-text mt-0">{{ $closesNow ? 'La query sera fermée tout de suite comme irrésoluble.' : 'Après vérification, la validation finale fermera la query comme irrésoluble.' }}</div>
+                                                        @endif
                                                     </div>
                                                 @endif
                                             </fieldset>

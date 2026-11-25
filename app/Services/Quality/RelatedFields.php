@@ -41,6 +41,9 @@ final class RelatedFields
         if ($query->rule_code === 'MAJ_11') {
             return self::youngCaregiver($query, $clean);
         }
+        if ($query->rule_code === 'MAJ_18') {
+            return self::childAgeSource($query, $clean);
+        }
         $variables = match ($query->rule_code) {
             'VAC_DOSE_ORDER', 'VAC_DOSE_INTERVAL' => [self::previousDose($query, $clean)],
             'VAC_BEFORE_DOB', 'VAC_MIN_AGE' => [self::dobVariable($query, $clean)],
@@ -201,6 +204,26 @@ final class RelatedFields
         $declared = Map::var('date_naissance_declaree');
 
         return $declared && SubmissionProcessor::date(self::value($clean, $declared, $query->instance_path)) ? $declared : $documented;
+    }
+
+    /**
+     * MAJ-18 (enfant de 5 ans ou plus) : la ou les questions d'où vient l'âge calculé, comme dans le formulaire —
+     * date de naissance documentée, sinon date déclarée par le caregiver, sinon âge déclaré (années et mois).
+     *
+     * @return list<array{variable: string, label: string, path: ?string}>
+     */
+    private static function childAgeSource(DataQuery $query, NormalizedSubmission $clean): array
+    {
+        $path = $query->instance_path;
+        $variables = match (true) {
+            (string) self::value($clean, 'child_dob_documented', $path) === '1' => [Map::var('date_naissance_enfant')],
+            (string) self::value($clean, 'child_dob_caregiver_known', $path) === '1' => [Map::var('date_naissance_declaree')],
+            default => [Map::var('age_annees'), Map::var('age_mois')],
+        };
+        $dictionary = Dictionary::current();
+
+        return array_values(array_map(fn ($variable) => ['variable' => $variable, 'label' => self::label($variable), 'path' => $path],
+            array_filter($variables, fn ($variable) => $variable && ($definition = $dictionary->variable($variable)) && $dictionary->isInput($definition))));
     }
 
     /** Enfant de la query reconstitué avec les valeurs (corrigées) utiles à la règle, et la zone (l1) du ménage. */

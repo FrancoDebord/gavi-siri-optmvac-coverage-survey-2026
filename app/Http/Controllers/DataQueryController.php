@@ -427,7 +427,8 @@ class DataQueryController extends Controller
         // Autres questions en cause (ex. VPO 2 pour « VPO 3 avant VPO 2 ») : l'agent choisit celle qui est fausse.
         $field['related'] = $related;
         // Choix « quelle valeur est fausse » : la question de la query puis les autres, valeur lisible (date jj/mm/aaaa).
-        $field['pair'] = $field['related'] ? array_map(fn (array $f) => $f + [
+        // Règle avec un choix « aucune valeur fausse » (ex. MAJ_18, âge confirmé) : choix proposé même pour une seule question.
+        $field['pair'] = ($field['related'] || isset(self::NO_ERROR[$query->rule_code])) ? array_map(fn (array $f) => $f + [
             'display' => ($f['type'] === 'date' ? SubmissionProcessor::date($f['current'])?->format('d/m/Y') : null) ?? DataCorrection::displayFor($f['variable'], $f['current']),
         ], array_merge([$field], $field['related'])) : [];
 
@@ -544,6 +545,15 @@ class DataQueryController extends Controller
             'label' => 'Aucune : les tranches d\'âge sont justes, le ménage n\'a pas de membre de 15 ans ou plus',
             'comment' => 'Tranches d\'âge vérifiées et confirmées : le ménage n\'a aucun membre de 15 ans ou plus.',
         ],
+        // Âge confirmé : l'enfant a bien 5 ans ou plus (listé à tort). Rien à corriger ; à la validation finale, la query
+        // est fermée comme irrésoluble (closes_as).
+        'MAJ_18' => [
+            'legend' => 'L\'âge de l\'enfant est-il faux ?',
+            'hint' => 'Vérifiez l\'âge avec le caregiver ou sur le document de naissance, puis corrigez la valeur fausse.',
+            'label' => 'Non : l\'âge saisi est juste, l\'enfant a bien 5 ans ou plus (listé à tort)',
+            'comment' => 'Âge confirmé : l\'enfant a bien 5 ans ou plus et a été listé à tort ; query à fermer comme irrésoluble.',
+            'closes_as' => DataQuery::STATUS_UNRESOLVABLE,
+        ],
     ];
 
     public function updateStatus(QueryStatusRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
@@ -568,6 +578,15 @@ class DataQueryController extends Controller
             if ($status === DataQuery::STATUS_CORRECTED && in_array($request->validated('pair_choice'), ['none', 'card'], true) && isset(self::NO_ERROR[$query->rule_code])) {
                 [$status, $corrections] = [DataQuery::STATUS_JUSTIFIED, []];
                 $comment = trim(self::NO_ERROR[$query->rule_code]['comment'].' '.trim((string) $comment));
+                $closesAs = self::NO_ERROR[$query->rule_code]['closes_as'] ?? null;
+                // Data manager / administrateur : fermeture directe (irrésoluble), sans passer par la validation.
+                if ($closesAs && QueryWorkflow::allowed($request->user(), $query, $closesAs) && $query->canTransitionTo($closesAs)) {
+                    [$status, $closesAs] = [$closesAs, null];
+                }
+            }
+            // Réponse du binôme : fermeture attendue à la validation finale (ex. irrésoluble), ou aucune.
+            if (in_array($status, DataQuery::RESPONSES, true)) {
+                $query->closes_as = $closesAs ?? null;
             }
             $workflow->transition($query, $status, $comment, $request->user(), $request->validated('password'), $corrections);
         } catch (InvalidArgumentException $e) {
