@@ -168,13 +168,21 @@ function enhance(select) {
         wrapper.classList.toggle('drop-up', window.innerHeight - rect.bottom < 300 && rect.top > window.innerHeight - rect.bottom);
         input.value = initial;
         render();
+        // Panneau qui dépasserait le bord droit de la page (sous la barre de défilement, ex. liste des règles aux
+        // libellés longs) : aligné sur le bord droit du champ, et pas plus large que la place disponible à gauche.
+        wrapper.classList.remove('align-end');
+        panel.style.maxWidth = '';
+        if (panel.getBoundingClientRect().right > document.documentElement.clientWidth - 8) {
+            wrapper.classList.add('align-end');
+            panel.style.maxWidth = `${Math.max(rect.width, Math.min(512, rect.right - 8))}px`;
+        }
         input.focus();
     };
 
     const close = (focus = true) => {
         if (panel.hidden) return;
         panel.hidden = true;
-        wrapper.classList.remove('open', 'drop-up');
+        wrapper.classList.remove('open', 'drop-up', 'align-end');
         button.setAttribute('aria-expanded', 'false');
         if (focus) button.focus();
     };
