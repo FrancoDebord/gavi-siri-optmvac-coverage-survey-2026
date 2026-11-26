@@ -95,13 +95,13 @@ class DataQueryController extends Controller
     }
 
     /** Source DataTables côté serveur. */
-    public function datatable(Request $request): JsonResponse
-    {
-        $stats = new QueryStats(Filters::fromRequest($request), QueryDashboardController::extra($request));
-        $base = $stats->queries();
-        $total = (clone $base)->count();
+    /** Nombre maximal de queries traitées en une action groupée (sélection de toute la liste comprise). */
+    public const BULK_MAX = 2000;
 
-        $query = $base
+    /** Liste des queries (tableau, sélection de toute la liste) : filtres de la page, jointures et recherche libre. */
+    private function listQuery(Request $request)
+    {
+        $query = (new QueryStats(Filters::fromRequest($request), QueryDashboardController::extra($request)))->queries()
             ->leftJoin('health_zones', 'health_zones.id', '=', 'data_queries.health_zone_id')
             ->leftJoin('communes', 'communes.id', '=', 'data_queries.commune_id')
             ->leftJoin('villages', 'villages.id', '=', 'data_queries.village_id')
@@ -122,6 +122,28 @@ class DataQueryController extends Controller
                 }
             });
         }
+
+        return $query;
+    }
+
+    /**
+     * Identifiants de toutes les queries de la liste (filtres et recherche affichés, toutes pages) : « Sélectionner toute
+     * la liste » avant une action groupée. Au plus BULK_MAX ; « truncated » si la liste est plus longue.
+     */
+    public function ids(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->can('process queries') || $request->user()->can('validate queries') || $request->user()->can('review queries'), 403);
+        $query = $this->listQuery($request);
+        $total = (clone $query)->count();
+        $ids = $query->orderByDesc('data_queries.id')->limit(self::BULK_MAX)->pluck('data_queries.id');
+
+        return response()->json(['ids' => $ids->map(fn ($id) => (string) $id)->values(), 'total' => $total, 'truncated' => $total > self::BULK_MAX, 'max' => self::BULK_MAX]);
+    }
+
+    public function datatable(Request $request): JsonResponse
+    {
+        $total = (new QueryStats(Filters::fromRequest($request), QueryDashboardController::extra($request)))->queries()->count();
+        $query = $this->listQuery($request);
         $filtered = (clone $query)->count();
 
         $column = self::SORTABLE[$request->input('order_column')] ?? 'data_queries.collection_date';
@@ -653,7 +675,7 @@ class DataQueryController extends Controller
     {
         abort_unless($request->user()->can('validate queries'), 403);
         $data = $request->validate([
-            'ids' => ['required', 'array', 'min:1', 'max:500'], 'ids.*' => ['integer'],
+            'ids' => ['required', 'array', 'min:1', 'max:'.\App\Http\Controllers\DataQueryController::BULK_MAX], 'ids.*' => ['integer'],
             'reviewer_id' => ['nullable', 'integer', 'exists:users,id'], 'comment' => ['nullable', 'string', 'max:2000'],
         ]);
         $reviewer = isset($data['reviewer_id']) ? User::find($data['reviewer_id']) : null;

@@ -16,7 +16,7 @@ class BulkQueryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids' => ['required', 'array', 'min:1', 'max:'.\App\Http\Controllers\DataQueryController::BULK_MAX],
             'ids.*' => ['integer'],
             'status' => ['nullable', Rule::in(array_keys(DataQuery::STATUSES))],
             'comment' => ['nullable', 'string', 'max:2000', 'required_without:status'],

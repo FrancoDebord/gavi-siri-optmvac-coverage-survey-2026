@@ -1,7 +1,7 @@
 import { dataTable, LANGUAGE_FR } from '../lib/datatable';
 import { bindExportLinks, initFilterBar } from '../lib/filters';
 import { escapeHtml } from '../lib/format';
-import { postJson, toast } from '../lib/http';
+import { getJson, postJson, toast } from '../lib/http';
 
 /**
  * Liste détaillée des queries (DataTables côté serveur) avec actions rapides :
@@ -134,7 +134,39 @@ export default function queriesListPage() {
         if (!bar) return;
         bar.classList.toggle('d-none', selection.size === 0);
         bar.querySelector('[data-count]').textContent = selection.size;
+        // « Sélectionner toute la liste » : proposé tant que la sélection ne couvre pas toute la liste filtrée.
+        const total = dt.page.info()?.recordsDisplay ?? 0;
+        bar.querySelector('[data-list-total]').textContent = total;
+        document.getElementById('select-list')?.classList.toggle('d-none', selection.size >= total);
     }
+
+    // Toute la liste (filtres et recherche affichés, toutes les pages), au-delà des 25 lignes de la page.
+    document.getElementById('select-list')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        try {
+            const result = await getJson(root.dataset.idsUrl, { ...current, search: dt.search() });
+            selection = new Set(result.ids);
+            table.querySelectorAll('.row-select').forEach((box) => { box.checked = selection.has(box.value); });
+            updateSelection();
+            if (result.truncated) {
+                toast(`Liste de ${result.total} queries : seules les ${result.max} plus récentes sont sélectionnées (limite par action). Traitez-les, puis recommencez.`, 'warning');
+            }
+        } catch (error) {
+            toast(error.message, 'danger');
+        } finally {
+            button.disabled = false;
+        }
+    });
+    // Nombre de queries de la liste à jour après chaque chargement (filtres, recherche, page).
+    dt.on('draw', updateSelection);
+    document.getElementById('select-none')?.addEventListener('click', () => {
+        selection = new Set();
+        table.querySelectorAll('.row-select').forEach((box) => { box.checked = false; });
+        const all = document.getElementById('select-all');
+        if (all) all.checked = false;
+        updateSelection();
+    });
 
     table.addEventListener('change', (event) => {
         if (event.target.classList.contains('row-select')) {

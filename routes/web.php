@@ -193,6 +193,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/queries/{query}/recharger', [DataQueryController::class, 'reload'])->whereNumber('query')->name('queries.reload')->middleware('throttle:10,1');
     Route::post('/queries/{query}/suggestion-ia', [DataQueryController::class, 'suggestAi'])->whereNumber('query')->name('queries.suggest-ai')->middleware('throttle:20,1');
     Route::post('/queries/{query}/affectation', [DataQueryController::class, 'assign'])->whereNumber('query')->name('queries.assign')->middleware('throttle:60,1');
+    Route::get('/queries/identifiants', [DataQueryController::class, 'ids'])->name('queries.ids')->middleware('throttle:30,1');
     Route::post('/queries/lot', [DataQueryController::class, 'bulk'])->name('queries.bulk')->middleware('throttle:30,1');
     Route::post('/queries/{query}/validation', [DataQueryController::class, 'assignReview'])->whereNumber('query')->name('queries.review-assign')->middleware('throttle:60,1');
     Route::post('/queries/lot/validation', [DataQueryController::class, 'bulkAssignReview'])->name('queries.bulk-review-assign')->middleware('throttle:30,1');

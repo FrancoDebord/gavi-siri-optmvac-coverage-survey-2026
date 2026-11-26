@@ -1,5 +1,5 @@
 <x-layouts.app title="Liste des queries" page="queries-list">
-    <div id="queries-list" data-url="{{ route('queries.datatable') }}" data-bulk-url="{{ route('queries.bulk') }}" data-bulk-assign-url="{{ route('queries.bulk-assign') }}" data-bulk-review-url="{{ route('queries.bulk-review-assign') }}" data-can-process="{{ auth()->user()->can('process queries') || auth()->user()->can('validate queries') || auth()->user()->can('review queries') ? '1' : '0' }}">
+    <div id="queries-list" data-url="{{ route('queries.datatable') }}" data-ids-url="{{ route('queries.ids') }}" data-bulk-url="{{ route('queries.bulk') }}" data-bulk-assign-url="{{ route('queries.bulk-assign') }}" data-bulk-review-url="{{ route('queries.bulk-review-assign') }}" data-can-process="{{ auth()->user()->can('process queries') || auth()->user()->can('validate queries') || auth()->user()->can('review queries') ? '1' : '0' }}">
         <x-page-header title="Liste des queries" :subtitle="$lastRun ? 'Dernière exécution du moteur : '.$lastRun->started_at->format('d/m/Y H:i').' ('.($lastRun->status === 'success' ? $lastRun->households_checked.' ménages contrôlés' : 'échec').')' : 'Le moteur n\'a pas encore été exécuté.'">
             @can('run quality checks')
                 <form method="POST" action="{{ route('queries.run') }}" data-confirm="Relancer le moteur de queries sur toutes les soumissions ?">
@@ -100,8 +100,13 @@
 
         <x-query-progress title="Progression de la résolution des erreurs par les binômes (filtres appliqués, tous statuts)" />
 
-        <div id="bulk-bar" class="alert alert-primary d-flex align-items-center justify-content-between py-2 d-none">
-            <span><strong data-count>0</strong> query(s) sélectionnée(s)</span>
+        <div id="bulk-bar" class="alert alert-primary d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 d-none">
+            <span class="d-flex flex-wrap align-items-center gap-2">
+                <span><strong data-count>0</strong> query(s) sélectionnée(s)</span>
+                {{-- Toute la liste (filtres et recherche affichés, toutes les pages) : ex. toutes les réponses d'un binôme à valider. --}}
+                <button type="button" id="select-list" class="btn btn-sm btn-link p-0">Sélectionner toute la liste (<span data-list-total>…</span>)</button>
+                <button type="button" id="select-none" class="btn btn-sm btn-link p-0 text-secondary">Tout désélectionner</button>
+            </span>
             <span class="d-flex gap-2">
                 @can('assign queries')
                     <button id="bulk-assign" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-check me-1"></i>Affecter</button>

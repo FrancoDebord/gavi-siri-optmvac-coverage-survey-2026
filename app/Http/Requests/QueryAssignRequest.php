@@ -14,7 +14,7 @@ class QueryAssignRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'ids' => ['sometimes', 'array', 'min:1', 'max:500'],
+            'ids' => ['sometimes', 'array', 'min:1', 'max:'.\App\Http\Controllers\DataQueryController::BULK_MAX],
             'ids.*' => ['integer'],
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'due_on' => ['nullable', 'date', 'after_or_equal:today'],

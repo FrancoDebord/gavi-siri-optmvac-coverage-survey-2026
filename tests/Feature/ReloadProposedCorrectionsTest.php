@@ -88,6 +88,22 @@ class ReloadProposedCorrectionsTest extends TestCase
             ->assertSee('data-query-progress', false)->assertSee('Progression de la résolution des erreurs par les binômes');
     }
 
+    public function test_whole_list_can_be_selected_beyond_the_page_for_a_bulk_action(): void
+    {
+        // « À vérifier » : identifiants de toute la liste filtrée (pas seulement la page affichée).
+        $ids = $this->actingAs($this->agent)->getJson(route('queries.ids', ['resolution' => DataQuery::RESOLUTION_PENDING]))->assertOk()->json();
+        $this->assertSame([(string) $this->origin->id], $ids['ids']);
+        $this->assertFalse($ids['truncated']);
+        $all = $this->actingAs($this->agent)->getJson(route('queries.ids'))->assertOk()->json();
+        $this->assertSame(DataQuery::count(), $all['total']);
+
+        // Plus de 500 queries par action groupée (limite portée à 2 000).
+        $this->actingAs($this->agent)->postJson(route('queries.bulk'), ['ids' => range(1, 600), 'comment' => 'Revu en bloc'])->assertOk();
+
+        $this->actingAs($this->agent)->get(route('queries.index', ['resolution' => DataQuery::RESOLUTION_PENDING]))->assertOk()
+            ->assertSee('id="select-list"', false)->assertSee('Sélectionner toute la liste');
+    }
+
     public function test_refused_correction_sends_the_dependent_query_back(): void
     {
         $this->actingAs($this->agent)->post(route('queries.reload', $this->dependent))->assertSessionHas('success');
