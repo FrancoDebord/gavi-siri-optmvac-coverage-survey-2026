@@ -100,16 +100,16 @@ Règles du document « Règles de qualité des données – Bénin (cov26c4v2) �
 | `MAJ_26` | Dose reçue sans la précédente (carte) | Majeure | Query | Oui | Relire la carte et corriger. |
 | `MAJ_27` | Carte vue sans photo | Majeure | Query | Oui | Photographier la carte à la revisite. |
 | `MAJ_28` | Photos de la carte manquantes | Majeure | Query | Oui | Photographier les pages manquantes. |
-| `MAJ_29` | VAP 4 trop proche de VAP 3 | Majeure | Query | Oui | Relire les deux dates sur la carte. |
+| `MAJ_29` | VAP 4 trop proche de VAP 3 | Majeure | Query | Oui | La query donne les dates de VAP 3 et de VAP 4 et leur écart ; « Quelle valeur est fausse ? » propose de corriger VAP 3 ou VAP 4. |
 | `MAJ_31` | Rappel : dose reçue sans la précédente | Majeure | Query | Oui | Revoir le rappel avec le caregiver. |
 | `MAJ_32` | Rappel : dose impossible pour l'âge | Majeure | Query | Oui | La query nomme le vaccin, la dose, la question et l'âge minimal. Corriger la date de naissance ou la réponse au rappel. |
 | `MAJ_34` | Revue « 3 doses de VAP » incohérente | Majeure | Query | Oui | La query détaille la carte, le rappel et l'âge. Carnet avec le cachet « Enfant complètement vacciné » : l'enfant a tout reçu, même si les cases sont vides (carnet vu sans aucune case VAP cochée : pas de query). Sinon corriger la revue, la carte ou le rappel. |
 | `MAJ_35` | Revue de 2e année incohérente | Majeure | Query | Non (à valider) | Corriger la réponse de revue. |
 | `MAJ_36` | Question de 2e année posée trop tôt | Majeure | Query | Oui | Corriger en « N/A ». |
 | `MAJ_37` | Cycles CPS dans le désordre | Majeure | Query | Oui | La query liste toutes les dates de cycles et les cycles en cause ; chaque date en cause peut être corrigée. |
-| `MAJ_38` | Cycles CPS trop rapprochés | Majeure | Query | Oui | Relire la carte CPS et corriger. |
+| `MAJ_38` | Cycles CPS trop rapprochés | Majeure | Query | Oui | La query liste toutes les dates de cycles et les cycles trop rapprochés ; chaque date saisie est corrigeable ; « Aucune » confirme (erreur sur la carte CPS). |
 | `MAJ_40` | Cycle CPS avant la naissance | Majeure | Query | Oui | Relire la carte CPS et la date de naissance. |
-| `MAJ_41` | Carte CPS contredit la déclaration | Majeure | Query | Oui | Revoir avec le caregiver et corriger. |
+| `MAJ_41` | Carte CPS contredit la déclaration | Majeure | Query | Oui | La query donne la déclaration et les cycles cochés sur la carte (avec leurs dates) ; corriger la déclaration, un ou plusieurs cycles, ou « Aucune » (confirmée sans correction). |
 | `MAJ_42` | Nombre de traitements CPS incohérent | Majeure | Query | Non (à valider) | Corriger le nombre de traitements. |
 | `MAJ_43` | CPS avant 3 mois | Majeure | Query | Oui | Relire la carte CPS et la date de naissance. |
 | `MAJ_47` | Entretiens qui se chevauchent | Majeure | Query | Non (à valider) | Vérifier les heures de la tablette avec le binôme. |

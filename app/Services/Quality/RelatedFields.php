@@ -14,6 +14,7 @@ use App\Services\Quality\Rules\Business\RecallDoseAgeRule;
 use App\Services\Quality\Rules\Business\RecallDoseSeriesOrderRule;
 use App\Services\Quality\Rules\Business\RosterYoungCaregiverRule;
 use App\Services\Quality\Rules\Business\SmcCycleOrderRule;
+use App\Services\Quality\Rules\Business\SmcDeclarationRule;
 use App\Services\Export\DatasetExporter;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -49,6 +50,8 @@ final class RelatedFields
         $variables = match ($query->rule_code) {
             'VAC_DOSE_ORDER', 'VAC_DOSE_INTERVAL' => [self::previousDose($query, $clean)],
             'VAC_BEFORE_DOB', 'VAC_MIN_AGE' => [self::dobVariable($query, $clean)],
+            // VAP 4 trop proche de VAP 3 : l'une ou l'autre date peut être fausse.
+            'MAJ_29' => ['mal3date', 'mal4date'],
             'ELIG_AGE_DOB' => [Map::var('age_annees'), self::dobVariable($query, $clean)],
             // Dose reçue sans la précédente : la dose précédente (et les autres doses en cause s'il y en a plusieurs).
             'MAJ_26' => array_merge(...array_map(fn (array $gap) => [$gap['previous'], $gap['dose']],
@@ -56,6 +59,10 @@ final class RelatedFields
             'MAJ_31' => array_merge(...array_map(fn (array $gap) => [$gap['previous'], $gap['dose']],
                 RecallDoseSeriesOrderRule::gaps(fn ($v) => self::value($clean, $v, $query->instance_path)))),
             // Toutes les dates de cycles CPS en cause (pas seulement celle de la query).
+            // CPS non déclarée mais cycles cochés sur la carte : chaque cycle coché peut être en cause.
+            'MAJ_41' => array_map(fn ($k) => "treated_{$k}", SmcDeclarationRule::cardCycles(fn ($v) => self::value($clean, $v, $query->instance_path))),
+            // Cycles trop rapprochés : toutes les dates saisies peuvent être en cause.
+            'MAJ_38' => array_map(fn ($k) => "date_{$k}", array_keys(SmcCycleOrderRule::dates(fn ($v) => self::value($clean, $v, $query->instance_path)))),
             'MAJ_37' => array_map(fn ($k) => "date_{$k}", SmcCycleOrderRule::cyclesInCause(SmcCycleOrderRule::dates(fn ($v) => self::value($clean, $v, $query->instance_path)))),
             // Âge calculé : corriger la date de naissance ou la réponse au rappel.
             'MAJ_32' => [self::dobVariable($query, $clean), ...array_column(RecallDoseAgeRule::dosesInCause(self::child($query, $clean,
@@ -170,6 +177,12 @@ final class RelatedFields
         }
         if (preg_match('/^date_(\d)$/', $variable, $m)) {
             return 'Date du cycle CPS '.$m[1];
+        }
+        if (preg_match('/^treated_(\d)$/', $variable, $m)) {
+            return 'Cycle CPS '.$m[1].' traité (carte)';
+        }
+        if ($variable === 'child_got_smc') {
+            return 'CPS déclarée par le caregiver';
         }
         // Sinon le libellé de la question, sans son numéro (« L'enfant a-t-il reçu le quatrième vaccin… »).
         $label = trim(preg_replace(['/\s+/', '/^\d+(\.\d+)?\.\s*/'], [' ', ''], strip_tags((string) (Dictionary::current()->variable($variable)['label'] ?? ''))));

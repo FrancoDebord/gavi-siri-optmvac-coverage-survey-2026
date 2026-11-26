@@ -351,6 +351,72 @@ class BeninRulesTest extends TestCase
         $this->assertTrue(QueryEvent::where('data_query_id', $query->id)->where('comment', 'like', 'Âge confirmé%')->exists());
     }
 
+    public function test_vap4_too_close_to_vap3_gives_both_dates_and_offers_either_correction(): void
+    {
+        $this->household('TCH-SEB-01-050', [[
+            'see_card' => '1', 'mal3' => '1', 'mal3dat_known' => '1', 'mal3date' => '2026-03-10',
+            'mal4' => '1', 'mal4dat_known' => '1', 'mal4date' => '2026-06-01',
+        ]]);
+
+        $query = DataQuery::where('rule_code', 'MAJ_29')->firstOrFail();
+        $this->assertSame('Enfant n°1 (caregiver n°1) : VAP 4 (01/06/2026) n\'est que 83 jours après VAP 3 (10/03/2026) ; il faut au moins 150 jours entre les deux doses. '
+            .'L\'une des deux dates est fausse (jour et mois inversés, année, dose).', $query->message);
+        $this->assertSame('mal3date', $query->variable);
+
+        // « Quelle valeur est fausse ? » : VAP 3 ou VAP 4.
+        $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $query))->assertOk()
+            ->assertSee('name="pair_choice"', false)
+            ->assertSee('name="corrections[0][variable]" value="mal3date"', false)
+            ->assertSee('name="corrections[1][variable]" value="mal4date"', false);
+    }
+
+    public function test_smc_cycles_too_close_offer_every_date_for_correction(): void
+    {
+        $this->household('TCH-SEB-01-051', [[
+            'child_still_have_card' => '1',
+            'treated_1' => '1', 'date_1' => '2026-07-10', 'treated_2' => '1', 'date_2' => '2026-08-10',
+            'treated_3' => '1', 'date_3' => '2026-08-20', 'treated_4' => '1', 'date_4' => '2026-09-25',
+        ]]);
+
+        $query = DataQuery::where('rule_code', 'MAJ_38')->firstOrFail();
+        $this->assertSame('Enfant n°1 (caregiver n°1) : cycles CPS à moins de 3 semaines – C3 (20/08/2026) 10 jours après C2 (10/08/2026). '
+            .'Dates saisies : C1 : 10/07/2026 · C2 : 10/08/2026 · C3 : 20/08/2026 · C4 : 25/09/2026 · C5 : —.', $query->message);
+
+        // Toutes les dates saisies sont corrigeables (pas seulement C2 et C3), et « Aucune » confirme la carte.
+        $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $query))->assertOk()
+            ->assertSee('name="corrections[0][variable]" value="date_1"', false)
+            ->assertSee('name="corrections[1][variable]" value="date_2"', false)
+            ->assertSee('name="corrections[2][variable]" value="date_3"', false)
+            ->assertSee('name="corrections[3][variable]" value="date_4"', false)
+            ->assertSee('name="pair_choice" id="pair-none" value="none"', false);
+    }
+
+    public function test_smc_not_declared_but_on_card_offers_the_declaration_the_card_both_or_none(): void
+    {
+        $this->household('TCH-SEB-01-052', [[
+            'child_got_smc' => '0', 'child_given_smc_card' => '1', 'child_still_have_card' => '1',
+            'treated_1' => '1', 'date_1' => '2026-07-10', 'treated_2' => '1', 'treated_3' => '0',
+        ]]);
+
+        $query = DataQuery::where('rule_code', 'MAJ_41')->firstOrFail();
+        $this->assertSame('Enfant n°1 (caregiver n°1) : le caregiver déclare que l\'enfant n\'a pas reçu la CPS (q. 173.5 « Non »), mais la carte CPS montre des cycles traités : C1 (10/07/2026), C2.', $query->message);
+
+        $manager = $this->manager();
+        $this->withoutVite()->actingAs($manager)->get(route('queries.show', $query))->assertOk()
+            ->assertSee('name="corrections[0][variable]" value="child_got_smc"', false)
+            ->assertSee('name="corrections[1][variable]" value="treated_1"', false)
+            ->assertSee('name="corrections[2][variable]" value="treated_2"', false)
+            ->assertDontSee('value="treated_3"', false)
+            ->assertSee('name="pair_choice" id="pair-none" value="none"', false);
+
+        // La déclaration seule est fausse : seule elle est corrigée.
+        $this->actingAs($manager)->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'corrections' => [
+            ['variable' => 'child_got_smc', 'instance_path' => $query->instance_path, 'new_value' => '1', 'optional' => '1', 'group' => 'paire', 'reason' => 'carnet'],
+            ['variable' => 'treated_1', 'instance_path' => $query->instance_path, 'new_value' => '1', 'optional' => '1', 'group' => 'paire'],
+        ]])->assertSessionHasNoErrors();
+        $this->assertSame(['child_got_smc'], DataCorrection::where('data_query_id', $query->id)->pluck('variable')->all());
+    }
+
     public function test_smc_cycles_out_of_order_list_every_date_and_offer_the_dates_in_cause(): void
     {
         $this->household('TCH-SEB-01-010', [[

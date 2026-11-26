@@ -70,7 +70,7 @@ class SmcCycleOrderRule extends BusinessRule
         return $cycles;
     }
 
-    private static function listing(array $dates, callable $get): string
+    protected static function listing(array $dates, callable $get): string
     {
         $parts = [];
         for ($k = 1; $k <= self::CYCLES; $k++) {

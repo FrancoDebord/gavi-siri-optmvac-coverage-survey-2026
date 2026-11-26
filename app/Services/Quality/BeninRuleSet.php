@@ -44,6 +44,12 @@ final class BeninRuleSet
 
     public const MAJ_11_SUGGESTION = 'Vérifier avec le binôme la réponse « caregiver » (q. 27), la tranche d\'âge du membre (q. 24) et l\'âge du caregiver (q. 34) : corriger celle qui est fausse.';
 
+    public const MAJ_29_SUGGESTION = 'Relire sur la carte les dates de VAP 3 et de VAP 4 : corriger celle qui est fausse (jour et mois inversés, année, dose inscrite dans la mauvaise case). Si les deux dates sont exactes, confirmer la valeur.';
+
+    public const MAJ_38_SUGGESTION = 'Relire sur la carte CPS toutes les dates de cycles et corriger celle(s) qui sont fausses (jour et mois inversés, année, cycle inscrit dans la mauvaise case). Si les dates sont celles de la carte, l\'erreur vient de la carte elle-même.';
+
+    public const MAJ_41_SUGGESTION = 'Revoir avec le caregiver et relire la carte CPS : corriger la déclaration (q. 173.5), les cycles cochés sur la carte, ou les deux. Si les deux sont justes telles que saisies (CPS oubliée par le caregiver), confirmer sans correction.';
+
     public const MAJ_32_SUGGESTION = 'Vérifier avec le caregiver la date de naissance et la dose déclarée ({attendu}) : corriger celle qui est fausse.';
 
     public const MAJ_34_SUGGESTION = 'Relire le carnet : s\'il porte le cachet « Enfant complètement vacciné », l\'enfant a reçu toutes les doses (laisser « Oui » et justifier). Sinon corriger la réponse de revue, la carte ou le rappel.';
@@ -128,8 +134,9 @@ final class BeninRuleSet
             'MAJ_28' => self::expr('Photos de la carte manquantes', 'majeure', 'child', 'num_images,chb_image2,chb_image3,chb_image4',
                 '(${num_images} >= 2 and string-length(${chb_image2}) = 0) or (${num_images} >= 3 and string-length(${chb_image3}) = 0) or (${num_images} >= 4 and string-length(${chb_image4}) = 0)',
                 'Moins de photos que le nombre déclaré.', 'Photographier les pages manquantes.'),
-            'MAJ_29' => self::expr('VAP 4 trop proche de VAP 3', 'majeure', 'child', 'mal3date,mal4date',
-                '${mal4date} - ${mal3date} < 150', 'VAP 4 moins de 150 jours après VAP 3.', 'Relire les deux dates sur la carte.'),
+            // Les deux dates sont proposées à la correction : l'erreur peut porter sur VAP 3 comme sur VAP 4.
+            'MAJ_29' => self::code('VAP 4 trop proche de VAP 3', 'majeure', 'child', 'mal3date,mal4date', Business\VapIntervalRule::class,
+                'VAP 4 moins de 150 jours après VAP 3 (les deux dates et l\'écart précisés).', self::MAJ_29_SUGGESTION),
             // Cinq séries contrôlées au rappel : la query nomme la série et les doses en cause (et non plus toujours Penta).
             'MAJ_31' => self::code('Rappel : dose reçue sans la précédente', 'majeure', 'child', implode(',', array_merge(...Business\RecallDoseSeriesOrderRule::SERIES)),
                 Business\RecallDoseSeriesOrderRule::class, 'Au rappel, dose déclarée reçue sans la dose précédente (série et doses en cause précisées).', self::MAJ_31_SUGGESTION),
@@ -145,14 +152,14 @@ final class BeninRuleSet
                 'Enfant de moins de 12 mois : répondre « N/A ».', 'Corriger en « N/A ».'),
             'MAJ_37' => self::code('Cycles CPS dans le désordre', 'majeure', 'child', 'date_1,date_2,date_3,date_4,date_5', Business\SmcCycleOrderRule::class,
                 'Dates des cycles CPS dans le désordre (toutes les dates listées, cycles en cause précisés).', self::MAJ_37_SUGGESTION),
-            'MAJ_38' => self::expr('Cycles CPS trop rapprochés', 'majeure', 'child', 'date_1,date_2,date_3,date_4,date_5',
-                implode(' or ', array_map(fn ($k) => "(\${date_{$k}} - \${date_".($k - 1)."} > 0 and \${date_{$k}} - \${date_".($k - 1).'} < 21)', range(2, 5))),
-                'Deux cycles CPS à moins de 3 semaines.', 'Relire la carte CPS et corriger.'),
+            // Toutes les dates de cycles saisies sont proposées à la correction (n'importe laquelle peut être fausse).
+            'MAJ_38' => self::code('Cycles CPS trop rapprochés', 'majeure', 'child', 'date_1,date_2,date_3,date_4,date_5', Business\SmcCycleGapRule::class,
+                'Deux cycles CPS à moins de 3 semaines (toutes les dates listées, cycles en cause précisés).', self::MAJ_38_SUGGESTION),
             'MAJ_40' => self::expr('Cycle CPS avant la naissance', 'majeure', 'child', 'date_1,child_dob',
                 $cycles(fn ($k) => "\${date_{$k}} < \${child_dob}"), 'Date de cycle CPS avant la naissance.', 'Relire la carte CPS et la date de naissance.'),
-            'MAJ_41' => self::expr('Carte CPS contredit la déclaration', 'majeure', 'child', 'child_got_smc,treated_1',
-                '${child_got_smc} = 0 and ('.$cycles(fn ($k) => "\${treated_{$k}} = 1").')',
-                'La carte montre une CPS que le caregiver n\'a pas déclarée.', 'Revoir avec le caregiver et corriger.'),
+            // La déclaration comme les cycles cochés sur la carte peuvent être en cause : corriger l'une, les autres, ou rien.
+            'MAJ_41' => self::code('Carte CPS contredit la déclaration', 'majeure', 'child', 'child_got_smc,treated_1,treated_2,treated_3,treated_4,treated_5',
+                Business\SmcDeclarationRule::class, 'La carte montre une CPS que le caregiver n\'a pas déclarée (cycles et dates de la carte précisés).', self::MAJ_41_SUGGESTION),
             'MAJ_42' => self::expr('Nombre de traitements CPS incohérent', 'majeure', 'child', 'smc_treatment_number,smc_cycles',
                 '${smc_treatment_number} > ${smc_cycles}', 'Plus de traitements CPS que de cycles prévus.', 'Corriger le nombre de traitements.'),
             'MAJ_43' => self::expr('CPS avant 3 mois', 'majeure', 'child', 'date_1,child_dob',

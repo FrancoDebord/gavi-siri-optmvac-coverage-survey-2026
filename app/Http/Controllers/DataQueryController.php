@@ -537,6 +537,14 @@ class DataQueryController extends Controller
      * comme valeur confirmée avec cette justification (complétée par le commentaire de l'agent).
      */
     public const NO_ERROR = [
+        'MAJ_41' => [
+            'label' => 'Aucune : la déclaration et la carte sont justes telles que saisies (le caregiver a oublié ou ignorait la CPS)',
+            'comment' => 'Déclaration et carte CPS vérifiées et confirmées telles que saisies : le caregiver a oublié ou ignorait la CPS reçue.',
+        ],
+        'MAJ_38' => [
+            'label' => 'Aucune : les dates saisies sont bien celles de la carte, l\'erreur vient de la carte CPS elle-même',
+            'comment' => 'Aucune date fausse : les dates saisies sont conformes à la carte CPS, l\'erreur vient de la carte elle-même.',
+        ],
         'MAJ_37' => [
             'label' => 'Aucune : les dates saisies sont bien celles de la carte, l\'erreur vient de la carte CPS elle-même',
             'comment' => 'Aucune date fausse : les dates saisies sont conformes à la carte CPS, l\'erreur vient de la carte elle-même.',
