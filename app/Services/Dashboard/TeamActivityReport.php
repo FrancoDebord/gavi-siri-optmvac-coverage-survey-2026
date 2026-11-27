@@ -42,21 +42,28 @@ class TeamActivityReport
         return CarbonImmutable::parse(config('gavi.collection_start', '2026-11-06'))->startOfDay();
     }
 
-    /** Période par défaut : du début de la collecte au dernier jour de collecte (tous binômes confondus). */
+    /**
+     * Période par défaut : du début à la fin de la collecte (gavi.collection_end, la même pour tous les binômes) ;
+     * sans fin configurée, jusqu'au dernier jour avec des données (null s'il n'y en a aucune).
+     */
     public static function defaultPeriod(): ?array
     {
-        $last = DB::table('households')->whereNull('excluded_at')->whereNotNull('interview_date')->max('interview_date');
-        if (! $last) {
-            return null;
-        }
         $start = self::collectionStart();
-        $end = CarbonImmutable::parse($last)->startOfDay();
+        if ($configured = config('gavi.collection_end')) {
+            $end = CarbonImmutable::parse($configured)->startOfDay();
+        } else {
+            $last = DB::table('households')->whereNull('excluded_at')->whereNotNull('interview_date')->max('interview_date');
+            if (! $last) {
+                return null;
+            }
+            $end = CarbonImmutable::parse($last)->startOfDay();
+        }
 
         return [$start, $end->lessThan($start) ? $start : $end];
     }
 
     /**
-     * Période demandée (dates « Y-m-d » facultatives) : par défaut du début au dernier jour de collecte ; jamais avant
+     * Période demandée (dates « Y-m-d » facultatives) : par défaut du début à la fin de la collecte ; jamais avant
      * le début de la collecte ; fin au plus tôt le jour de début ; MAX_DAYS jours au plus.
      *
      * @return array{0: ?CarbonImmutable, 1: ?CarbonImmutable} [null, null] sans aucune donnée

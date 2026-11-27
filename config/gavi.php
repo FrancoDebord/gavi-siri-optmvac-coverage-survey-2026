@@ -44,6 +44,8 @@ return [
 
     // Début de la collecte : premier jour du rapport d'activité des binômes, semaine 1 (semaines de 7 jours).
     'collection_start' => env('GAVI_COLLECTION_START', '2026-11-06'),
+    // Fin de la collecte : dernier jour du rapport, le même pour tous les binômes (vide : dernier jour avec des données).
+    'collection_end' => env('GAVI_COLLECTION_END', '2026-11-26'),
 
     // Bras de l'étude par zone sanitaire (code l1) : en-têtes du récapitulatif des taux de réponse (fr / en).
     'study_arms' => [

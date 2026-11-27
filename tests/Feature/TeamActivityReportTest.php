@@ -69,20 +69,24 @@ class TeamActivityReportTest extends TestCase
         $admin->assignRole(User::ROLE_ADMIN);
 
         $page = $this->actingAs($admin)->get(route('team-activity.index', ['team_id' => $this->team->id]))->assertOk()
-            ->assertSee('Du 06/11/2026 au 13/11/2026')
-            ->assertSee('Semaine 1 · du 06/11 au 12/11/2026')->assertSee('Semaine 2 · du 13/11 au 13/11/2026')
+            ->assertSee('Du 06/11/2026 au 26/11/2026')
+            ->assertSee('Semaine 1 · du 06/11 au 12/11/2026')->assertSee('Semaine 2 · du 13/11 au 19/11/2026')
+            ->assertSee('Semaine 3 · du 20/11 au 26/11/2026')
             ->assertSee('Sous-total semaine 1')->assertSee('Total général')
             ->assertSee('colspan="5"', false)
             ->assertSee('Préparation du terrain, contrôle qualité des données, correction des erreurs');
 
         $report = $page->viewData('reports')->sole();
-        [$week1, $week2] = $report['weeks'];
+        // Fin de la collecte fixée au 26/11 pour tous les binômes : 3 semaines complètes, la 3e sans données.
+        $this->assertCount(3, $report['weeks']);
+        [$week1, $week2, $week3] = $report['weeks'];
+        $this->assertSame([3, 7, 0], [$week3['number'], count($week3['days']), $week3['active_days']]);
         $this->assertSame([1, 7, 2], [$week1['number'], count($week1['days']), $week1['active_days']]);
         $days = collect($week1['days'])->mapWithKeys(fn ($d) => [$d['date']->toDateString() => $d['values']]);
         $this->assertSame(['visited' => 2, 'surveyed' => 1, 'mothers' => 1, 'under5' => 2, 'eligible' => 1], $days['2026-11-06']);
         $this->assertNull($days['2026-11-07']);
         $this->assertSame(['visited' => 3, 'surveyed' => 2, 'mothers' => 2, 'under5' => 3, 'eligible' => 2], $week1['totals']);
-        $this->assertSame([2, 1], [$week2['number'], count($week2['days'])]);
+        $this->assertSame([2, 7], [$week2['number'], count($week2['days'])]);
         $this->assertSame(['visited' => 1, 'surveyed' => 1, 'mothers' => 1, 'under5' => 2, 'eligible' => 1], $week2['totals']);
         $this->assertSame(['visited' => 4, 'surveyed' => 3, 'mothers' => 3, 'under5' => 5, 'eligible' => 3], $report['totals']);
         $this->assertSame(3, $report['active_days']);
@@ -90,6 +94,11 @@ class TeamActivityReportTest extends TestCase
         // Pas avant le début de la collecte, même si demandé.
         $early = $this->actingAs($admin)->get(route('team-activity.index', ['team_id' => $this->team->id, 'from' => '2026-11-01']))->viewData('reports')->sole();
         $this->assertSame('2026-11-06', $early['weeks'][0]['from']->toDateString());
+
+        // Sans fin configurée : jusqu'au dernier jour avec des données (13/11).
+        config(['gavi.collection_end' => null]);
+        $this->actingAs($admin)->get(route('team-activity.index', ['team_id' => $this->team->id]))->assertSee('Du 06/11/2026 au 13/11/2026');
+        config(['gavi.collection_end' => '2026-11-26']);
 
         // Tous les binômes : un tableau par binôme.
         $this->assertCount(2, $this->actingAs($admin)->get(route('team-activity.index'))->assertOk()->viewData('reports'));
@@ -123,7 +132,7 @@ class TeamActivityReportTest extends TestCase
         $admin->assignRole(User::ROLE_ADMIN);
 
         $one = $this->actingAs($admin)->get(route('team-activity.pdf', ['team_id' => $this->team->id]))->assertOk();
-        $this->assertStringContainsString('rapport-activite-binome-27-48-20261106-20261113.pdf', $one->headers->get('content-disposition'));
+        $this->assertStringContainsString('rapport-activite-binome-27-48-20261106-20261126.pdf', $one->headers->get('content-disposition'));
         $all = $this->actingAs($admin)->get(route('team-activity.pdf', ['from' => '2026-11-06', 'to' => '2026-11-20']))->assertOk();
         $this->assertStringContainsString('rapport-activite-binomes-20261106-20261120.pdf', $all->headers->get('content-disposition'));
         $this->assertStringStartsWith('%PDF', $all->getContent());
