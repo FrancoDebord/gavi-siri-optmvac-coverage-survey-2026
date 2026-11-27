@@ -42,6 +42,9 @@ return [
         'cache_seconds' => (int) env('GAVI_DASHBOARD_CACHE', 30),
     ],
 
+    // Début de la collecte : premier jour du rapport d'activité des binômes, semaine 1 (semaines de 7 jours).
+    'collection_start' => env('GAVI_COLLECTION_START', '2026-11-06'),
+
     // Bras de l'étude par zone sanitaire (code l1) : en-têtes du récapitulatif des taux de réponse (fr / en).
     'study_arms' => [
         '1' => ['fr' => 'Contrôle', 'en' => 'Control'],

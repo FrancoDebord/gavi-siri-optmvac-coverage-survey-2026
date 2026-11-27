@@ -10,7 +10,9 @@
 @section('content')
     <style>
         td.off { text-align: center; font-style: italic; color: #706D6B; background: #F1F0EF; }
-        tr.total td { font-weight: bold; background: #F1F0EF; }
+        tr.week td { font-weight: bold; background: #DDDAD8; }
+        tr.subtotal td { font-weight: bold; background: #F1F0EF; }
+        tr.total td { font-weight: bold; background: #010101; color: #FFFFFF; }
         .identity td { border: none; padding: 1px 0; }
         .signature { margin-top: 18px; }
         .signature td { border: none; width: 50%; padding-top: 4px; }
@@ -27,23 +29,30 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width: 18%">Date</th>
+                    <th style="width: 24%">Date</th>
                     @foreach ($measures as $label)<th class="num">{{ $label }}</th>@endforeach
                 </tr>
             </thead>
             <tbody>
-                @foreach ($report['days'] as $day)
-                    <tr>
-                        <td>{{ ucfirst($day['date']->locale('fr')->isoFormat('ddd DD/MM/YYYY')) }}</td>
-                        @if ($day['values'])
-                            @foreach ($day['values'] as $value)<td class="num">{{ $fmt($value) }}</td>@endforeach
-                        @else
-                            <td colspan="{{ count($measures) }}" class="off">{{ \App\Services\Dashboard\TeamActivityReport::OFF_DAY }}</td>
-                        @endif
+                @foreach ($report['weeks'] as $week)
+                    <tr class="week"><td colspan="{{ count($measures) + 1 }}">Semaine {{ $week['number'] }} · du {{ $week['from']->format('d/m') }} au {{ $week['to']->format('d/m/Y') }}</td></tr>
+                    @foreach ($week['days'] as $day)
+                        <tr>
+                            <td>{{ ucfirst($day['date']->locale('fr')->isoFormat('ddd DD/MM/YYYY')) }}</td>
+                            @if ($day['values'])
+                                @foreach ($day['values'] as $value)<td class="num">{{ $fmt($value) }}</td>@endforeach
+                            @else
+                                <td colspan="{{ count($measures) }}" class="off">{{ \App\Services\Dashboard\TeamActivityReport::OFF_DAY }}</td>
+                            @endif
+                        </tr>
+                    @endforeach
+                    <tr class="subtotal">
+                        <td>Sous-total semaine {{ $week['number'] }} ({{ $week['active_days'] }} j.)</td>
+                        @foreach ($week['totals'] as $value)<td class="num">{{ $fmt($value) }}</td>@endforeach
                     </tr>
                 @endforeach
                 <tr class="total">
-                    <td>Total</td>
+                    <td>Total général</td>
                     @foreach ($report['totals'] as $value)<td class="num">{{ $fmt($value) }}</td>@endforeach
                 </tr>
             </tbody>

@@ -34,13 +34,16 @@ class TeamActivityReportTest extends TestCase
         $b = Collector::create(['code' => '48', 'name' => 'Alagbe Kafayath', 'team_id' => $this->team->id, 'health_zone_id' => $zone->id, 'is_active' => true]);
         $c = Collector::create(['code' => '33', 'name' => 'Zinsou Paul', 'team_id' => $this->other->id, 'health_zone_id' => $zone->id, 'is_active' => true]);
 
-        // Binôme 27-48 : le 03/11 (deux agents) et le 05/11 ; rien le 04/11. Autre binôme : le 04/11.
-        $this->household($a, '2026-11-03', true, [[30, true], [50, false]]);
-        $this->household($b, '2026-11-03', false, []);
-        $this->household($a, '2026-11-05', true, [[14, true]]);
-        $this->household($c, '2026-11-04', true, [[20, true]]);
-        // Ménage exclu : ignoré.
-        $this->household($a, '2026-11-05', true, [[18, true]], excluded: true);
+        // Collecte à partir du 06/11 (semaine 1 : 06–12/11, semaine 2 : 13–19/11).
+        // Binôme 27-48 : le 06/11 (deux agents), le 08/11, puis le 13/11 ; rien les autres jours. Autre binôme : le 07/11.
+        $this->household($a, '2026-11-06', true, [[30, true], [50, false]]);
+        $this->household($b, '2026-11-06', false, []);
+        $this->household($a, '2026-11-08', true, [[14, true]]);
+        $this->household($b, '2026-11-13', true, [[24, true], [6, false]]);
+        $this->household($c, '2026-11-07', true, [[20, true]]);
+        // Ménage exclu, et ménage d'avant le début de la collecte (essai) : ignorés.
+        $this->household($a, '2026-11-08', true, [[18, true]], excluded: true);
+        $this->household($a, '2026-11-03', true, [[18, true]]);
     }
 
     /** @param list<array{0: int, 1: bool}> $children âge en mois, éligible */
@@ -60,23 +63,33 @@ class TeamActivityReportTest extends TestCase
         }
     }
 
-    public function test_daily_rows_with_merged_off_days_and_totals(): void
+    public function test_weeks_with_subtotals_merged_off_days_and_grand_total(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(User::ROLE_ADMIN);
 
         $page = $this->actingAs($admin)->get(route('team-activity.index', ['team_id' => $this->team->id]))->assertOk()
-            ->assertSee('Du 03/11/2026 au 05/11/2026')
+            ->assertSee('Du 06/11/2026 au 13/11/2026')
+            ->assertSee('Semaine 1 · du 06/11 au 12/11/2026')->assertSee('Semaine 2 · du 13/11 au 13/11/2026')
+            ->assertSee('Sous-total semaine 1')->assertSee('Total général')
             ->assertSee('colspan="5"', false)
             ->assertSee('Préparation du terrain, contrôle qualité des données, correction des erreurs');
 
         $report = $page->viewData('reports')->sole();
-        $days = collect($report['days'])->mapWithKeys(fn ($d) => [$d['date']->toDateString() => $d['values']]);
-        $this->assertSame(['visited' => 2, 'surveyed' => 1, 'mothers' => 1, 'under5' => 2, 'eligible' => 1], $days['2026-11-03']);
-        $this->assertNull($days['2026-11-04']);
-        $this->assertSame(['visited' => 1, 'surveyed' => 1, 'mothers' => 1, 'under5' => 1, 'eligible' => 1], $days['2026-11-05']);
-        $this->assertSame(['visited' => 3, 'surveyed' => 2, 'mothers' => 2, 'under5' => 3, 'eligible' => 2], $report['totals']);
-        $this->assertSame(2, $report['active_days']);
+        [$week1, $week2] = $report['weeks'];
+        $this->assertSame([1, 7, 2], [$week1['number'], count($week1['days']), $week1['active_days']]);
+        $days = collect($week1['days'])->mapWithKeys(fn ($d) => [$d['date']->toDateString() => $d['values']]);
+        $this->assertSame(['visited' => 2, 'surveyed' => 1, 'mothers' => 1, 'under5' => 2, 'eligible' => 1], $days['2026-11-06']);
+        $this->assertNull($days['2026-11-07']);
+        $this->assertSame(['visited' => 3, 'surveyed' => 2, 'mothers' => 2, 'under5' => 3, 'eligible' => 2], $week1['totals']);
+        $this->assertSame([2, 1], [$week2['number'], count($week2['days'])]);
+        $this->assertSame(['visited' => 1, 'surveyed' => 1, 'mothers' => 1, 'under5' => 2, 'eligible' => 1], $week2['totals']);
+        $this->assertSame(['visited' => 4, 'surveyed' => 3, 'mothers' => 3, 'under5' => 5, 'eligible' => 3], $report['totals']);
+        $this->assertSame(3, $report['active_days']);
+
+        // Pas avant le début de la collecte, même si demandé.
+        $early = $this->actingAs($admin)->get(route('team-activity.index', ['team_id' => $this->team->id, 'from' => '2026-11-01']))->viewData('reports')->sole();
+        $this->assertSame('2026-11-06', $early['weeks'][0]['from']->toDateString());
 
         // Tous les binômes : un tableau par binôme.
         $this->assertCount(2, $this->actingAs($admin)->get(route('team-activity.index'))->assertOk()->viewData('reports'));
@@ -88,9 +101,9 @@ class TeamActivityReportTest extends TestCase
         $admin->assignRole(User::ROLE_ADMIN);
 
         $one = $this->actingAs($admin)->get(route('team-activity.pdf', ['team_id' => $this->team->id]))->assertOk();
-        $this->assertStringContainsString('rapport-activite-binome-27-48-20261103-20261105.pdf', $one->headers->get('content-disposition'));
-        $all = $this->actingAs($admin)->get(route('team-activity.pdf', ['from' => '2026-11-01', 'to' => '2026-11-06']))->assertOk();
-        $this->assertStringContainsString('rapport-activite-binomes-20261101-20261106.pdf', $all->headers->get('content-disposition'));
+        $this->assertStringContainsString('rapport-activite-binome-27-48-20261106-20261113.pdf', $one->headers->get('content-disposition'));
+        $all = $this->actingAs($admin)->get(route('team-activity.pdf', ['from' => '2026-11-06', 'to' => '2026-11-20']))->assertOk();
+        $this->assertStringContainsString('rapport-activite-binomes-20261106-20261120.pdf', $all->headers->get('content-disposition'));
         $this->assertStringStartsWith('%PDF', $all->getContent());
 
         $team = User::factory()->create(['team_id' => $this->team->id]);

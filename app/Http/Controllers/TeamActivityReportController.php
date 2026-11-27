@@ -70,11 +70,15 @@ class TeamActivityReportController extends Controller
         $default = TeamActivityReport::defaultPeriod();
         $from = ! empty($data['from']) ? CarbonImmutable::parse($data['from'])->startOfDay() : $default[0] ?? null;
         $to = ! empty($data['to']) ? CarbonImmutable::parse($data['to'])->startOfDay() : $default[1] ?? null;
+        // Pas avant le début de la collecte (semaine 1).
+        if ($from && $from->lessThan(TeamActivityReport::collectionStart())) {
+            $from = TeamActivityReport::collectionStart();
+        }
         if ($from && (! $to || $to->lessThan($from))) {
             $to = $from;
         }
         // Période plafonnée (une ligne par jour et par binôme).
-        if ($from && $from->diffInDays($to) >= self::MAX_DAYS) {
+        if ($from && $to && $from->diffInDays($to) >= self::MAX_DAYS) {
             $from = $to->subDays(self::MAX_DAYS - 1);
         }
 
