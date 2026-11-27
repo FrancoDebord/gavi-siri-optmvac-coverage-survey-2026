@@ -33,6 +33,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\SupervisionController;
 use App\Http\Controllers\SupervisionObservationController;
+use App\Http\Controllers\TeamActivityReportController;
 use App\Http\Controllers\TeamMessageController;
 use App\Http\Controllers\TeamSpaceController;
 use App\Http\Controllers\TeamVillageController;
@@ -173,6 +174,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/investigateur/grappes.pdf', [InvestigatorController::class, 'clusters'])->name('investigator.clusters.pdf')->middleware('throttle:20,1');
         Route::get('/investigateur/grappes.xlsx', [InvestigatorController::class, 'clusters'])->name('investigator.clusters.xlsx')->middleware('throttle:20,1');
         Route::get('/investigateur/rapport', [InvestigatorController::class, 'report'])->name('investigator.report')->middleware('throttle:20,1');
+        // Rapport d'activité journalier des binômes (page et PDF, un binôme ou tous).
+        Route::get('/rapport-binomes', [TeamActivityReportController::class, 'index'])->name('team-activity.index');
+        Route::get('/rapport-binomes.pdf', [TeamActivityReportController::class, 'pdf'])->name('team-activity.pdf')->middleware('throttle:20,1');
     });
     // Décisions de terrain (saisie)
     Route::middleware('permission:manage decisions')->group(function () {

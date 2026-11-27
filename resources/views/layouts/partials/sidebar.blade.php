@@ -61,6 +61,7 @@
         <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'antigenes' ? 'active' : '' }}" href="{{ route('coverage.show', 'antigenes') }}"><i class="bi bi-shield-plus"></i><span class="label">Couverture vaccinale</span></a>
         <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'cps' ? 'active' : '' }}" href="{{ route('coverage.show', 'cps') }}"><i class="bi bi-capsule"></i><span class="label">Couverture CPS</span></a>
         <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
+        <a class="{{ $link('team-activity.*') }}" href="{{ route('team-activity.index') }}"><i class="bi bi-calendar3"></i><span class="label">Rapport des binômes</span></a>
         <a class="{{ $link('remaining-villages.*') }}" href="{{ route('remaining-villages.index') }}"><i class="bi bi-hourglass-split"></i><span class="label">Villages restants</span></a>
         <a class="{{ $link('maps.clusters', 'clusters.*') }} {{ request()->routeIs('maps.clusters') ? 'active' : '' }}" href="{{ route('maps.clusters') }}"><i class="bi bi-map"></i><span class="label">Carte des grappes</span></a>
         <a class="{{ $link('submissions.*', 'households.*') }} {{ request()->routeIs('submissions.*') ? 'active' : '' }}" href="{{ route('submissions.index') }}"><i class="bi bi-house-door"></i><span class="label">Soumissions</span></a>
@@ -85,6 +86,7 @@
         <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'antigenes' ? 'active' : '' }}" href="{{ route('coverage.show', 'antigenes') }}"><i class="bi bi-shield-plus"></i><span class="label">Couverture vaccinale</span></a>
         <a class="nav-link {{ request()->routeIs('coverage.show') && request()->route('type') === 'cps' ? 'active' : '' }}" href="{{ route('coverage.show', 'cps') }}"><i class="bi bi-capsule"></i><span class="label">Couverture CPS</span></a>
         <a class="{{ $link('investigator.clusters*') }}" href="{{ route('investigator.clusters') }}"><i class="bi bi-bounding-box"></i><span class="label">Grappes par village</span></a>
+        <a class="{{ $link('team-activity.*') }}" href="{{ route('team-activity.index') }}"><i class="bi bi-calendar3"></i><span class="label">Rapport des binômes</span></a>
     @endcan
     @can('view dashboards')
     <div class="nav-section">Supervision</div>

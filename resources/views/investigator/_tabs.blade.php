@@ -6,6 +6,7 @@
         'investigator.response' => ['percent', 'Taux de réponse'],
         'investigator.summary' => ['file-earmark-text', 'Rapport de synthèse'],
         'investigator.clusters' => ['bounding-box', 'Grappes par village'],
+        'team-activity.index' => ['calendar3', 'Rapport des binômes'],
         'remaining-villages.index' => ['hourglass-split', 'Villages restants'],
     ] as $route => [$icon, $label])
         <li class="nav-item">
