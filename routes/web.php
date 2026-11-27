@@ -68,6 +68,9 @@ Route::prefix('documents/{token}')->where(['token' => '[A-Za-z0-9]{40}'])->name(
     Route::post('/pin', [PublicDocumentController::class, 'unlock'])->middleware('throttle:10,1')->name('unlock');
     Route::post('/', [PublicDocumentController::class, 'upload'])->middleware('throttle:60,1')->name('upload');
 });
+// Lien envoyé par e-mail (signé, durée limitée, sans compte) : ZIP des factures et rapports envoyés.
+Route::get('/factures-rapports/partage/{space}', [DocumentSpaceController::class, 'shared'])->whereNumber('space')
+    ->middleware(['signed', 'throttle:20,1'])->name('document-spaces.shared');
 
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/profil', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -304,6 +307,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::delete('/{space}', [DocumentSpaceController::class, 'destroy'])->whereNumber('space')->name('destroy');
         Route::post('/{space}/renouveler', [DocumentSpaceController::class, 'regenerate'])->whereNumber('space')->name('regenerate');
         Route::get('/{space}/telecharger', [DocumentSpaceController::class, 'download'])->whereNumber('space')->middleware('throttle:10,1')->name('download');
+        Route::post('/{space}/envoyer', [DocumentSpaceController::class, 'email'])->whereNumber('space')->middleware('throttle:10,1')->name('email');
         Route::get('/{space}/documents/{document}', [DocumentSpaceController::class, 'file'])->whereNumber(['space', 'document'])->middleware('throttle:300,1')->name('file');
         Route::put('/{space}/documents/{document}', [DocumentSpaceController::class, 'review'])->whereNumber(['space', 'document'])->name('review');
         Route::delete('/{space}/documents/{document}', [DocumentSpaceController::class, 'destroyDocument'])->whereNumber(['space', 'document'])->name('documents.destroy');

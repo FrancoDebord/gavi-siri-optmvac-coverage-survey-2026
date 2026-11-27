@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AgentDocumentsMail;
 use App\Models\AgentDocument;
 use App\Models\AuditLog;
 use App\Models\Collector;
@@ -10,21 +11,35 @@ use App\Models\HealthZone;
 use App\Models\PhotoProject;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Throwable;
 use ZipArchive;
 
 /**
  * Gestion des espaces de factures et rapports d'activité des agents (administrateur, investigateur principal) :
  * création, lien public et code PIN à partager, suivi par agent (qui a déposé quoi), validation ou demande de
- * correction, consultation et téléchargement des documents (un par un ou en ZIP, un dossier par agent).
+ * correction, visionneuse, téléchargement (un par un ou en ZIP, un dossier par agent) et envoi par e-mail.
  */
 class DocumentSpaceController extends Controller
 {
+    /** Envoi par e-mail : destinataires au plus, validité du lien, taille au-delà de laquelle rien n'est joint. */
+    public const MAX_RECIPIENTS = 20;
+
+    public const LINK_DAYS = 7;
+
+    /** Microsoft Graph refuse les messages de plus de 4 Mo (pièces jointes encodées en base64, +33 %). */
+    public const ATTACH_MAX_BYTES = 2_500_000;
+
     public function index(): View
     {
         return view('documents.index', [
@@ -85,6 +100,10 @@ class DocumentSpaceController extends Controller
                 : collect(),
             'total' => $space->documents()->count(),
             'totalSize' => (int) $space->documents()->sum('size'),
+            // Envoi par e-mail : taille de la sélection (pièces jointes ou lien seul), derniers envois.
+            'selectionSize' => (int) $this->filtered($space, $filters)->sum('size'),
+            'sends' => AuditLog::with('user:id,name')->where('action', 'documents.envoi_mail')
+                ->where('subject_type', $space->getMorphClass())->where('subject_id', $space->id)->latest('id')->limit(5)->get(),
         ]);
     }
 
@@ -116,7 +135,7 @@ class DocumentSpaceController extends Controller
     }
 
     /** Validation d'un document, ou demande de correction (motif obligatoire, l'agent redépose un fichier). */
-    public function review(Request $request, DocumentSpace $space, AgentDocument $document): RedirectResponse
+    public function review(Request $request, DocumentSpace $space, AgentDocument $document): RedirectResponse|JsonResponse
     {
         abort_unless($document->document_space_id === $space->id, 404);
         $data = $request->validate([
@@ -132,6 +151,16 @@ class DocumentSpaceController extends Controller
         ]);
         AuditLog::record('documents.document_'.$data['status'], $space, ['document' => $document->id, 'agent' => $document->authorLabel(), 'type' => $document->type]);
 
+        // Visionneuse : statut mis à jour sans recharger la page.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => $document->status,
+                'label' => $document->statusLabel(),
+                'note' => $document->review_note,
+                'reviewer' => $request->user()->name,
+            ]);
+        }
+
         return back()->with('success', 'Document « '.$document->original_name.' » : '.mb_strtolower($document->statusLabel()).'.');
     }
 
@@ -144,13 +173,16 @@ class DocumentSpaceController extends Controller
         return back()->with('success', 'Document supprimé.');
     }
 
-    /** Fichier d'un document : affiché dans le navigateur (PDF, image) ou téléchargé (Word, Excel). */
-    public function file(DocumentSpace $space, AgentDocument $document): BinaryFileResponse
+    /**
+     * Fichier d'un document : affiché dans le navigateur ou la visionneuse (PDF, image), téléchargé sinon (Word,
+     * Excel) ou sur demande (?telecharger=1).
+     */
+    public function file(Request $request, DocumentSpace $space, AgentDocument $document): BinaryFileResponse
     {
         abort_unless($document->document_space_id === $space->id, 404);
         $disk = Storage::disk(AgentDocument::DISK);
         abort_unless($disk->exists($document->path), 404);
-        $inline = in_array($document->extension(), ['pdf', 'jpg', 'jpeg', 'png', 'webp'], true);
+        $inline = $document->viewer() !== 'other' && ! $request->boolean('telecharger');
         $type = match ($document->extension()) {
             'pdf' => 'application/pdf', 'png' => 'image/png', 'webp' => 'image/webp', 'jpg', 'jpeg' => 'image/jpeg',
             default => 'application/octet-stream',
@@ -172,6 +204,76 @@ class DocumentSpaceController extends Controller
             return back()->with('warning', 'Aucun document à télécharger.');
         }
 
+        AuditLog::record('documents.telechargement', $space, ['documents' => $documents->count()] + array_filter($filters));
+
+        return $this->zipResponse($space, $documents);
+    }
+
+    /**
+     * Envoi par e-mail des documents sélectionnés (filtres de la page) : récapitulatif par agent et lien de
+     * téléchargement sécurisé (ZIP, valable LINK_DAYS jours, sans compte) ; fichiers joints si la sélection est légère.
+     */
+    public function email(Request $request, DocumentSpace $space): RedirectResponse
+    {
+        $data = $request->validate([
+            'recipients' => ['required', 'string', 'max:2000'],
+            'subject' => ['required', 'string', 'max:200'],
+            'message' => ['nullable', 'string', 'max:3000'],
+        ], [], ['recipients' => 'destinataires', 'subject' => 'objet', 'message' => 'message']);
+
+        // Adresses séparées par des virgules, points-virgules, espaces ou retours à la ligne.
+        $recipients = collect(preg_split('/[\s,;]+/', $data['recipients'], -1, PREG_SPLIT_NO_EMPTY))->map(fn ($a) => mb_strtolower(trim($a)))->unique()->values();
+        $invalid = $recipients->reject(fn ($a) => filter_var($a, FILTER_VALIDATE_EMAIL));
+        if ($invalid->isNotEmpty() || $recipients->isEmpty() || $recipients->count() > self::MAX_RECIPIENTS) {
+            return back()->withInput()->withErrors(['recipients' => $invalid->isNotEmpty()
+                ? 'Adresse(s) invalide(s) : '.$invalid->implode(', ').'.'
+                : 'Indiquez entre 1 et '.self::MAX_RECIPIENTS.' adresses e-mail.']);
+        }
+
+        $filters = $this->filters($request);
+        $documents = $this->filtered($space, $filters)->with(['collector:id,code,name', 'team:id,code'])->orderBy('id')->get();
+        if ($documents->isEmpty()) {
+            return back()->withInput()->with('warning', 'Aucun document à envoyer pour cette sélection.');
+        }
+
+        $expires = now()->addDays(self::LINK_DAYS);
+        $link = URL::temporarySignedRoute('document-spaces.shared', $expires,
+            ['space' => $space->id, 'max_id' => $documents->max('id')] + array_filter(Arr::except($filters, ['incomplets'])));
+        $attach = $documents->sum('size') <= self::ATTACH_MAX_BYTES;
+
+        try {
+            Mail::to($recipients->all())->send(new AgentDocumentsMail($space, $documents, $link, $expires, $data['subject'], $data['message'] ?? null, $attach, $request->user()));
+        } catch (Throwable $e) {
+            report($e);
+
+            return back()->withInput()->with('warning', 'L\'e-mail n\'a pas pu être envoyé : '.$e->getMessage());
+        }
+        AuditLog::record('documents.envoi_mail', $space, [
+            'destinataires' => $recipients->implode(', '), 'documents' => $documents->count(), 'pieces_jointes' => $attach,
+        ] + array_filter(Arr::except($filters, ['incomplets'])));
+
+        $message = $documents->count().' document(s) envoyé(s) à '.$recipients->implode(', ').($attach ? ' (en pièces jointes et par lien).' : ' (lien de téléchargement valable '.self::LINK_DAYS.' jours).');
+        if (in_array(config('mail.default'), ['log', 'array'], true)) {
+            return back()->with('warning', 'E-mail préparé mais non envoyé : la messagerie est en mode « '.config('mail.default').' » (MAIL_MAILER=graph pour envoyer).');
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /** Lien envoyé par e-mail (signé, à durée limitée, sans compte) : ZIP des documents envoyés, dans leur état actuel. */
+    public function shared(Request $request, DocumentSpace $space): BinaryFileResponse
+    {
+        $documents = $this->filtered($space, $this->filters($request))->where('id', '<=', $request->integer('max_id'))
+            ->with('collector:id,code,name')->orderBy('id')->get();
+        abort_if($documents->isEmpty(), 404, 'Ces documents ne sont plus disponibles.');
+        AuditLog::record('documents.telechargement_lien', $space, ['documents' => $documents->count()]);
+
+        return $this->zipResponse($space, $documents);
+    }
+
+    /** Archive ZIP, un dossier par agent. */
+    private function zipResponse(DocumentSpace $space, Collection $documents): BinaryFileResponse
+    {
         $file = tempnam(sys_get_temp_dir(), 'docs');
         $zip = new ZipArchive;
         $zip->open($file, ZipArchive::OVERWRITE);
@@ -182,7 +284,6 @@ class DocumentSpaceController extends Controller
             }
         }
         $zip->close();
-        AuditLog::record('documents.telechargement', $space, ['documents' => $documents->count()] + array_filter($filters));
         $name = trim(preg_replace('/[^A-Za-z0-9]+/', '-', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $space->name) ?: 'documents'), '-');
 
         return response()->download($file, 'documents-'.strtolower($name).'-'.now()->format('Ymd-Hi').'.zip')->deleteFileAfterSend();
@@ -191,8 +292,8 @@ class DocumentSpaceController extends Controller
     private function filters(Request $request): array
     {
         return [
-            'type' => in_array($request->query('type'), array_keys(AgentDocument::TYPES), true) ? $request->query('type') : null,
-            'status' => in_array($request->query('status'), array_keys(AgentDocument::STATUSES), true) ? $request->query('status') : null,
+            'type' => in_array($request->input('type'), array_keys(AgentDocument::TYPES), true) ? $request->input('type') : null,
+            'status' => in_array($request->input('status'), array_keys(AgentDocument::STATUSES), true) ? $request->input('status') : null,
             'collector_id' => $request->integer('collector_id') ?: null,
             'health_zone_id' => $request->integer('health_zone_id') ?: null,
             'incomplets' => $request->boolean('incomplets'),

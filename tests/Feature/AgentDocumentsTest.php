@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Mail\AgentDocumentsMail;
 use App\Models\AgentDocument;
+use App\Models\AuditLog;
 use App\Models\Collector;
 use App\Models\DocumentSpace;
 use App\Models\HealthZone;
@@ -11,6 +13,7 @@ use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -126,6 +129,89 @@ class AgentDocumentsTest extends TestCase
 
         $document = AgentDocument::firstOrFail();
         $this->assertSame([null, 'Superviseur Dossou'], [$document->collector_id, $document->author_name]);
+    }
+
+    public function test_viewer_data_inline_files_and_review_from_the_viewer(): void
+    {
+        $space = $this->space();
+        $this->unlock($space);
+        $this->post(route('documents.public.upload', $space->token), ['collector_id' => $this->agent->id, 'type' => 'facture', 'files' => [$this->pdf()]]);
+        $this->post(route('documents.public.upload', $space->token), [
+            'collector_id' => $this->agent->id, 'type' => 'rapport',
+            'files' => [UploadedFile::fake()->image('page.jpg'), UploadedFile::fake()->create('rapport.docx', 20, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],
+        ]);
+        [$pdf, $image, $word] = AgentDocument::orderBy('id')->get()->all();
+        $pi = $this->user(User::ROLE_PI);
+
+        $this->actingAs($pi)->get(route('document-spaces.show', $space))->assertOk()
+            ->assertSee('data-doc-viewer', false)->assertSee('data-kind="pdf"', false)->assertSee('data-kind="image"', false)
+            ->assertSee('data-kind="other"', false)->assertSee('Visionner les 3 documents');
+
+        // PDF et image affichés (visionneuse), Word téléchargé ; téléchargement forcé sur demande.
+        $this->assertStringStartsWith('inline', $this->actingAs($pi)->get(route('document-spaces.file', [$space, $pdf]))->headers->get('content-disposition'));
+        $this->assertStringStartsWith('inline', $this->actingAs($pi)->get(route('document-spaces.file', [$space, $image]))->headers->get('content-disposition'));
+        $this->assertStringStartsWith('attachment', $this->actingAs($pi)->get(route('document-spaces.file', [$space, $word]))->headers->get('content-disposition'));
+        $this->assertStringStartsWith('attachment', $this->actingAs($pi)->get(route('document-spaces.file', [$space, $pdf, 'telecharger' => 1]))->headers->get('content-disposition'));
+
+        // Revue depuis la visionneuse : réponse JSON.
+        $this->actingAs($pi)->putJson(route('document-spaces.review', [$space, $pdf]), ['status' => 'valide'])->assertOk()
+            ->assertJson(['status' => 'valide', 'label' => 'Validé']);
+        $this->actingAs($pi)->putJson(route('document-spaces.review', [$space, $image]), ['status' => 'a_refaire'])->assertUnprocessable()
+            ->assertJsonValidationErrors('review_note');
+        $this->actingAs($pi)->putJson(route('document-spaces.review', [$space, $image]), ['status' => 'a_refaire', 'review_note' => 'Illisible'])->assertOk()
+            ->assertJson(['status' => 'a_refaire', 'note' => 'Illisible']);
+    }
+
+    public function test_documents_are_sent_by_email_with_a_signed_download_link(): void
+    {
+        Mail::fake();
+        $space = $this->space();
+        $this->unlock($space);
+        $this->post(route('documents.public.upload', $space->token), ['collector_id' => $this->agent->id, 'type' => 'facture', 'files' => [$this->pdf()]]);
+        $this->post(route('documents.public.upload', $space->token), ['collector_id' => $this->partner->id, 'type' => 'rapport', 'files' => [$this->pdf('rapport.pdf')]]);
+        $pi = $this->user(User::ROLE_PI);
+        $page = route('document-spaces.show', $space);
+
+        $this->actingAs($pi)->get($page)->assertOk()->assertSee('Envoyer par e-mail');
+        // Adresse invalide : rien n'est envoyé.
+        $this->actingAs($pi)->from($page)->post(route('document-spaces.email', $space), ['recipients' => 'compta@exemple.org, pas-une-adresse', 'subject' => 'Factures'])
+            ->assertSessionHasErrors('recipients');
+        Mail::assertNothingSent();
+
+        // Factures seulement (filtre), deux destinataires.
+        $this->actingAs($pi)->from($page)->post(route('document-spaces.email', $space), [
+            'recipients' => "compta@exemple.org;\nCoordination@Exemple.org", 'subject' => 'Factures novembre', 'message' => 'Bonjour', 'type' => 'facture',
+        ])->assertRedirect($page);
+
+        $sent = null;
+        Mail::assertSent(AgentDocumentsMail::class, function (AgentDocumentsMail $mail) use (&$sent) {
+            $sent = $mail;
+
+            return $mail->hasTo('compta@exemple.org') && $mail->hasTo('coordination@exemple.org') && $mail->documents->count() === 1;
+        });
+        $this->assertTrue($sent->attachFiles);
+        $this->assertCount(1, $sent->attachments());
+        $sent->assertSeeInHtml('Factures et rapports d\'activité')->assertSeeInHtml('Akinlabi Rachidi (27)')->assertDontSeeInHtml('Alagbe');
+        $this->assertSame('documents.envoi_mail', AuditLog::latest('id')->value('action'));
+        $this->actingAs($pi)->get($page)->assertSee('compta@exemple.org, coordination@exemple.org');
+        auth()->logout();
+
+        // Lien signé : ZIP sans compte ; lien modifié ou expiré : refusé.
+        $this->get($sent->link)->assertOk()->assertDownload();
+        $this->get(str_replace('type=facture', 'type=rapport', $sent->link))->assertForbidden();
+        $this->travel(8)->days();
+        $this->get($sent->link)->assertForbidden();
+    }
+
+    public function test_heavy_selection_is_sent_as_a_link_only(): void
+    {
+        Mail::fake();
+        $space = $this->space();
+        $this->unlock($space);
+        $this->post(route('documents.public.upload', $space->token), ['collector_id' => $this->agent->id, 'type' => 'facture', 'files' => [UploadedFile::fake()->create('lourde.pdf', 3000, 'application/pdf')]]);
+
+        $this->actingAs($this->user(User::ROLE_PI))->post(route('document-spaces.email', $space), ['recipients' => 'compta@exemple.org', 'subject' => 'Factures']);
+        Mail::assertSent(AgentDocumentsMail::class, fn (AgentDocumentsMail $mail) => ! $mail->attachFiles && $mail->attachments() === []);
     }
 
     public function test_documents_are_not_downloadable_without_manager_rights(): void

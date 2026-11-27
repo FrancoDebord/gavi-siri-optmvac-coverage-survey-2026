@@ -92,6 +92,16 @@ class AgentDocument extends Model
         return strtolower(pathinfo($this->path, PATHINFO_EXTENSION) ?: 'pdf');
     }
 
+    /** Affichage dans la visionneuse : image, PDF, ou autre (Word, Excel : téléchargement). */
+    public function viewer(): string
+    {
+        return match ($this->extension()) {
+            'jpg', 'jpeg', 'png', 'webp' => 'image',
+            'pdf' => 'pdf',
+            default => 'other',
+        };
+    }
+
     /** Icône Bootstrap selon le format. */
     public function icon(): string
     {

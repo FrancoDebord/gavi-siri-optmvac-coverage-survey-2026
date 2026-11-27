@@ -5,7 +5,61 @@
         <a href="{{ route('document-spaces.download', [$space] + $query) }}" class="btn btn-sm btn-primary @if (! $total) disabled @endif">
             <i class="bi bi-file-earmark-zip me-1"></i>Télécharger {{ $query ? 'la sélection' : 'tous les documents' }} (ZIP)
         </a>
+        <button type="button" class="btn btn-sm btn-outline-primary @if (! $total) disabled @endif" data-bs-toggle="collapse" data-bs-target="#send-mail" aria-expanded="{{ $errors->has('recipients') ? 'true' : 'false' }}">
+            <i class="bi bi-envelope me-1"></i>Envoyer par e-mail
+        </button>
     </x-page-header>
+
+    {{-- Envoi par e-mail de la sélection (filtres de la liste des documents) --}}
+    <div id="send-mail" class="collapse @if ($errors->has('recipients') || $errors->has('subject')) show @endif mb-3">
+        <div class="card border-primary">
+            <div class="card-header"><i class="bi bi-envelope me-1"></i>Envoyer {{ $query ? 'la sélection' : 'tous les documents' }} par e-mail
+                <span class="text-muted small ms-1">{{ $documents->total() }} document(s) · {{ number_format($selectionSize / 1048576, 1, ',', ' ') }} Mo</span></div>
+            <div class="card-body">
+                <form method="POST" action="{{ route('document-spaces.email', $space) }}" class="row g-3">
+                    @csrf
+                    @foreach (\Illuminate\Support\Arr::only($query, ['type', 'status', 'collector_id', 'health_zone_id']) as $key => $value)<input type="hidden" name="{{ $key }}" value="{{ $value }}">@endforeach
+                    <div class="col-lg-6">
+                        <label for="recipients" class="form-label">Destinataires <span class="text-danger">*</span></label>
+                        <textarea id="recipients" name="recipients" rows="2" required maxlength="2000" class="form-control @error('recipients') is-invalid @enderror"
+                                  placeholder="comptabilite@exemple.org, coordination@exemple.org">{{ old('recipients') }}</textarea>
+                        @error('recipients')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">Séparées par des virgules ou des retours à la ligne · {{ \App\Http\Controllers\DocumentSpaceController::MAX_RECIPIENTS }} au plus.</div>
+                    </div>
+                    <div class="col-lg-6">
+                        <label for="subject" class="form-label">Objet <span class="text-danger">*</span></label>
+                        <input id="subject" name="subject" type="text" required maxlength="200" class="form-control @error('subject') is-invalid @enderror"
+                               value="{{ old('subject', 'Factures et rapports d\'activité · '.$space->name) }}">
+                        @error('subject')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-12">
+                        <label for="mail-message" class="form-label">Message</label>
+                        <textarea id="mail-message" name="message" rows="3" maxlength="3000" class="form-control" placeholder="Bonjour, veuillez trouver ci-joint… (facultatif)">{{ old('message') }}</textarea>
+                    </div>
+                    <div class="col-12 d-flex flex-wrap align-items-center gap-3">
+                        <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Envoyer</button>
+                        <span class="small text-muted">
+                            @if ($selectionSize <= \App\Http\Controllers\DocumentSpaceController::ATTACH_MAX_BYTES)
+                                Fichiers en pièces jointes, et lien de téléchargement (ZIP).
+                            @else
+                                Sélection trop lourde pour des pièces jointes : le message contient un lien de téléchargement (ZIP) valable {{ \App\Http\Controllers\DocumentSpaceController::LINK_DAYS }} jours, sans compte.
+                            @endif
+                            Récapitulatif par agent dans le message. Filtrez la liste (type, statut, agent, zone) pour n'envoyer qu'une partie.
+                        </span>
+                    </div>
+                </form>
+                @if ($sends->isNotEmpty())
+                    <hr>
+                    <div class="small fw-semibold mb-1">Derniers envois</div>
+                    <ul class="list-unstyled small mb-0">
+                        @foreach ($sends as $send)
+                            <li class="text-muted">{{ $send->created_at->format('d/m/Y H:i') }} · {{ $send->user?->name ?? '—' }} → {{ $send->properties['destinataires'] ?? '' }} · {{ $send->properties['documents'] ?? 0 }} document(s)</li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        </div>
+    </div>
 
     <div class="row g-3 mb-3">
         {{-- Lien et PIN à partager --}}
@@ -133,7 +187,11 @@
     {{-- Documents déposés --}}
     <div class="card">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <span>Documents déposés <span class="text-muted small">({{ $documents->total() }})</span></span>
+            <span>Documents déposés <span class="text-muted small">({{ $documents->total() }})</span>
+                @if ($documents->isNotEmpty())
+                    <button type="button" class="btn btn-sm btn-outline-dark ms-2" data-doc-open-all><i class="bi bi-eye me-1"></i>Visionner {{ $documents->count() > 1 ? 'les '.$documents->count().' documents' : 'le document' }}</button>
+                @endif
+            </span>
             <form method="GET" class="d-flex flex-wrap align-items-center gap-2">
                 @if ($filters['health_zone_id'])<input type="hidden" name="health_zone_id" value="{{ $filters['health_zone_id'] }}">@endif
                 <select name="type" class="form-select form-select-sm w-auto" onchange="this.form.submit()" aria-label="Type de document">
@@ -159,7 +217,7 @@
                 @if ($query)<a href="{{ route('document-spaces.show', $space) }}" class="btn btn-sm btn-link">Effacer les filtres</a>@endif
             </form>
         </div>
-        <div class="card-body p-0 table-responsive">
+        <div class="card-body p-0 table-responsive" data-doc-viewer>
             <table class="table table-sm align-middle mb-0">
                 <thead class="table-light"><tr><th>Déposé le</th><th>Agent</th><th>Type</th><th>Fichier</th><th>Statut</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
@@ -170,7 +228,23 @@
                                 @if ($document->team)<div class="small text-muted">Binôme {{ $document->team->code }}</div>@endif</td>
                             <td class="small">{{ $document->typeLabel() }}</td>
                             <td>
-                                <a href="{{ route('document-spaces.file', [$space, $document]) }}" target="_blank" rel="noopener"><i class="bi bi-{{ $document->icon() }} me-1"></i>{{ \Illuminate\Support\Str::limit($document->original_name, 40) }}</a>
+                                {{-- Clic : visionneuse (lib/document-viewer.js) ; sans JS ou Ctrl+clic, le fichier s'ouvre. --}}
+                                <a href="{{ route('document-spaces.file', [$space, $document]) }}" target="_blank" rel="noopener" title="Visionner"
+                                   data-doc-item
+                                   data-kind="{{ $document->viewer() }}"
+                                   data-icon="{{ $document->icon() }}"
+                                   data-download="{{ route('document-spaces.file', [$space, $document, 'telecharger' => 1]) }}"
+                                   data-review="{{ route('document-spaces.review', [$space, $document]) }}"
+                                   data-name="{{ $document->original_name }}"
+                                   data-type="{{ $document->typeLabel() }}"
+                                   data-author="{{ $document->authorLabel() }}"
+                                   data-team="{{ $document->team ? 'Binôme '.$document->team->code : '' }}"
+                                   data-date="{{ $document->created_at->format('d/m/Y H:i') }}"
+                                   data-size="{{ number_format($document->size / 1024, 0, ',', ' ') }} Ko"
+                                   data-comment="{{ $document->comment }}"
+                                   data-status="{{ $document->status }}"
+                                   data-status-label="{{ $document->statusLabel() }}"
+                                   data-note="{{ $document->review_note }}"><i class="bi bi-{{ $document->icon() }} me-1"></i>{{ \Illuminate\Support\Str::limit($document->original_name, 40) }}</a>
                                 <span class="small text-muted">· {{ number_format($document->size / 1024, 0, ',', ' ') }} Ko</span>
                                 @if ($document->comment)<div class="small text-muted fst-italic">{{ $document->comment }}</div>@endif
                             </td>

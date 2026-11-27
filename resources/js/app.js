@@ -8,6 +8,7 @@ import '../css/app.css';
 
 import { initChartImages } from './lib/charts';
 import { initLayout } from './lib/layout';
+import { initDocumentViewer } from './lib/document-viewer';
 import { initLightbox } from './lib/lightbox';
 import { initLiveFilters } from './lib/live-filter';
 import { initPasswordFields } from './lib/password-fields';
@@ -70,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initLiveFilters();
     initPasswordFields();
     initLightbox();
+    initDocumentViewer();
     initChartImages();
     const page = document.body.dataset.page;
     if (page && pages[page]) {
