@@ -20,8 +20,6 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class TeamActivityReportController extends Controller
 {
-    private const MAX_DAYS = 120;
-
     public function index(Request $request): View
     {
         [$filters, $from, $to] = $this->filters($request);
@@ -67,20 +65,7 @@ class TeamActivityReportController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
         ], ['to.after_or_equal' => 'La date de fin doit suivre la date de début.'], ['from' => 'date de début', 'to' => 'date de fin']);
 
-        $default = TeamActivityReport::defaultPeriod();
-        $from = ! empty($data['from']) ? CarbonImmutable::parse($data['from'])->startOfDay() : $default[0] ?? null;
-        $to = ! empty($data['to']) ? CarbonImmutable::parse($data['to'])->startOfDay() : $default[1] ?? null;
-        // Pas avant le début de la collecte (semaine 1).
-        if ($from && $from->lessThan(TeamActivityReport::collectionStart())) {
-            $from = TeamActivityReport::collectionStart();
-        }
-        if ($from && (! $to || $to->lessThan($from))) {
-            $to = $from;
-        }
-        // Période plafonnée (une ligne par jour et par binôme).
-        if ($from && $to && $from->diffInDays($to) >= self::MAX_DAYS) {
-            $from = $to->subDays(self::MAX_DAYS - 1);
-        }
+        [$from, $to] = TeamActivityReport::period($data['from'] ?? null, $data['to'] ?? null);
 
         return [[
             'health_zone_id' => (int) ($data['health_zone_id'] ?? 0) ?: null,

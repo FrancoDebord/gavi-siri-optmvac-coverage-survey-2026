@@ -30,6 +30,7 @@
         'restants' => ['team.remaining', 'hourglass-split', 'Villages restants'],
         'grappes' => ['team.clusters', 'bounding-box', 'Grappes'],
         'photos' => ['team.field-photos', 'images', 'Photos'],
+        'activite' => ['team.activity', 'calendar3', 'Rapport d\'activité'],
     ] as $key => [$route, $icon, $label])
         <li class="nav-item">
             <a class="nav-link {{ $tab === $key ? 'active' : '' }}" href="{{ route($route, $teamParam) }}" @if ($tab === $key) aria-current="page" @endif>

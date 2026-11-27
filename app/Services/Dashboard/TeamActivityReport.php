@@ -26,6 +26,9 @@ class TeamActivityReport
         'eligible' => 'Enfants éligibles',
     ];
 
+    /** Période plafonnée (une ligne par jour et par binôme). */
+    public const MAX_DAYS = 120;
+
     public const OFF_DAY = 'Préparation du terrain, contrôle qualité des données, correction des erreurs';
 
     public function __construct(
@@ -50,6 +53,30 @@ class TeamActivityReport
         $end = CarbonImmutable::parse($last)->startOfDay();
 
         return [$start, $end->lessThan($start) ? $start : $end];
+    }
+
+    /**
+     * Période demandée (dates « Y-m-d » facultatives) : par défaut du début au dernier jour de collecte ; jamais avant
+     * le début de la collecte ; fin au plus tôt le jour de début ; MAX_DAYS jours au plus.
+     *
+     * @return array{0: ?CarbonImmutable, 1: ?CarbonImmutable} [null, null] sans aucune donnée
+     */
+    public static function period(?string $from, ?string $to): array
+    {
+        $default = self::defaultPeriod();
+        $start = $from ? CarbonImmutable::parse($from)->startOfDay() : $default[0] ?? null;
+        $end = $to ? CarbonImmutable::parse($to)->startOfDay() : $default[1] ?? null;
+        if ($start && $start->lessThan(self::collectionStart())) {
+            $start = self::collectionStart();
+        }
+        if ($start && (! $end || $end->lessThan($start))) {
+            $end = $start;
+        }
+        if ($start && $end && $start->diffInDays($end) >= self::MAX_DAYS) {
+            $start = $end->subDays(self::MAX_DAYS - 1);
+        }
+
+        return [$start, $end];
     }
 
     /** Numéro de la semaine de collecte d'un jour (1 = les 7 premiers jours). */

@@ -95,6 +95,28 @@ class TeamActivityReportTest extends TestCase
         $this->assertCount(2, $this->actingAs($admin)->get(route('team-activity.index'))->assertOk()->viewData('reports'));
     }
 
+    public function test_team_space_shows_its_own_activity_report_and_pdf(): void
+    {
+        $account = User::factory()->create(['team_id' => $this->team->id]);
+        $account->assignRole(User::ROLE_TEAM);
+
+        $page = $this->actingAs($account)->get(route('team.activity'))->assertOk()
+            ->assertSee('Rapport d\'activité du binôme', false)->assertSee('Mon rapport d\'activité', false)
+            ->assertSee('Semaine 1 · du 06/11 au 12/11/2026')->assertSee('Total général');
+        $this->assertSame($this->team->id, $page->viewData('report')['team']->id);
+        $this->assertSame(['visited' => 4, 'surveyed' => 3, 'mothers' => 3, 'under5' => 5, 'eligible' => 3], $page->viewData('report')['totals']);
+        // Le compte binôme ne choisit pas un autre binôme : toujours le sien.
+        $this->assertSame($this->team->id, $this->actingAs($account)->get(route('team.activity', ['team_id' => $this->other->id]))->viewData('report')['team']->id);
+
+        $pdf = $this->actingAs($account)->get(route('team.activity.pdf', ['from' => '2026-11-06', 'to' => '2026-11-12']))->assertOk();
+        $this->assertStringContainsString('rapport-activite-binome-27-48-20261106-20261112.pdf', $pdf->headers->get('content-disposition'));
+
+        // Équipe centrale : rapport du binôme choisi.
+        $admin = User::factory()->create();
+        $admin->assignRole(User::ROLE_ADMIN);
+        $this->assertSame($this->other->id, $this->actingAs($admin)->get(route('team.activity', ['team_id' => $this->other->id]))->assertOk()->viewData('report')['team']->id);
+    }
+
     public function test_pdf_for_one_team_or_all_and_access_is_restricted(): void
     {
         $admin = User::factory()->create();

@@ -15,6 +15,7 @@ use App\Models\TeamMessage;
 use App\Models\User;
 use App\Services\Dashboard\ClusterSelection;
 use App\Services\Dashboard\RemainingVillages;
+use App\Services\Dashboard\TeamActivityReport;
 use App\Services\Dashboard\TeamProgress;
 use App\Services\Dictionary\Dictionary;
 use App\Services\Dictionary\VariableMap as Map;
@@ -252,6 +253,37 @@ class TeamSpaceController extends Controller
         return view('team.field-photos', $this->shared($request, $team, $teams, 'photos') + [
             'photos' => FieldPhoto::with(['project:id,name,token', 'team:id,code,name', 'village:id,name'])
                 ->where('team_id', $team->id)->latest('id')->paginate(48)->withQueryString(),
+        ]);
+    }
+
+    /**
+     * Onglet « Rapport d'activité » : par semaine de collecte et par jour, ménages visités et enquêtés, mères, enfants
+     * de moins de 5 ans et éligibles (même rapport que la page d'administration, limité au binôme), et son PDF.
+     */
+    public function activity(Request $request): View|Response
+    {
+        [$team, $teams] = $this->team($request);
+        $data = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+        ], ['to.after_or_equal' => 'La date de fin doit suivre la date de début.'], ['from' => 'date de début', 'to' => 'date de fin']);
+        [$from, $to] = TeamActivityReport::period($data['from'] ?? null, $data['to'] ?? null);
+        $report = $from ? (new TeamActivityReport($from, $to))->build(collect([$team->loadMissing(['collectors', 'healthZone'])]))->first() : null;
+
+        if ($request->routeIs('team.activity.pdf')) {
+            abort_unless($report, 404, 'Aucune donnée de collecte.');
+            AuditLog::record('export.rapport_activite_binomes', $team, ['du' => $from->toDateString(), 'au' => $to->toDateString()]);
+
+            return Pdf::loadView('pdf.team-activity', [
+                'reports' => collect([$report]), 'from' => $from, 'to' => $to, 'generatedAt' => CarbonImmutable::now(config('app.timezone')),
+            ])->setPaper('a4', 'portrait')->download('rapport-activite-binome-'.$team->code.'-'.$from->format('Ymd').'-'.$to->format('Ymd').'.pdf');
+        }
+
+        return view('team.activity', $this->shared($request, $team, $teams, 'activite') + [
+            'report' => $report,
+            'from' => $from,
+            'to' => $to,
+            'period' => array_filter(['from' => $data['from'] ?? null, 'to' => $data['to'] ?? null]),
         ]);
     }
 

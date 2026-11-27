@@ -163,6 +163,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/mon-binome/grappes', [TeamSpaceController::class, 'clusters'])->name('team.clusters');
     Route::get('/mon-binome/photos/{project?}', [TeamSpaceController::class, 'photos'])->whereNumber('project')->name('team.photos');
     Route::get('/mon-binome/photos-terrain', [TeamSpaceController::class, 'fieldPhotos'])->name('team.field-photos');
+    Route::get('/mon-binome/rapport-activite', [TeamSpaceController::class, 'activity'])->name('team.activity');
+    Route::get('/mon-binome/rapport-activite.pdf', [TeamSpaceController::class, 'activity'])->name('team.activity.pdf')->middleware('throttle:20,1');
     Route::get('/mon-binome/factures-rapports/{space?}', [TeamSpaceController::class, 'documents'])->whereNumber('space')->name('team.documents');
     Route::get('/mon-binome/grappes.pdf', [TeamSpaceController::class, 'clustersPdf'])->name('team.clusters.pdf')->middleware('throttle:10,1');
 
