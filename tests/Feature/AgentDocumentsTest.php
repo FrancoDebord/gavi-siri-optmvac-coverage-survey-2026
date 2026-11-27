@@ -208,7 +208,10 @@ class AgentDocumentsTest extends TestCase
         Mail::fake();
         $space = $this->space();
         $this->unlock($space);
-        $this->post(route('documents.public.upload', $space->token), ['collector_id' => $this->agent->id, 'type' => 'facture', 'files' => [UploadedFile::fake()->create('lourde.pdf', 3000, 'application/pdf')]]);
+        $this->post(route('documents.public.upload', $space->token), ['collector_id' => $this->agent->id, 'type' => 'facture', 'files' => [$this->pdf('lourde.pdf')]])
+            ->assertSessionHasNoErrors();
+        // Taille fixée en base : un vrai fichier de 3 Mo dépasserait upload_max_filesize (2 Mo par défaut, en CI).
+        AgentDocument::query()->update(['size' => 3_000_000]);
 
         $this->actingAs($this->user(User::ROLE_PI))->post(route('document-spaces.email', $space), ['recipients' => 'compta@exemple.org', 'subject' => 'Factures']);
         Mail::assertSent(AgentDocumentsMail::class, fn (AgentDocumentsMail $mail) => ! $mail->attachFiles && $mail->attachments() === []);
