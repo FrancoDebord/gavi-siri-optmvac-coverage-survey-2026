@@ -1,11 +1,10 @@
 <?php
 
 use App\Http\Controllers\AuditLogController;
-use App\Http\Controllers\CoverageController;
-use App\Http\Controllers\VapCoverageController;
 use App\Http\Controllers\ClusterController;
 use App\Http\Controllers\ClusterMapController;
 use App\Http\Controllers\CorrectionSheetController;
+use App\Http\Controllers\CoverageController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataCorrectionController;
 use App\Http\Controllers\DataExportController;
@@ -14,6 +13,7 @@ use App\Http\Controllers\DataQueryController;
 use App\Http\Controllers\DataSourceController;
 use App\Http\Controllers\DictionaryController;
 use App\Http\Controllers\DocumentationController;
+use App\Http\Controllers\DocumentSpaceController;
 use App\Http\Controllers\FieldDecisionController;
 use App\Http\Controllers\FieldIncidentController;
 use App\Http\Controllers\FilterOptionsController;
@@ -24,6 +24,7 @@ use App\Http\Controllers\MappingController;
 use App\Http\Controllers\MicrosoftLoginController;
 use App\Http\Controllers\PhotoProjectController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicDocumentController;
 use App\Http\Controllers\PublicPhotoController;
 use App\Http\Controllers\QualityRuleController;
 use App\Http\Controllers\QueryDashboardController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\TeamMessageController;
 use App\Http\Controllers\TeamSpaceController;
 use App\Http\Controllers\TeamVillageController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VapCoverageController;
 use App\Models\DataQuery;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -57,6 +59,13 @@ Route::prefix('photos/{token}')->where(['token' => '[A-Za-z0-9]{40}'])->name('ph
     Route::post('/', [PublicPhotoController::class, 'upload'])->middleware('throttle:120,1')->name('upload');
     Route::get('/{photo}/{variant}', [PublicPhotoController::class, 'file'])->whereNumber('photo')->whereIn('variant', ['vignette', 'original'])
         ->middleware('throttle:600,1')->name('file');
+});
+
+// Factures et rapports d'activité des agents : lien public secret, puis code PIN (sans compte) ; dépôt seulement.
+Route::prefix('documents/{token}')->where(['token' => '[A-Za-z0-9]{40}'])->name('documents.public.')->group(function () {
+    Route::get('/', [PublicDocumentController::class, 'show'])->middleware('throttle:60,1')->name('show');
+    Route::post('/pin', [PublicDocumentController::class, 'unlock'])->middleware('throttle:10,1')->name('unlock');
+    Route::post('/', [PublicDocumentController::class, 'upload'])->middleware('throttle:60,1')->name('upload');
 });
 
 Route::middleware(['auth', 'active'])->group(function () {
@@ -150,6 +159,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/mon-binome/grappes', [TeamSpaceController::class, 'clusters'])->name('team.clusters');
     Route::get('/mon-binome/photos/{project?}', [TeamSpaceController::class, 'photos'])->whereNumber('project')->name('team.photos');
     Route::get('/mon-binome/photos-terrain', [TeamSpaceController::class, 'fieldPhotos'])->name('team.field-photos');
+    Route::get('/mon-binome/factures-rapports/{space?}', [TeamSpaceController::class, 'documents'])->whereNumber('space')->name('team.documents');
     Route::get('/mon-binome/grappes.pdf', [TeamSpaceController::class, 'clustersPdf'])->name('team.clusters.pdf')->middleware('throttle:10,1');
 
     // Investigateur principal
@@ -280,6 +290,19 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/{project}/renouveler', [PhotoProjectController::class, 'regenerate'])->whereNumber('project')->name('regenerate');
         Route::get('/{project}/telecharger', [PhotoProjectController::class, 'download'])->whereNumber('project')->middleware('throttle:10,1')->name('download');
         Route::delete('/{project}/photos/{photo}', [PhotoProjectController::class, 'destroyPhoto'])->whereNumber(['project', 'photo'])->name('photos.destroy');
+    });
+    // Factures et rapports d'activité des agents (création, lien et PIN, suivi, validation, téléchargement).
+    Route::middleware('permission:manage agent documents')->prefix('factures-rapports')->name('document-spaces.')->group(function () {
+        Route::get('/', [DocumentSpaceController::class, 'index'])->name('index');
+        Route::post('/', [DocumentSpaceController::class, 'store'])->name('store');
+        Route::get('/{space}', [DocumentSpaceController::class, 'show'])->whereNumber('space')->name('show');
+        Route::put('/{space}', [DocumentSpaceController::class, 'update'])->whereNumber('space')->name('update');
+        Route::delete('/{space}', [DocumentSpaceController::class, 'destroy'])->whereNumber('space')->name('destroy');
+        Route::post('/{space}/renouveler', [DocumentSpaceController::class, 'regenerate'])->whereNumber('space')->name('regenerate');
+        Route::get('/{space}/telecharger', [DocumentSpaceController::class, 'download'])->whereNumber('space')->middleware('throttle:10,1')->name('download');
+        Route::get('/{space}/documents/{document}', [DocumentSpaceController::class, 'file'])->whereNumber(['space', 'document'])->middleware('throttle:300,1')->name('file');
+        Route::put('/{space}/documents/{document}', [DocumentSpaceController::class, 'review'])->whereNumber(['space', 'document'])->name('review');
+        Route::delete('/{space}/documents/{document}', [DocumentSpaceController::class, 'destroyDocument'])->whereNumber(['space', 'document'])->name('documents.destroy');
     });
 
     Route::middleware('permission:export databases')->group(function () {

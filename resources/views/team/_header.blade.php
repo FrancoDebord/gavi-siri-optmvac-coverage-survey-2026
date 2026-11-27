@@ -16,6 +16,7 @@
         </form>
     @endunless
     <x-photo-spaces-button />
+    <x-document-spaces-button />
     <a href="{{ route('team.corrections.pdf', $isTeam ? [] : ['team_id' => $team->id]) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-card-checklist me-1"></i>Fiche de corrections (PDF)</a>
     <a href="{{ route('team.clusters.pdf', $teamParam) }}" class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1"></i>Cartes des grappes (PDF)</a>
 </x-page-header>

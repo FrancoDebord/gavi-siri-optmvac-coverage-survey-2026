@@ -28,6 +28,9 @@
         @if (\App\Models\PhotoProject::openForTeams()->exists())
             <a class="nav-link" href="{{ route('team.photos') }}" target="_blank" rel="noopener"><i class="bi bi-camera"></i><span class="label">Photos de terrain</span></a>
         @endif
+        @if (\App\Models\DocumentSpace::openForTeams()->exists())
+            <a class="nav-link" href="{{ route('team.documents') }}" target="_blank" rel="noopener"><i class="bi bi-folder2-open"></i><span class="label">Factures et rapports</span></a>
+        @endif
     @endif
     @if (auth()->user()->hasOwnTeam())
         {{-- Superviseur agent d'un binôme : tout ce que voit son binôme, en plus de la supervision. --}}
@@ -42,6 +45,9 @@
         <a class="nav-link {{ $onOwn && request()->routeIs('team.clusters') ? 'active' : '' }}" href="{{ route('team.clusters', $own) }}"><i class="bi bi-bounding-box"></i><span class="label">Mes grappes</span></a>
         @if (\App\Models\PhotoProject::openForTeams()->exists())
             <a class="nav-link" href="{{ route('team.photos') }}" target="_blank" rel="noopener"><i class="bi bi-camera"></i><span class="label">Photos de terrain</span></a>
+        @endif
+        @if (\App\Models\DocumentSpace::openForTeams()->exists())
+            <a class="nav-link" href="{{ route('team.documents') }}" target="_blank" rel="noopener"><i class="bi bi-folder2-open"></i><span class="label">Factures et rapports</span></a>
         @endif
     @endif
     @if ($isPi)
@@ -67,6 +73,7 @@
         <a class="{{ $link('incidents.*') }}" href="{{ route('incidents.index') }}"><i class="bi bi-exclamation-triangle"></i><span class="label">Incidents terrain
             @if ($openIncidents)<span class="badge rounded-pill text-bg-danger ms-1">{{ $openIncidents }}</span>@endif</span></a>
         <a class="{{ $link('photo-projects.*') }}" href="{{ route('photo-projects.index') }}"><i class="bi bi-images"></i><span class="label">Photos de terrain</span></a>
+        <a class="{{ $link('document-spaces.*') }}" href="{{ route('document-spaces.index') }}"><i class="bi bi-folder2-open"></i><span class="label">Factures et rapports</span></a>
     @else
     @can('view pi dashboard')
         <div class="nav-section">Investigateur principal</div>
@@ -93,6 +100,12 @@
     @elseif (auth()->user()->hasRole(\App\Models\User::ROLE_SUPERVISOR) && ! auth()->user()->hasOwnTeam() &&\App\Models\PhotoProject::openForTeams()->exists())
     {{-- Superviseurs : dépôt dans les espaces photos ouverts (déjà dans « Mon binôme » s'ils en ont un). --}}
     <a class="nav-link" href="{{ route('team.photos') }}" target="_blank" rel="noopener"><i class="bi bi-camera"></i><span class="label">Photos de terrain</span></a>
+    @endcan
+    @can('manage agent documents')
+    <a class="{{ $link('document-spaces.*') }}" href="{{ route('document-spaces.index') }}"><i class="bi bi-folder2-open"></i><span class="label">Factures et rapports</span></a>
+    @elseif (auth()->user()->hasRole(\App\Models\User::ROLE_SUPERVISOR) && ! auth()->user()->hasOwnTeam() && \App\Models\DocumentSpace::openForTeams()->exists())
+    {{-- Superviseurs : dépôt de leur facture et de leur rapport (déjà dans « Mon binôme » s'ils en ont un). --}}
+    <a class="nav-link" href="{{ route('team.documents') }}" target="_blank" rel="noopener"><i class="bi bi-folder2-open"></i><span class="label">Factures et rapports</span></a>
     @endcan
 
     <div class="nav-section">Suivi</div>

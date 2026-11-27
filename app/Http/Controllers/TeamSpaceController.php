@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Cluster;
 use App\Models\DataQuery;
+use App\Models\DocumentSpace;
 use App\Models\FieldPhoto;
 use App\Models\Household;
 use App\Models\PhotoProject;
@@ -317,6 +318,32 @@ class TeamSpaceController extends Controller
         $request->session()->put($project->sessionKey(), true);
 
         return redirect()->away($project->publicUrl());
+    }
+
+    /**
+     * Espace « Factures et rapports » depuis l'application : compte connecté, donc sans code PIN (déverrouillé pour
+     * cette session), puis la page de dépôt. Sans espace précisé : le seul ouvert, sinon retour au choix.
+     */
+    public function documents(Request $request, ?DocumentSpace $space = null): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless(PublicDocumentController::canOpenFromAccount($user), 403);
+        $open = DocumentSpace::openForTeams();
+        if (! $space) {
+            $spaces = $open->get();
+            if ($spaces->count() !== 1) {
+                $home = $user->hasRole(User::ROLE_TEAM) ? 'team.space' : 'supervision.index';
+
+                return redirect()->route($home)->with('info', $spaces->isEmpty()
+                    ? "Aucun espace de dépôt des factures et rapports n'est ouvert pour le moment."
+                    : "Choisissez l'espace avec le bouton « Factures et rapports ».");
+            }
+            $space = $spaces->first();
+        }
+        abort_unless($open->whereKey($space->id)->exists(), 404);
+        $request->session()->put($space->sessionKey(), true);
+
+        return redirect()->away($space->publicUrl());
     }
 
     /** Libellé du statut de visite (liste de choix du formulaire). */

@@ -28,4 +28,9 @@
             <a class="nav-link" href="{{ route('photo-projects.index') }}"><i class="bi bi-images me-1"></i>Photos de terrain</a>
         </li>
     @endcan
+    @can('manage agent documents')
+        <li class="nav-item">
+            <a class="nav-link" href="{{ route('document-spaces.index') }}"><i class="bi bi-folder2-open me-1"></i>Factures et rapports</a>
+        </li>
+    @endcan
 </ul>

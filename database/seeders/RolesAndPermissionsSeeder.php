@@ -16,6 +16,8 @@ class RolesAndPermissionsSeeder extends Seeder
         'send messages' => [User::ROLE_ADMIN, User::ROLE_PI],
         // Espaces photos de terrain : création, lien et PIN, suppression et téléchargement des photos.
         'manage field photos' => [User::ROLE_ADMIN, User::ROLE_PI],
+        // Factures et rapports d'activité des agents : espaces de dépôt, consultation, validation, téléchargement.
+        'manage agent documents' => [User::ROLE_ADMIN, User::ROLE_PI],
         'view team space' => [User::ROLE_ADMIN, User::ROLE_TEAM],
         'manage decisions' => [User::ROLE_ADMIN, User::ROLE_PI, User::ROLE_DATA_MANAGER],
         'process queries' => [User::ROLE_ADMIN, User::ROLE_DATA_MANAGER, User::ROLE_SUPERVISOR],
