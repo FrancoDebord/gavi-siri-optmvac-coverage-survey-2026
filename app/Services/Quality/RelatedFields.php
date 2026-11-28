@@ -60,6 +60,10 @@ final class RelatedFields
                 RecallDoseSeriesOrderRule::gaps(fn ($v) => self::value($clean, $v, $query->instance_path)))),
             // Toutes les dates de cycles CPS en cause (pas seulement celle de la query).
             // CPS non déclarée mais cycles cochés sur la carte : chaque cycle coché peut être en cause.
+            // Carte CPS reçue mais CPS déclarée non reçue : la déclaration, et les cycles C1 à C5 à recocher d'après la
+            // carte quand l'enfant l'a encore (sinon ils ne sont pas posés dans le formulaire).
+            'OBS_23' => ['child_got_smc', ...((string) self::value($clean, 'child_still_have_card', $query->instance_path) === '1'
+                ? array_map(fn ($k) => "treated_{$k}", range(1, SmcDeclarationRule::CYCLES)) : [])],
             'MAJ_41' => array_map(fn ($k) => "treated_{$k}", SmcDeclarationRule::cardCycles(fn ($v) => self::value($clean, $v, $query->instance_path))),
             // Cycles trop rapprochés : toutes les dates saisies peuvent être en cause.
             'MAJ_38' => array_map(fn ($k) => "date_{$k}", array_keys(SmcCycleOrderRule::dates(fn ($v) => self::value($clean, $v, $query->instance_path)))),

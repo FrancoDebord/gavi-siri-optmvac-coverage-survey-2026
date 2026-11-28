@@ -563,6 +563,15 @@ class DataQueryController extends Controller
      * Choix « aucune valeur fausse » dans « Quelle valeur est fausse ? » : rien n'est corrigé, la query est enregistrée
      * comme valeur confirmée avec cette justification (complétée par le commentaire de l'agent).
      */
+    /** Textes du choix « quelle valeur est fausse ? » propres à une règle (titre, consigne, choix « plusieurs »). */
+    public const PAIR_TEXT = [
+        'OBS_23' => [
+            'legend' => 'Quelles réponses corriger d\'après la carte CPS ?',
+            'hint' => 'Lisez la carte CPS avec le caregiver. Si elle montre des cycles traités, corrigez « CPS déclarée » (Oui) et les cycles C1 à C5 comme sur la carte : choisissez « Plusieurs ».',
+            'all' => 'Plusieurs (ex. CPS déclarée et cycles C1 à C5)',
+        ],
+    ];
+
     public const NO_ERROR = [
         'MAJ_41' => [
             'label' => 'Aucune : la déclaration et la carte sont justes telles que saisies (le caregiver a oublié ou ignorait la CPS)',

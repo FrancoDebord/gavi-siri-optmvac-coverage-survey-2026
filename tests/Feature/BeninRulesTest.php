@@ -7,6 +7,7 @@ use App\Models\DataCorrection;
 use App\Models\DataQuery;
 use App\Models\QualityRule;
 use App\Models\QueryEvent;
+use App\Models\SupervisionObservation;
 use App\Models\User;
 use App\Services\Import\NormalizedSubmission;
 use App\Services\Import\SubmissionProcessor;
@@ -415,6 +416,49 @@ class BeninRulesTest extends TestCase
             ['variable' => 'treated_1', 'instance_path' => $query->instance_path, 'new_value' => '1', 'optional' => '1', 'group' => 'paire'],
         ]])->assertSessionHasNoErrors();
         $this->assertSame(['child_got_smc'], DataCorrection::where('data_query_id', $query->id)->pluck('variable')->all());
+    }
+
+    public function test_smc_card_without_declared_smc_offers_the_declaration_and_every_card_cycle_once_sent_to_queries(): void
+    {
+        $this->household('TCH-SEB-01-053', [[
+            'child_got_smc' => '0', 'child_given_smc_card' => '1', 'child_still_have_card' => '1',
+            'treated_1' => '0', 'treated_2' => '0', 'treated_3' => '0', 'treated_4' => '0', 'treated_5' => '0',
+        ]]);
+        $observation = SupervisionObservation::where('rule_code', 'OBS_23')->firstOrFail();
+        $admin = User::factory()->create();
+        $admin->assignRole(User::ROLE_ADMIN);
+        $this->actingAs($admin)->post(route('observations.escalate'), ['ids' => [$observation->id]])->assertSessionHas('success');
+        $query = DataQuery::findOrFail($observation->id);
+
+        // Déclaration et cycles C1 à C5 corrigeables d'après la carte, au choix ou ensemble.
+        $response = $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $query))->assertOk()
+            ->assertSee('Quelles réponses corriger d&#039;après la carte CPS ?', false)
+            ->assertSee('Plusieurs (ex. CPS déclarée et cycles C1 à C5)')
+            ->assertSee('name="corrections[1][variable]" value="child_got_smc"', false);
+        foreach (range(1, 5) as $k) {
+            $response->assertSee('name="corrections['.($k + 1).'][variable]" value="treated_'.$k.'"', false);
+        }
+
+        // « Plusieurs » : la déclaration et les cycles cochés sur la carte ; les réponses inchangées sont ignorées.
+        $row = fn (string $variable, string $value) => ['variable' => $variable, 'instance_path' => $query->instance_path, 'new_value' => $value, 'optional' => '1', 'group' => 'paire'];
+        $this->actingAs($this->manager())->post(route('queries.status', $query), ['status' => DataQuery::STATUS_CORRECTED, 'pair_choice' => 'all', 'corrections' => [
+            $row('child_given_smc_card', '1'), ['reason' => 'carnet'] + $row('child_got_smc', '1'),
+            $row('treated_1', '1'), $row('treated_2', '1'), $row('treated_3', '0'), $row('treated_4', '0'), $row('treated_5', '0'),
+        ]])->assertSessionHasNoErrors();
+        $this->assertEqualsCanonicalizing(['child_got_smc', 'treated_1', 'treated_2'], DataCorrection::where('data_query_id', $query->id)->pluck('variable')->all());
+    }
+
+    public function test_smc_card_kept_elsewhere_offers_only_the_declaration(): void
+    {
+        $this->household('TCH-SEB-01-054', [['child_got_smc' => '0', 'child_given_smc_card' => '1', 'child_still_have_card' => '0']]);
+        $observation = SupervisionObservation::where('rule_code', 'OBS_23')->firstOrFail();
+        $admin = User::factory()->create();
+        $admin->assignRole(User::ROLE_ADMIN);
+        $this->actingAs($admin)->post(route('observations.escalate'), ['ids' => [$observation->id]]);
+
+        $this->withoutVite()->actingAs($this->manager())->get(route('queries.show', $observation->id))->assertOk()
+            ->assertSee('name="corrections[1][variable]" value="child_got_smc"', false)
+            ->assertDontSee('value="treated_1"', false);
     }
 
     public function test_smc_cycles_out_of_order_list_every_date_and_offer_the_dates_in_cause(): void

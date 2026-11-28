@@ -373,9 +373,10 @@
                                         @endif
                                         @if ($correctionField && $correctionField['pair'])
                                             @php($noError = \App\Http\Controllers\DataQueryController::NO_ERROR[$query->rule_code] ?? null)
+                                            @php($pairText = \App\Http\Controllers\DataQueryController::PAIR_TEXT[$query->rule_code] ?? [])
                                             <fieldset class="border border-warning-subtle rounded p-2 mb-2" data-pair-choice>
-                                                <legend class="float-none w-auto small fw-semibold px-1 mb-1">{{ $noError['legend'] ?? 'Quelle valeur est fausse ?' }}</legend>
-                                                <div class="small text-muted mb-1">{{ $noError['hint'] ?? 'Vérifiez sur le carnet laquelle est fausse.' }}</div>
+                                                <legend class="float-none w-auto small fw-semibold px-1 mb-1">{{ $noError['legend'] ?? $pairText['legend'] ?? 'Quelle valeur est fausse ?' }}</legend>
+                                                <div class="small text-muted mb-1">{{ $noError['hint'] ?? $pairText['hint'] ?? 'Vérifiez sur le carnet laquelle est fausse.' }}</div>
                                                 @foreach ($correctionField['pair'] as $k => $f)
                                                     <div class="form-check">
                                                         <input class="form-check-input" type="radio" name="pair_choice" id="pair-{{ $k }}" value="{{ $k }}" required>
@@ -385,7 +386,7 @@
                                                 @if (count($correctionField['pair']) > 1)
                                                     <div class="form-check">
                                                         <input class="form-check-input" type="radio" name="pair_choice" id="pair-all" value="all" required>
-                                                        <label class="form-check-label" for="pair-all">{{ count($correctionField['pair']) > 2 ? 'Plusieurs' : 'Les deux' }}</label>
+                                                        <label class="form-check-label" for="pair-all">{{ $pairText['all'] ?? (count($correctionField['pair']) > 2 ? 'Plusieurs' : 'Les deux') }}</label>
                                                     </div>
                                                 @endif
                                                 @if ($noError)
