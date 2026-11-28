@@ -50,6 +50,14 @@
                 </select>
             </div>
             <div class="col-6 col-md-3 col-xl-2">
+                <label class="form-label small mb-0" for="f-origin">Origine</label>
+                <select id="f-origin" class="form-select form-select-sm" data-filter="origine">
+                    <option value="">Toutes</option>
+                    <option value="moteur">Contrôles de données</option>
+                    <option value="observation">Observations de supervision envoyées</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
                 <label class="form-label small mb-0" for="f-variable">Variable</label>
                 <input id="f-variable" class="form-control form-control-sm" data-filter="variable" list="variables-list" placeholder="ex. Penta1date">
             </div>

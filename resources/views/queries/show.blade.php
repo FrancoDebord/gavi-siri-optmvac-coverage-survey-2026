@@ -18,12 +18,25 @@
                     <span class="text-nowrap"><x-severity-badge :severity="$query->severity" /> <x-status-badge :status="$query->status" /></span>
                 </div>
                 <div class="card-body">
-                    <h2 class="h6 text-muted mb-1">Description de l'erreur</h2>
+                    @if ($query->isEscalatedObservation())
+                        <div class="alert alert-info small d-flex gap-2 py-2">
+                            <i class="bi bi-send-check"></i>
+                            <div>
+                                <strong>Observation de supervision</strong> envoyée dans les queries{{ $query->escalator ? ' par '.$query->escalator->name : '' }} le {{ $query->escalated_at->format('d/m/Y') }}.
+                                @if ($query->isParadataObservation())
+                                    Rien à corriger dans le formulaire : le binôme <strong>explique</strong> ce qui s'est passé (heure, durée, envoi, GPS), puis le superviseur et le data manager valident l'explication.
+                                @else
+                                    Elle se résout comme une query : corriger la valeur, ou la confirmer avec la source.
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+                    <h2 class="h6 text-muted mb-1">{{ $query->isEscalatedObservation() ? "Description de l'observation" : "Description de l'erreur" }}</h2>
                     <p class="fs-6">{{ $query->message }}</p>
                     @if ($query->variable)
                         {{-- Question à corriger : libellé du formulaire, nom de la variable et membre concerné. --}}
                         <div class="border-start border-4 border-primary bg-primary-subtle rounded-end px-3 py-2 mb-3">
-                            <div class="small text-muted">Question à vérifier / corriger</div>
+                            <div class="small text-muted">{{ $query->isParadataObservation() ? 'Donnée concernée (paradonnée, non modifiable)' : 'Question à vérifier / corriger' }}</div>
                             <div class="fw-semibold">{{ $query->variable_label ?? $query->variable }}</div>
                             <div class="small"><code>{{ $query->variable }}</code>{{ $query->instance_path ? ' · '.\App\Exports\QueriesExport::memberLabel($query->instance_path) : '' }}</div>
                         </div>
@@ -111,7 +124,7 @@
                 </div>
             @endif
 
-            @if ($query->variable && $query->household && (auth()->user()->can('update', $query) || auth()->user()->can('validate', $query)) && ! $query->isResolved())
+            @if ($query->variable && $query->household && ! $query->isParadataObservation() && (auth()->user()->can('update', $query) || auth()->user()->can('validate', $query)) && ! $query->isResolved())
                 <form method="POST" action="{{ route('queries.suggest', $query) }}" class="card mb-3">
                     @csrf
                     <div class="card-header"><i class="bi bi-eye me-1"></i>Valeur lue sur la photo</div>
@@ -178,10 +191,14 @@
             @php
                 $user = auth()->user();
                 $awaitingFinal = $query->status === \App\Models\DataQuery::STATUS_SUPERVISED;
+                $paradata = $query->isParadataObservation();
                 $options = collect(\App\Models\DataQuery::TRANSITIONS[$query->status] ?? [])
+                    // Observation de paradonnées : rien à corriger, le binôme explique (valeur confirmée).
+                    ->reject(fn ($status) => $paradata && $status === \App\Models\DataQuery::STATUS_CORRECTED)
                     ->filter(fn ($status) => \App\Services\Quality\QueryWorkflow::allowed($user, $query, $status))
                     ->mapWithKeys(fn ($status) => [$status => match ($status) {
                         \App\Models\DataQuery::STATUS_OPEN => in_array($query->status, [...\App\Models\DataQuery::RESPONSES, ...\App\Models\DataQuery::AWAITING_FINAL], true) ? 'Rejeter la réponse (retour au binôme)' : 'Rouvrir la query',
+                        \App\Models\DataQuery::STATUS_JUSTIFIED => $paradata ? "Expliquer l'observation (rien à corriger)" : \App\Models\DataQuery::STATUSES[$status],
                         \App\Models\DataQuery::STATUS_SUPERVISED => 'Valider (vérification du superviseur) → validation finale',
                         \App\Models\DataQuery::STATUS_VALIDATED => match (true) {
                             // Réponse « âge confirmé » (MAJ_18…) : la validation ferme la query comme irrésoluble.
@@ -273,7 +290,7 @@
                                 <label class="form-label" for="status">Action</label>
                                 <select id="status" name="status" class="form-select mb-1" required>
                                     @foreach ($options as $status => $label)
-                                        <option value="{{ $status }}" data-help="{{ \App\Services\Quality\QueryWorkflow::help($status) }}" data-signature="{{ $needsSignature && in_array($status, [\App\Models\DataQuery::STATUS_VALIDATED, \App\Models\DataQuery::STATUS_UNRESOLVABLE], true) ? '1' : '0' }}" @selected(old('status') === $status)>{{ $label }}</option>
+                                        <option value="{{ $status }}" data-help="{{ $paradata && $status === \App\Models\DataQuery::STATUS_JUSTIFIED ? "Choisissez l'explication, ajoutez les précisions utiles : la réponse part au superviseur." : \App\Services\Quality\QueryWorkflow::help($status) }}" data-signature="{{ $needsSignature && in_array($status, [\App\Models\DataQuery::STATUS_VALIDATED, \App\Models\DataQuery::STATUS_UNRESOLVABLE], true) ? '1' : '0' }}" @selected(old('status') === $status)>{{ $label }}</option>
                                     @endforeach
                                 </select>
                                 <div id="status-help" class="form-text mb-2"></div>
@@ -435,7 +452,19 @@
                                     <script type="application/json" id="variable-options">@json($variableOptions)</script>
                                     <script type="application/json" id="member-values">@json((object) $memberValues)</script>
                                 </div>
-                                <label class="form-label" for="comment">Justification / motif</label>
+                                @if ($paradata && $options->has(\App\Models\DataQuery::STATUS_JUSTIFIED))
+                                    {{-- Zone de résolution des agents : explications usuelles de l'observation, puis précisions. --}}
+                                    <fieldset id="explanation-block" class="border border-info-subtle rounded p-2 mb-2 d-none">
+                                        <legend class="float-none w-auto small fw-semibold px-1 mb-1">Que s'est-il passé ?</legend>
+                                        @foreach (\App\Models\SupervisionObservation::explanationsFor($query->rule_code) as $value => $text)
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="explanation" id="explanation-{{ $loop->index }}" value="{{ $value }}" @checked(old('explanation') === $value) disabled>
+                                                <label class="form-check-label small" for="explanation-{{ $loop->index }}">{{ $text }}</label>
+                                            </div>
+                                        @endforeach
+                                    </fieldset>
+                                @endif
+                                <label class="form-label" for="comment">{{ $paradata ? 'Précisions (obligatoires pour « Autre explication ») / motif' : 'Justification / motif' }}</label>
                                 <textarea id="comment" name="comment" rows="3" class="form-control mb-2" maxlength="2000">{{ old('comment') }}</textarea>
                                 @if ($needsSignature)
                                     <div id="signature-field" class="mb-2 d-none">

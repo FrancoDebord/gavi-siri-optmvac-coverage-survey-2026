@@ -37,6 +37,7 @@ class QueryStatusRequest extends FormRequest
             'comment' => ['nullable', 'string', 'max:2000'],
             'password' => ['nullable', 'string', 'max:255'],
             'pair_choice' => ['nullable', 'string', 'max:10'],
+            'explanation' => ['nullable', 'string', 'max:255'],
             'corrections' => ['nullable', 'array', 'max:20'],
             'corrections.*.variable' => ['nullable', 'string', 'max:255'],
             'corrections.*.instance_path' => ['nullable', 'string', 'max:255'],
@@ -51,6 +52,6 @@ class QueryStatusRequest extends FormRequest
 
     public function attributes(): array
     {
-        return ['status' => 'statut', 'comment' => 'commentaire'];
+        return ['status' => 'statut', 'comment' => 'commentaire', 'explanation' => 'explication'];
     }
 }

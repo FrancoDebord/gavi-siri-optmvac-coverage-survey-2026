@@ -79,7 +79,8 @@ class QualityRuleController extends Controller
         DataQuery::withoutGlobalScope('kind')->where('quality_rule_id', $rule->id)->whereIn('status', DataQuery::UNRESOLVED)->update(['severity' => $rule->severity]);
         // La nature (query / observation) s'applique à toutes les anomalies de la règle, historique conservé.
         if ($rule->wasChanged('kind')) {
-            DataQuery::withoutGlobalScope('kind')->where('quality_rule_id', $rule->id)->update(['kind' => $rule->kind]);
+            // Les observations envoyées dans les queries y restent.
+            DataQuery::withoutGlobalScope('kind')->where('quality_rule_id', $rule->id)->whereNull('escalated_at')->update(['kind' => $rule->kind]);
         }
         AuditLog::record('rule.updated', $rule, ['code' => $rule->code, 'modifications' => $rule->getChanges()]);
 

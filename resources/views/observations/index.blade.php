@@ -1,7 +1,14 @@
 <x-layouts.app title="Observations de supervision" page="observations">
-    <x-page-header title="Observations de supervision" subtitle="Faits relevés sur les paradonnées (heures, durées, volumes, délais d'envoi, précision GPS) : à examiner avec les binômes. Ce ne sont pas des queries : aucune valeur n'est à corriger.">
+    <x-page-header title="Observations de supervision" subtitle="Faits relevés sur les paradonnées (heures, durées, volumes, délais d'envoi, précision GPS) : à examiner avec les binômes. Ce ne sont pas des queries, sauf celles que l'administrateur envoie dans les queries pour qu'elles soient résolues.">
         <a href="{{ route('queries.index') }}" class="btn btn-sm btn-light"><i class="bi bi-list-check me-1"></i>Queries de données</a>
     </x-page-header>
+
+    @if ((int) $escalated->total > 0)
+        <div class="alert alert-info small d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span><i class="bi bi-send-check me-1"></i><strong>{{ number_format((int) $escalated->total, 0, ',', ' ') }}</strong> observation(s) envoyée(s) dans les queries, dont <strong>{{ number_format((int) $escalated->open, 0, ',', ' ') }}</strong> encore à résoudre par les binômes.</span>
+            <a href="{{ route('queries.index', ['origine' => 'observation']) }}" class="btn btn-sm btn-outline-primary">Voir ces queries</a>
+        </div>
+    @endif
 
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
@@ -53,15 +60,49 @@
         @endforeach
     </div>
 
+    @if ($canEscalate)
+        {{-- Envoi dans les queries : les observations cochées (ou toutes celles du filtre) suivent le cycle de résolution. --}}
+        <form id="escalate-form" method="POST" action="{{ route('observations.escalate') }}" class="card card-body mb-3 border-primary-subtle"
+              data-confirm="Envoyer ces observations dans les queries ? Les binômes devront les résoudre (explication ou correction), puis elles seront vérifiées et validées comme les autres queries."
+              data-confirm-title="Envoyer dans les queries">
+            @csrf
+            @foreach (['health_zone_id', 'rule_code', 'du', 'au'] as $key)
+                @if ($filters[$key])<input type="hidden" name="{{ $key }}" value="{{ $filters[$key] }}">@endif
+            @endforeach
+            <input type="hidden" name="actives" value="{{ $filters['actives'] ? '1' : '0' }}">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-lg">
+                    <label class="form-label small mb-0" for="escalate-note"><i class="bi bi-send me-1"></i>Envoyer dans les queries · consigne pour les binômes (facultatif)</label>
+                    <input id="escalate-note" name="note" class="form-control form-control-sm" maxlength="2000" placeholder="Ex. : expliquer la durée de l'entretien, reprendre le point GPS à la revisite…">
+                </div>
+                <div class="col-auto">
+                    <button name="all" value="0" class="btn btn-sm btn-primary" data-escalate-selected disabled><i class="bi bi-send me-1"></i>Envoyer la sélection (<span data-selected-count>0</span>)</button>
+                </div>
+                <div class="col-auto">
+                    <button name="all" value="1" class="btn btn-sm btn-outline-primary" @disabled($escalatable === 0)><i class="bi bi-send-plus me-1"></i>Envoyer toutes celles du filtre ({{ number_format(min($escalatable, \App\Http\Controllers\SupervisionObservationController::ESCALATE_MAX), 0, ',', ' ') }})</button>
+                </div>
+            </div>
+            @error('escalate')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+            <div class="form-text">Seules les observations encore constatées et non traitées sont envoyées. Elles sont confiées au compte du binôme (affectation automatique) et apparaissent dans son espace.</div>
+        </form>
+    @endif
+
     <div class="card">
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-light">
-                <tr><th>Collecte</th><th>Observation</th><th>Valeur</th><th>Ménage</th><th>Zone</th><th>Village</th><th>Agent · binôme</th><th>État</th></tr>
+                <tr>@if ($canEscalate)<th><input type="checkbox" class="form-check-input" data-select-all aria-label="Tout cocher sur la page"></th>@endif<th>Collecte</th><th>Observation</th><th>Valeur</th><th>Ménage</th><th>Zone</th><th>Village</th><th>Agent · binôme</th><th>État</th></tr>
                 </thead>
                 <tbody>
                 @forelse ($observations as $observation)
                     <tr>
+                        @if ($canEscalate)
+                            <td>
+                                @if (! $observation->auto_closed && in_array($observation->status, \App\Models\DataQuery::UNRESOLVED, true))
+                                    <input type="checkbox" class="form-check-input" name="ids[]" value="{{ $observation->id }}" form="escalate-form" data-observation aria-label="Sélectionner l'observation">
+                                @endif
+                            </td>
+                        @endif
                         <td class="text-nowrap">{{ $observation->collection_date?->format('d/m/Y') ?? '—' }}</td>
                         <td><div class="fw-semibold small">{{ $observation->label ?? $observation->rule_code }}</div><div class="small text-muted">{{ $observation->message }}</div></td>
                         <td class="small">{{ $observation->observed_value ?? '—' }}</td>
@@ -72,7 +113,7 @@
                         <td>@if ($observation->auto_closed)<span class="badge text-bg-light border">disparue</span>@else<span class="badge text-bg-warning">constatée</span>@endif</td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-muted text-center py-4">Aucune observation avec ces filtres.</td></tr>
+                    <tr><td colspan="{{ $canEscalate ? 9 : 8 }}" class="text-muted text-center py-4">Aucune observation avec ces filtres.</td></tr>
                 @endforelse
                 </tbody>
             </table>

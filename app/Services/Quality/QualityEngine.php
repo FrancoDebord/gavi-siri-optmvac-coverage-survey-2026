@@ -30,7 +30,7 @@ use Throwable;
  */
 class QualityEngine
 {
-    /** @var array<string, array{id: int, status: string, auto_closed: bool, observed: ?string}> */
+    /** @var array<string, array{id: int, status: string, auto_closed: bool, observed: ?string, escalated: bool}> */
     private array $existing = [];
 
     private array $toInsert = [];
@@ -73,7 +73,12 @@ class QualityEngine
             if ($householdIds !== null) {
                 // Vérification ciblée (correction) : les observations de supervision (paradonnées), qu'une correction
                 // ne change pas, restent à la passe complète ; leurs anomalies ne sont ni réévaluées ni fermées.
-                $rules = array_values(array_filter($rules, fn ($r) => ($r[0]->kind ?: QualityRule::KIND_QUERY) === QualityRule::KIND_QUERY));
+                // Exception : les règles d'observation envoyées dans les queries pour ces ménages, évaluables soumission
+                // par soumission (sans préparation de l'ensemble des données), pour conclure la correction.
+                $escalated = DataQuery::withoutGlobalScope('kind')->whereIn('household_id', $householdIds ?: [0])
+                    ->whereNotNull('escalated_at')->distinct()->pluck('rule_code')->all();
+                $rules = array_values(array_filter($rules, fn ($r) => ($r[0]->kind ?: QualityRule::KIND_QUERY) === QualityRule::KIND_QUERY
+                    || (in_array($r[0]->code, $escalated, true) && ! $r[1] instanceof PreparesDataset)));
                 Household::$datasetIds = $this->neighbourhood($householdIds);
             }
             try {
@@ -91,8 +96,8 @@ class QualityEngine
             // Les queries des soumissions exclues de la base nettoyée ne sont plus réévaluées (fermées à l'exclusion).
             $this->existing = DataQuery::withoutGlobalScope('kind')
                 ->when($householdIds !== null, fn ($q) => $q->whereIn('household_id', $householdIds ?: [0]))
-                ->where(fn ($q) => $q->whereNull('household_id')->orWhereNotIn('household_id', Household::withoutGlobalScope('included')->whereNotNull('excluded_at')->select('id')))->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to', 'suggested_source'])
-                ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value, 'assigned_to' => $q->assigned_to, 'suggested_source' => $q->suggested_source]])
+                ->where(fn ($q) => $q->whereNull('household_id')->orWhereNotIn('household_id', Household::withoutGlobalScope('included')->whereNotNull('excluded_at')->select('id')))->get(['id', 'fingerprint', 'rule_code', 'status', 'auto_closed', 'observed_value', 'assigned_to', 'suggested_source', 'escalated_at'])
+                ->mapWithKeys(fn ($q) => [$q->fingerprint => ['id' => $q->id, 'rule_code' => $q->rule_code, 'status' => $q->status, 'auto_closed' => $q->auto_closed, 'observed' => $q->observed_value, 'assigned_to' => $q->assigned_to, 'suggested_source' => $q->suggested_source, 'escalated' => $q->escalated_at !== null]])
                 ->all();
             $this->prepareAutoAssignment();
             $this->prepareSubmitterTeams();
@@ -283,7 +288,8 @@ class QualityEngine
             'child_id' => $candidate->scope?->childId,
             'team_id' => $teamId,
             'severity' => $rule->severity,
-            'kind' => $rule->kind ?: QualityRule::KIND_QUERY,
+            // Observation envoyée dans les queries par l'administrateur : elle y reste.
+            'kind' => $existing['escalated'] ? QualityRule::KIND_QUERY : ($rule->kind ?: QualityRule::KIND_QUERY),
             'collector_id' => $household->collector_id,
             'cluster_id' => $household->cluster_id,
             'collection_date' => $household->interview_date?->toDateString(),

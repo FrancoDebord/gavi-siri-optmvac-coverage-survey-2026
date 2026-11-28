@@ -31,7 +31,8 @@
 
     <div class="alert alert-info small d-flex gap-2">
         <i class="bi bi-lightbulb"></i>
-        <div>Ouvrez la query et vérifiez sur le carnet ou la photo. Puis <strong>Corriger</strong> (bonne valeur) ou <strong>Valeur confirmée</strong> (si elle est juste, avec la source). Ne modifiez rien dans ODK.</div>
+        <div>Ouvrez la query et vérifiez sur le carnet ou la photo. Puis <strong>Corriger</strong> (bonne valeur) ou <strong>Valeur confirmée</strong> (si elle est juste, avec la source). Ne modifiez rien dans ODK.
+            Les <span class="badge text-bg-info-subtle text-info-emphasis border">observations</span> de supervision (heure, durée, envoi, GPS) n'ont rien à corriger : choisissez l'explication de ce qui s'est passé.</div>
     </div>
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -74,6 +75,7 @@
                             <x-severity-badge :severity="$query->severity" />
                             <strong class="ms-1">{{ $query->code }}</strong>
                             <x-rule-badge :code="$query->rule_code" class="ms-1" />
+                            @if ($query->escalated_at)<span class="badge text-bg-info-subtle text-info-emphasis border ms-1" title="Observation de supervision envoyée dans les queries">observation</span>@endif
                             <span class="text-muted">· ménage {{ $query->household_code ?? '—' }}{{ $query->cluster ? ' · '.$query->cluster->code : '' }}</span>
                         </span>
                         <span class="small text-nowrap"><x-status-badge :status="$query->status" /> <span class="text-muted ms-1">{{ $query->collection_date?->format('d/m/Y') }}</span></span>

@@ -49,6 +49,16 @@ export default function queryShowPage() {
             signature.classList.toggle('d-none', !required);
             signature.querySelector('input').required = required;
         }
+        // Observation de paradonnées : explication à choisir pour la réponse « valeur confirmée » seulement.
+        const explanation = document.getElementById('explanation-block');
+        if (explanation) {
+            const active = select.value === 'justifiee';
+            explanation.classList.toggle('d-none', !active);
+            explanation.querySelectorAll('input').forEach((el) => {
+                el.disabled = !active;
+                el.required = active;
+            });
+        }
         // Correction proposée : saisie des nouvelles valeurs (désactivées sinon, pour ne pas être envoyées).
         if (corrections) {
             const active = select.value === 'corrigee';

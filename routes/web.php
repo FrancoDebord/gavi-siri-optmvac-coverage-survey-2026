@@ -216,6 +216,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/queries/lot', [DataQueryController::class, 'bulk'])->name('queries.bulk')->middleware('throttle:30,1');
     Route::post('/queries/{query}/validation', [DataQueryController::class, 'assignReview'])->whereNumber('query')->name('queries.review-assign')->middleware('throttle:60,1');
     Route::post('/queries/lot/validation', [DataQueryController::class, 'bulkAssignReview'])->name('queries.bulk-review-assign')->middleware('throttle:30,1');
+    // Observations de supervision envoyées dans les queries (administrateur, data manager).
+    Route::post('/observations/queries', [SupervisionObservationController::class, 'escalate'])->name('observations.escalate')->middleware(['permission:validate queries', 'throttle:20,1']);
     Route::post('/queries/lot/affectation', [DataQueryController::class, 'bulkAssign'])->name('queries.bulk-assign')->middleware(['permission:assign queries', 'throttle:30,1']);
 
     Route::middleware('permission:report incidents')->group(function () {

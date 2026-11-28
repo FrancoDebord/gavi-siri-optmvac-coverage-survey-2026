@@ -122,8 +122,29 @@ class DataQuery extends Model
         'responded_by', 'responded_at', 'supervised_by', 'supervised_at', 'validated_by', 'detected_at', 'last_detected_at',
         'suggested_value', 'suggested_source', 'suggested_note', 'suggested_by', 'suggested_at',
         'reviewer_id', 'review_assigned_by', 'review_assigned_at',
-        'resolved_at', 'closed_at', 'auto_closed', 'resolved_by_query_id',
+        'resolved_at', 'closed_at', 'auto_closed', 'resolved_by_query_id', 'escalated_at', 'escalated_by',
     ];
+
+    /** Observation de supervision envoyée dans les queries (cycle de résolution normal). */
+    public function isEscalatedObservation(): bool
+    {
+        return $this->escalated_at !== null;
+    }
+
+    /**
+     * Observation de paradonnées envoyée dans les queries (heure, durée, volume, délai d'envoi, GPS) : rien à corriger
+     * dans le formulaire, le binôme répond par une explication (valeur confirmée).
+     */
+    public function isParadataObservation(): bool
+    {
+        return $this->isEscalatedObservation() && SupervisionObservation::isParadata($this->rule_code);
+    }
+
+    /** Administrateur ou data manager qui a envoyé l'observation dans les queries. */
+    public function escalator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'escalated_by');
+    }
 
     /** Query dont la correction proposée (en attente de validation) lève aussi l'erreur de celle-ci. */
     public function resolvedBy(): BelongsTo
@@ -276,6 +297,7 @@ class DataQuery extends Model
             'supervised_at' => 'datetime',
             'due_on' => 'date',
             'auto_closed' => 'boolean',
+            'escalated_at' => 'datetime',
         ];
     }
 

@@ -13,7 +13,7 @@ Définir comment une query de données est traitée, de sa détection à sa clô
 
 S'applique à toutes les queries de données générées par le moteur de la plateforme.
 
-Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont examinées avec les équipes sans cycle de résolution.
+Ne s'applique pas aux **observations de supervision** (paradonnées), qui sont examinées avec les équipes sans cycle de résolution, sauf celles que l'administrateur ou le data manager envoie dans les queries (voir 6).
 
 ## 3. Responsabilités
 
@@ -114,6 +114,9 @@ Le data manager peut rouvrir une query fermée, avec un motif. Une anomalie de n
 - **Conflit avec la source** : si une valeur corrigée change ensuite dans ODK, la correction est suspendue (« En conflit avec la source ») et la valeur d'ODK s'applique. Le data manager revoit ces corrections depuis le registre et, si besoin, propose une nouvelle correction.
 - **Base gelée** : aucune correction ni exclusion n'est possible. Les autres actions (affectation, valeur confirmée, validation d'une confirmation) restent possibles.
 - **Query sans variable** (soumission en double…) : on répond par une valeur confirmée, une exclusion ou « irrésoluble ».
+- **Observation de supervision envoyée dans les queries** : depuis la page « Observations de supervision », l'administrateur ou le data manager coche des observations encore constatées (ou prend toutes celles du filtre), ajoute au besoin une consigne, puis les envoie dans les queries. Chacune devient une query (badge « observation », filtre « Origine » de la liste). Elle est confiée au compte du binôme quand l'affectation automatique est active, et suit ensuite le cycle normal (5.3 à 5.5).
+  - Observation portant sur des données du formulaire (ex. type de murs, carte CPS) : on corrige ou on confirme, comme pour une query.
+  - Observation de paradonnées (durée, heure, date de la tablette, volume journalier, délai d'envoi, GPS) : rien n'est à corriger. L'agent choisit l'explication de ce qui s'est passé dans la liste proposée, ou « Autre explication » avec une précision obligatoire. La réponse est enregistrée comme valeur confirmée, puis vérifiée et validée.
 
 ## 7. Délais
 
@@ -149,3 +152,4 @@ Ils sont revus *[à compléter : fréquence, instance]*.
 | 1.0 | 18/11/2026 | Création | *[à compléter]* |
 | 1.1 | 20/11/2026 | Validation en deux temps : vérification du superviseur de la zone, puis validation finale de l'administrateur (à l'unité ou en bloc) | *[à compléter]* |
 | 1.2 | 22/11/2026 | Rechargement des données du ménage : les queries levées par une correction proposée la suivent (5.3, point 4) | *[à compléter]* |
+| 1.3 | 28/11/2026 | Envoi des observations de supervision dans les queries ; explications proposées aux binômes pour les paradonnées | *[à compléter]* |

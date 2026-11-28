@@ -95,6 +95,9 @@ class QueryWorkflow
             throw new InvalidArgumentException(sprintf('Transition impossible : « %s » → « %s ».', $query->statusLabel(), DataQuery::STATUSES[$status] ?? $status));
         }
 
+        if ($status === DataQuery::STATUS_CORRECTED && $query->isParadataObservation()) {
+            throw new InvalidArgumentException("Observation de paradonnées : rien à corriger dans le formulaire. Expliquez l'observation (réponse « valeur confirmée »).");
+        }
         $isResponse = in_array($status, DataQuery::RESPONSES, true);
         if ($user && ! self::allowed($user, $query, $status)) {
             throw new InvalidArgumentException(match (true) {

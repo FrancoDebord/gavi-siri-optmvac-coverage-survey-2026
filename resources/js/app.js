@@ -36,6 +36,7 @@ import smcCoveragePage from './pages/smc-coverage';
 import piResponsePage from './pages/pi-response';
 import photoSpacePage from './pages/photo-space';
 import photoProjectsPage from './pages/photo-projects';
+import observationsPage from './pages/observations';
 
 window.bootstrap = bootstrap;
 
@@ -62,6 +63,7 @@ const pages = {
     'pi-response': piResponsePage,
     'photo-space': photoSpacePage,
     'photo-projects': photoProjectsPage,
+    observations: observationsPage,
 };
 
 document.addEventListener('DOMContentLoaded', () => {

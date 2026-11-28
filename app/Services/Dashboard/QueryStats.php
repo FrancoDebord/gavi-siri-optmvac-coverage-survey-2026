@@ -86,6 +86,11 @@ class QueryStats
             $query->whereIn('data_queries.status', DataQuery::UNRESOLVED)->whereNotNull('data_queries.due_on')
                 ->where('data_queries.due_on', '<', now()->toDateString());
         }
+        if (! empty($this->extra['origin'])) {
+            $this->extra['origin'] === 'observation'
+                ? $query->whereNotNull('data_queries.escalated_at')
+                : $query->whereNull('data_queries.escalated_at');
+        }
         if (! empty($this->extra['code'])) {
             $query->where('data_queries.id', $this->extra['code']);
         }

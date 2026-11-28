@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Mail\Transport\GraphTransport;
+use App\Models\SupervisionObservation;
 use App\Models\User;
+use App\Policies\DataQueryPolicy;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Pagination\Paginator;
@@ -35,5 +37,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(SocialiteWasCalled::class, [MicrosoftExtendSocialite::class, 'handle']);
 
         Gate::before(fn (User $user) => $user->hasRole(User::ROLE_ADMIN) ? true : null);
+        // Observations de supervision : mêmes droits que les queries (périmètre, validation).
+        Gate::policy(SupervisionObservation::class, DataQueryPolicy::class);
     }
 }

@@ -56,6 +56,8 @@ class QueryDashboardController extends Controller
                 default => null,
             },
             'overdue' => $request->boolean('en_retard') ?: null,
+            // Origine : observations de supervision envoyées dans les queries, ou queries du moteur seulement.
+            'origin' => in_array($request->input('origine'), ['observation', 'moteur'], true) ? $request->input('origine') : null,
             // Validation confiée : « moi » ou une personne ; seules les réponses en attente.
             'reviewer' => match (true) {
                 $request->input('a_valider') === 'moi' => $request->user()?->id,

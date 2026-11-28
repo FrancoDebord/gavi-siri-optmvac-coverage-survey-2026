@@ -15,6 +15,7 @@ use App\Models\DataCorrection;
 use App\Models\DataQuery;
 use App\Models\QualityRule;
 use App\Models\QualityRun;
+use App\Models\SupervisionObservation;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Attachments\PhotoReader;
@@ -88,7 +89,10 @@ class DataQueryController extends Controller
         return view('queries.index', [
             'assignees' => $request->user()->can('assign queries') || $request->user()->can('view dashboards') ? self::assignableUsers() : collect(),
             'reviewers' => $request->user()->can('validate queries') ? self::reviewerUsers() : collect(),
-            'rules' => QualityRule::where('kind', QualityRule::KIND_QUERY)->orderBy('code')->get(['code', 'name']),
+            // Règles des queries, et celles des observations de supervision envoyées dans les queries.
+            'rules' => QualityRule::where('kind', QualityRule::KIND_QUERY)
+                ->orWhereIn('code', DataQuery::whereNotNull('escalated_at')->distinct()->select('rule_code'))
+                ->orderBy('code')->get(['code', 'name']),
             'lastRun' => QualityRun::latest('id')->first(),
             'variables' => DataQuery::whereNotNull('variable')->distinct()->orderBy('variable')->pluck('variable'),
         ]);
@@ -188,6 +192,7 @@ class DataQueryController extends Controller
                 'message' => $q->message,
                 'observed' => $q->observed_value,
                 'rule_code' => $q->rule_code,
+                'escalated' => $q->escalated_at !== null,
                 'severity' => $q->severity,
                 'severity_label' => QualityRule::SEVERITIES[$q->severity] ?? $q->severity,
                 'status' => $q->status,
@@ -205,7 +210,7 @@ class DataQueryController extends Controller
     public function show(DataQuery $query, SubmissionPhotos $photos): View
     {
         $this->authorize('view', $query);
-        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator', 'suggester', 'reviewer', 'supervisor']);
+        $query->load(['rule', 'household', 'child', 'healthZone', 'commune', 'village', 'cluster', 'collector', 'events.user', 'assignee', 'responder', 'validator', 'suggester', 'reviewer', 'supervisor', 'escalator']);
 
         $user = request()->user();
 
@@ -586,6 +591,28 @@ class DataQueryController extends Controller
         ],
     ];
 
+    /**
+     * Justification d'une observation de paradonnées : explication choisie dans la liste de la règle, complétée par
+     * les précisions de l'agent (obligatoires pour « Autre explication »).
+     */
+    private static function explain(DataQuery $query, ?string $explanation, ?string $comment): string
+    {
+        $choices = SupervisionObservation::explanationsFor($query->rule_code);
+        $comment = trim((string) $comment);
+        if ($explanation === null || ! array_key_exists($explanation, $choices)) {
+            throw new InvalidArgumentException("Choisissez l'explication de l'observation.");
+        }
+        if ($explanation === SupervisionObservation::OTHER) {
+            if ($comment === '') {
+                throw new InvalidArgumentException("« Autre explication » : précisez ce qui s'est passé.");
+            }
+
+            return 'Explication : '.$comment;
+        }
+
+        return 'Explication : '.$explanation.'.'.($comment !== '' ? ' '.$comment : '');
+    }
+
     public function updateStatus(QueryStatusRequest $request, DataQuery $query, QueryWorkflow $workflow): RedirectResponse
     {
         $this->authorize('view', $query);
@@ -613,6 +640,10 @@ class DataQueryController extends Controller
                 if ($closesAs && QueryWorkflow::allowed($request->user(), $query, $closesAs) && $query->canTransitionTo($closesAs)) {
                     [$status, $closesAs] = [$closesAs, null];
                 }
+            }
+            // Observation de paradonnées envoyée dans les queries : l'explication choisie par l'agent ouvre la justification.
+            if ($status === DataQuery::STATUS_JUSTIFIED && $query->isParadataObservation()) {
+                $comment = self::explain($query, $request->validated('explanation'), $comment);
             }
             // Réponse du binôme : fermeture attendue à la validation finale (ex. irrésoluble), ou aucune.
             if (in_array($status, DataQuery::RESPONSES, true)) {

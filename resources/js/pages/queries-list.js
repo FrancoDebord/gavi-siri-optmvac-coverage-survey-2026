@@ -63,7 +63,8 @@ export default function queriesListPage() {
                 data: 'code',
                 className: 'text-nowrap fw-semibold',
                 render: (v, t, row) => `<a href="${row.url}">${escapeHtml(v)}</a>
-                    <div><span class="badge text-bg-light border font-monospace" title="Règle de qualité violée">${escapeHtml(row.rule_code)}</span></div>`,
+                    <div><span class="badge text-bg-light border font-monospace" title="Règle de qualité violée">${escapeHtml(row.rule_code)}</span></div>
+                    ${row.escalated ? '<div><span class="badge text-bg-info-subtle text-info-emphasis border" title="Observation de supervision envoyée dans les queries">observation</span></div>' : ''}`,
             },
             {
                 data: 'label',
